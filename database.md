@@ -1,49 +1,27 @@
-# Digital Hub — PostgreSQL Database Schema (Updated Proposal)
+# Digital Hub — PostgreSQL Database Schema (Updated + Logs & Admin Notifications)
 
-This document defines a **complete, team-ready** PostgreSQL schema for the Digital Hub project (updated per your notes).
-It supports:
-- Public website content fully stored in DB (pages + home sections)
-- Programs (basic templates) + Cohorts (actual runs)
-- Multi-role users (admin/instructor/student simultaneously)
-- Profiles with optional LinkedIn/GitHub/Portfolio links
-- Manager profiles (managers appear on the public website)
-- Theme colors stored with purpose + CSS variable name
-- Events (with done/completed flag)
-- Sessions (calendar-like schedule) linked to cohorts, with onsite/remote, day plan, unusual flags
-- Attendance records linked to sessions (Phase 2 supported)
-- Announcements targeting: student/instructor/admin AND website visitors
+This document updates the database schema to include:
+✅ **Activity Logs** (every important action is recorded)  
+✅ **Admin Notifications** (each log event can generate a notification shown in Admin Dashboard)  
+✅ Notifications are **saved** and can be marked **read**.
 
----
-
-## 0) Conventions
-
-### 0.1 Primary keys
-- Use `BIGSERIAL` for most tables.
-
-### 0.2 Timestamps
-- Prefer `TIMESTAMPTZ` (timezone-aware).
-- Standard columns:
-  - `created_at TIMESTAMPTZ DEFAULT NOW()`
-  - `updated_at TIMESTAMPTZ DEFAULT NOW()`
-
-### 0.3 Public vs private data
-Public endpoints must never expose:
-- password hashes
-- admin-only notes
-- private contact data (unless you explicitly allow it)
+It keeps your latest decisions:
+- No student/instructor dashboards (profiles exist, managed by admin)
+- Multi-role users via flags: `is_admin`, `is_instructor`, `is_student`
+- Programs = templates, Cohorts = real runs
+- No sessions/attendance
+- Announcements can appear on website
+- Contact messages include visitors + companies/recruiters visit requests
+- Theme tokens stored with purpose + variable name
 
 ---
 
-# 1) Users & Roles (Multi-role)
+## 1) Users (Multi-role Flags)
 
-## 1.1 `users`
-Users can be **admin + instructor** at the same time, etc.
-Instead of a single `role`, we store booleans.
-
-Columns:
+### `users`
 - `id BIGSERIAL PRIMARY KEY`
-- `email TEXT UNIQUE` (nullable if you later allow phone-only login)
-- `phone TEXT UNIQUE` (nullable)
+- `email TEXT UNIQUE`
+- `phone TEXT UNIQUE`
 - `password_hash TEXT NOT NULL`
 
 Role flags:
@@ -51,7 +29,7 @@ Role flags:
 - `is_instructor BOOLEAN NOT NULL DEFAULT FALSE`
 - `is_student BOOLEAN NOT NULL DEFAULT FALSE`
 
-Account flags:
+Account:
 - `is_active BOOLEAN NOT NULL DEFAULT TRUE`
 - `last_login_at TIMESTAMPTZ`
 
@@ -59,94 +37,72 @@ Audit:
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- Role management happens in the admin dashboard by toggling these flags.
-- Your API middleware becomes:
-  - `requireAuth`
-  - `requireAdmin` checks `is_admin=true`
-  - `requireInstructor` checks `is_instructor=true`
-  - `requireStudent` checks `is_student=true`
-
 ---
 
-# 2) Profiles (All have optional social links)
+## 2) Profiles (Editable + Optional Social Links + Website Visibility)
 
-You asked: all profiles contain `linkedin`, `github`, `portfolio` (nullable).
+All profiles include:
+- `linkedin_url TEXT NULL`
+- `github_url TEXT NULL`
+- `portfolio_url TEXT NULL`
 
-## 2.1 `student_profiles`
-Columns:
+### `student_profiles`
 - `user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE`
 - `full_name TEXT NOT NULL`
 - `avatar_url TEXT`
 - `bio TEXT`
-
-Social links (nullable):
 - `linkedin_url TEXT`
 - `github_url TEXT`
 - `portfolio_url TEXT`
 
-Public flags:
-- `status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive','graduated'))`
+Website controls:
+- `is_public BOOLEAN NOT NULL DEFAULT FALSE` ✅ admin decides show or hide
 - `featured BOOLEAN NOT NULL DEFAULT FALSE`
 - `featured_rank INTEGER`
-- `public_slug TEXT UNIQUE` (recommended for public student detail URLs)
+- `public_slug TEXT UNIQUE` (recommended for public URLs)
 
-Audit:
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- Public website uses safe fields only (name/avatar/bio/social links if you allow them).
-
-## 2.2 `instructor_profiles`
-Columns:
+### `instructor_profiles`
 - `user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE`
 - `full_name TEXT NOT NULL`
 - `avatar_url TEXT`
 - `bio TEXT`
 - `expertise TEXT`
-
-Social links (nullable):
 - `linkedin_url TEXT`
 - `github_url TEXT`
 - `portfolio_url TEXT`
 
-Audit:
+Website controls:
+- `is_public BOOLEAN NOT NULL DEFAULT FALSE` ✅ admin decides show or hide
+
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
----
-
-## 2.3 `manager_profiles` ✅ (New)
-Managers are admins that should appear on the public website.
-
-Columns:
+### `manager_profiles` (admins shown publicly)
 - `user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE`
 - `full_name TEXT NOT NULL`
 - `avatar_url TEXT`
 - `bio TEXT`
-- `job_title TEXT` (e.g., "Program Manager", "Operations Manager")
-- `is_public BOOLEAN NOT NULL DEFAULT TRUE` ✅ controls visibility on website
-- `sort_order INTEGER NOT NULL DEFAULT 0`
-
-Social links (nullable):
+- `job_title TEXT`
 - `linkedin_url TEXT`
 - `github_url TEXT`
 - `portfolio_url TEXT`
 
-Audit:
+Website controls:
+- `is_public BOOLEAN NOT NULL DEFAULT TRUE`
+- `sort_order INTEGER NOT NULL DEFAULT 0`
+
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
 Notes:
-- The user must have `users.is_admin=true`, but being public is controlled by `manager_profiles.is_public`.
-- Public website endpoint `/public/managers` reads from `manager_profiles` where `is_public=true`.
+- A manager should have `users.is_admin=true`.
+- `manager_profiles.is_public` controls visibility on the website.
 
 ---
 
-# 3) Site CMS (All website content stored in DB)
+## 3) Site CMS
 
-## 3.1 `site_settings` (1-row table)
-Purpose: global site configuration + default values.
-
-Columns:
+### `site_settings` (one row)
 - `id SMALLINT PRIMARY KEY DEFAULT 1`
 - `site_name TEXT NOT NULL DEFAULT 'Digital Hub'`
 - `default_event_location TEXT NOT NULL DEFAULT 'Digital Hub'`
@@ -155,57 +111,27 @@ Columns:
 - `updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-### Explanation of `site_settings` (you asked for this)
-- **One row only**: it stores configuration for the whole website.
-- `id=1` means you keep exactly one row and always update it instead of inserting new rows.
-- `default_event_location`: if an event has no location saved, the frontend/API uses this as fallback.
-- `contact_info` (JSON): store address/phone/email in one object, example:
-  - `{ "address": "Beirut...", "phone": "+961...", "email": "info@..." }`
-- `social_links` (JSON): store links in one object, example:
-  - `{ "facebook": "...", "instagram": "...", "linkedin": "..." }`
-- `updated_by`: which admin user edited settings.
-- `updated_at`: last time settings were updated.
-
----
-
-## 3.2 Theme colors stored with purpose + variable name ✅
-Instead of storing theme as one JSON, we store it as rows so it’s easy to manage.
-
 ### `theme_tokens`
-Columns:
 - `id BIGSERIAL PRIMARY KEY`
-- `key TEXT UNIQUE NOT NULL` ✅ CSS variable name, e.g. `--bg`, `--text`, `--primary`
-- `purpose TEXT NOT NULL` ✅ human meaning, e.g. `Background`, `Text`, `Primary button`
-- `value TEXT NOT NULL` ✅ hex/rgb, e.g. `#0b0f19`
-- `scope TEXT NOT NULL DEFAULT 'global'` CHECK (scope IN ('global','web','admin'))
+- `key TEXT UNIQUE NOT NULL`            (CSS variable name: `--bg`, `--text`, `--primary`)
+- `purpose TEXT NOT NULL`               (human meaning: Background, Text, Primary button)
+- `value TEXT NOT NULL`                 (hex/rgb: `#0b0f19`)
+- `scope TEXT NOT NULL DEFAULT 'global' CHECK (scope IN ('global','web','admin'))`
 - `updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- Frontend fetches `theme_tokens` and applies:
-  - `document.documentElement.style.setProperty(token.key, token.value)`
-- `scope` lets you have separate themes for web vs admin if needed.
-
----
-
-## 3.3 `pages`
-Stores full page content (About, Contact, etc.)
-
-Columns:
+### `pages`
 - `id BIGSERIAL PRIMARY KEY`
-- `key TEXT UNIQUE NOT NULL` (e.g., `home`, `about`, `contact`)
+- `key TEXT UNIQUE NOT NULL`
 - `title TEXT`
 - `content JSONB NOT NULL DEFAULT '{}'::jsonb`
 - `is_published BOOLEAN NOT NULL DEFAULT TRUE`
 - `updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-## 3.4 `home_sections`
-Home page sections toggled on/off and ordered.
-
-Columns:
+### `home_sections`
 - `id BIGSERIAL PRIMARY KEY`
-- `key TEXT UNIQUE NOT NULL` (e.g., `hero`, `programs_preview`, `featured_students`)
+- `key TEXT UNIQUE NOT NULL`
 - `title TEXT`
 - `is_enabled BOOLEAN NOT NULL DEFAULT TRUE`
 - `sort_order INTEGER NOT NULL DEFAULT 0`
@@ -218,16 +144,9 @@ Index:
 
 ---
 
-# 4) Programs vs Cohorts ✅ (Updated model)
+## 4) Programs (Template) + Cohorts (Real Runs)
 
-You requested a better separation:
-- **Programs** = template/basic info (name, summary, requirements…)
-- **Cohorts** = the real run (status, dates, instructors, students)
-
-This is a very good design.
-
-## 4.1 `programs` (Template only)
-Columns:
+### `programs` (template only)
 - `id BIGSERIAL PRIMARY KEY`
 - `slug TEXT UNIQUE NOT NULL`
 - `title TEXT NOT NULL`
@@ -240,19 +159,14 @@ Columns:
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- No status here.
-- Cohorts control status/dates/applications.
-
-## 4.2 `cohorts` (Actual run of a program)
-Columns:
+### `cohorts` (real run of a program)
 - `id BIGSERIAL PRIMARY KEY`
 - `program_id BIGINT NOT NULL REFERENCES programs(id) ON DELETE CASCADE`
-- `name TEXT NOT NULL` (e.g., "Spring 2026")
+- `name TEXT NOT NULL`
 - `status TEXT NOT NULL DEFAULT 'planned'
    CHECK (status IN ('planned','coming_soon','open','running','completed','cancelled'))`
 
-Enrollment rules:
+Enrollment:
 - `allow_applications BOOLEAN NOT NULL DEFAULT FALSE`
 - `capacity INTEGER CHECK (capacity >= 0)`
 - `enrollment_open_at TIMESTAMPTZ`
@@ -262,68 +176,51 @@ Dates:
 - `start_date DATE`
 - `end_date DATE`
 
-Audit:
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- Your “coming soon no application now” rule belongs here:
-  - `status='coming_soon'` and `allow_applications=false`
-- Visitor applies to **cohort**, not program.
-
-## 4.3 `cohort_instructors` (Instructor assignment moved to cohorts)
-Columns:
+### `cohort_instructors`
 - `cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE`
 - `instructor_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE`
-- `cohort_role TEXT NOT NULL DEFAULT 'instructor'` (lead/assistant/mentor)
-- PRIMARY KEY (`cohort_id`, `instructor_user_id`)
-
-Notes:
-- Better than program-level assignment when each cohort can have different instructors.
+- `cohort_role TEXT NOT NULL DEFAULT 'instructor'`
+- PRIMARY KEY (cohort_id, instructor_user_id)
 
 ---
 
-# 5) Events ✅ (Add done/completed flag)
+## 5) Events (with Done Flag)
 
-## 5.1 `events`
-Columns:
+### `events`
 - `id BIGSERIAL PRIMARY KEY`
 - `slug TEXT UNIQUE NOT NULL`
 - `title TEXT NOT NULL`
 - `description TEXT`
-- `location TEXT` (fallback to site default if empty)
+- `location TEXT`
 - `starts_at TIMESTAMPTZ NOT NULL`
 - `ends_at TIMESTAMPTZ`
 - `is_published BOOLEAN NOT NULL DEFAULT FALSE`
 
 Done tracking:
-- `is_done BOOLEAN NOT NULL DEFAULT FALSE` ✅ (or you can auto-calc: ends_at < now)
+- `is_done BOOLEAN NOT NULL DEFAULT FALSE`
 - `done_at TIMESTAMPTZ`
 
-Audit:
 - `created_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- You can compute done automatically from `ends_at`, but the flag is useful for manual override.
-
 ---
 
-# 6) Dynamic Forms (Admin chooses fields)
+## 6) Forms (Dynamic Fields)
 
-## 6.1 `forms`
-Columns:
+### `forms`
 - `id BIGSERIAL PRIMARY KEY`
-- `key TEXT UNIQUE NOT NULL` (e.g., `cohort_application`, `contact`)
+- `key TEXT UNIQUE NOT NULL`  (ex: `cohort_application`, `contact`)
 - `title TEXT`
 - `description TEXT`
 - `is_active BOOLEAN NOT NULL DEFAULT TRUE`
 - `created_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-## 6.2 `form_fields`
-Columns:
+### `form_fields`
 - `id BIGSERIAL PRIMARY KEY`
 - `form_id BIGINT NOT NULL REFERENCES forms(id) ON DELETE CASCADE`
 - `name TEXT NOT NULL`
@@ -336,25 +233,20 @@ Columns:
 - `max_length INTEGER`
 - `sort_order INTEGER NOT NULL DEFAULT 0`
 - `is_enabled BOOLEAN NOT NULL DEFAULT TRUE`
-- UNIQUE (`form_id`, `name`)
-
-Notes:
-- You can have default fields (name/email/phone) and allow admin to add more fields.
+- UNIQUE (form_id, name)
 
 ---
 
-# 7) Applications (Visitor applies to a COHORT)
+## 7) Applications (Visitor applies to cohort)
 
-## 7.1 `applicants`
-Columns:
+### `applicants`
 - `id BIGSERIAL PRIMARY KEY`
 - `full_name TEXT`
 - `email TEXT`
 - `phone TEXT`
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-## 7.2 `applications`
-Columns:
+### `applications`
 - `id BIGSERIAL PRIMARY KEY`
 - `cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE`
 - `applicant_id BIGINT REFERENCES applicants(id) ON DELETE SET NULL`
@@ -365,12 +257,7 @@ Columns:
 - `reviewed_at TIMESTAMPTZ`
 - `submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Notes:
-- Duplicate prevention:
-  - (applicant_id, cohort_id) with status in pending/approved/waitlisted.
-
-## 7.3 `application_submissions`
-Columns:
+### `application_submissions`
 - `id BIGSERIAL PRIMARY KEY`
 - `application_id BIGINT NOT NULL REFERENCES applications(id) ON DELETE CASCADE`
 - `form_id BIGINT NOT NULL REFERENCES forms(id) ON DELETE RESTRICT`
@@ -379,10 +266,9 @@ Columns:
 
 ---
 
-# 8) Enrollments (Students assigned to cohorts)
+## 8) Enrollments (Created by admin approval)
 
-## 8.1 `enrollments`
-Columns:
+### `enrollments`
 - `id BIGSERIAL PRIMARY KEY`
 - `student_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE`
 - `cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE`
@@ -392,117 +278,39 @@ Columns:
    CHECK (status IN ('active','paused','completed','dropped'))`
 - `enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Constraints:
-- UNIQUE (`student_user_id`, `cohort_id`)
-
-Notes:
-- Instructor/student association is through cohorts.
+Constraint:
+- UNIQUE (student_user_id, cohort_id)
 
 ---
 
-# 9) Sessions (Calendar / Day Plan) ✅
+## 9) Announcements (can appear on website)
 
-You requested:
-- calendar-like schedule
-- day description (remote/on-site)
-- what is done in this day (agenda)
-- unusual/visitor/normal flags
-- referred to cohort
-
-## 9.1 `sessions`
-Columns:
-- `id BIGSERIAL PRIMARY KEY`
-- `cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE`
-
-Scheduling:
-- `date DATE NOT NULL` ✅ easy calendar grouping
-- `starts_at TIME` (optional)
-- `ends_at TIME` (optional)
-
-Delivery & location:
-- `delivery_mode TEXT NOT NULL DEFAULT 'onsite' CHECK (delivery_mode IN ('onsite','remote','hybrid'))`
-- `location TEXT` (optional; if onsite and null, you can use Digital Hub address from site_settings)
-
-Content:
-- `title TEXT NOT NULL`
-- `day_plan TEXT` ✅ what is done in this day (agenda/plan)
-- `description TEXT` (extra notes)
-
-Special flags:
-- `session_type TEXT NOT NULL DEFAULT 'normal'
-   CHECK (session_type IN ('normal','visitor','unusual','exam','workshop'))`
-
-Audit:
-- `created_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
-- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-
-Notes:
-- This supports calendar UI in student/instructor dashboards.
-- Use `date` for month/week calendar and `starts_at/ends_at` for schedule.
-
----
-
-# 10) Attendance (Phase 2) ✅
-
-Attendance records refer to sessions (good design). Phase 2 keeps flexibility.
-
-## 10.1 `attendance_records`
-Columns:
-- `session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE`
-- `enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE`
-
-Attendance:
-- `status TEXT NOT NULL CHECK (status IN ('present','absent','late','excused'))`
-- `note TEXT`
-- `marked_by BIGINT REFERENCES users(id) ON DELETE SET NULL` (instructor)
-- `marked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-
-Primary key:
-- PRIMARY KEY (`session_id`, `enrollment_id`)
-
-Optional student check-in (later):
-- `attendance_checkins` table with session code, etc.
-
----
-
-# 11) Announcements ✅ (Add target for website too)
-
-You requested: target_role includes website visitors too.
-
-## 11.1 `announcements`
-Columns:
+### `announcements`
 - `id BIGSERIAL PRIMARY KEY`
 - `title TEXT NOT NULL`
 - `body TEXT NOT NULL`
 
 Targeting:
 - `target_audience TEXT NOT NULL DEFAULT 'all'
-   CHECK (target_audience IN ('all','website','student','instructor','admin'))` ✅
+   CHECK (target_audience IN ('all','website','admin'))`
+  NOTE: since you removed student/instructor dashboards, we keep only what you need now.
+
+Scope:
 - `cohort_id BIGINT REFERENCES cohorts(id) ON DELETE CASCADE` (nullable)
-- `is_auto BOOLEAN NOT NULL DEFAULT FALSE` (e.g., cohort coming soon auto announcement)
 
 Publication:
+- `is_auto BOOLEAN NOT NULL DEFAULT FALSE`
 - `is_published BOOLEAN NOT NULL DEFAULT TRUE`
 - `publish_at TIMESTAMPTZ`
 
-Audit:
 - `created_by BIGINT REFERENCES users(id) ON DELETE SET NULL`
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-Rules:
-- When cohort status becomes `coming_soon`, server can auto-create:
-  - `target_audience='website'`, `is_auto=true`
-
-Notes:
-- Website announcements page can show:
-  - target_audience in ('website','all') AND is_published=true.
-
 ---
 
-# 12) Contact Messages
+## 10) Contact Messages (Visitors + Companies/Recruiters Visit Requests)
 
-## 12.1 `contact_messages`
-Columns:
+### `contact_messages`
 - `id BIGSERIAL PRIMARY KEY`
 - `name TEXT NOT NULL`
 - `email TEXT NOT NULL`
@@ -510,37 +318,93 @@ Columns:
 - `subject TEXT`
 - `message TEXT NOT NULL`
 
+Category:
+- `kind TEXT NOT NULL DEFAULT 'question'
+   CHECK (kind IN ('question','visit_request','feedback'))` 
+
+Company fields (nullable):
+- `company_name TEXT`
+- `company_role TEXT` (ex: recruiter, HR, manager)
+- `visit_preferred_dates TEXT` (or JSONB if you want structured)
+- `visit_notes TEXT`
+
 Workflow:
 - `status TEXT NOT NULL DEFAULT 'new'
    CHECK (status IN ('new','in_progress','resolved'))`
 - `assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL`
+
+Email tracking (optional but recommended):
+- `last_replied_at TIMESTAMPTZ`
+
 - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 - `resolved_at TIMESTAMPTZ`
 
 ---
 
-# 13) Final Notes / Recommendations
+# 11) NEW: Logs + Admin Notifications ✅
 
-### A) Multi-role users
-Using `is_admin/is_instructor/is_student` is good and flexible for your project.
-Admin dashboard should manage these flags safely.
+## 11.1 `activity_logs`
+Purpose: store a permanent history of important actions (audit trail).
 
-### B) Programs vs cohorts separation
-Yes: keep program as template and cohort as “real run”.
-It makes scheduling, enrollment, and instructor assignment clean.
+Columns:
+- `id BIGSERIAL PRIMARY KEY`
+- `actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`  (who did it)
+- `action TEXT NOT NULL`  (short code, ex: `COHORT_CREATED`, `APPLICATION_APPROVED`)
+- `entity_type TEXT NOT NULL`  (ex: `cohort`, `application`, `user`, `theme_token`)
+- `entity_id BIGINT`  (id of entity if applicable)
+- `message TEXT NOT NULL`  (human readable summary)
+- `metadata JSONB NOT NULL DEFAULT '{}'::jsonb` (extra details)
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
-### C) Events done status
-Adding `is_done` is fine. You can also auto-update it when `ends_at < NOW()`.
+Indexes:
+- index on `created_at`
+- index on `(entity_type, entity_id)`
+- index on `actor_user_id`
 
-### D) Theme tokens
-Storing theme tokens as rows is more editable and clearer than one JSON blob:
-- variable name (`--primary`)
-- purpose (`Primary button`)
-- value (`#...`)
+Examples of actions to log:
+- admin login
+- create/update/delete program
+- create/update cohort
+- change cohort status
+- approve/reject application
+- create enrollment
+- edit pages/home sections/site settings/theme tokens
+- create announcement/event
+- reply to contact message
 
 ---
 
-# 14) Tables Summary (Updated)
+## 11.2 `admin_notifications`
+Purpose: show notifications in Admin Dashboard (unread/read), backed by logs.
+
+Columns:
+- `id BIGSERIAL PRIMARY KEY`
+- `recipient_admin_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `log_id BIGINT REFERENCES activity_logs(id) ON DELETE CASCADE` ✅ link to log event
+- `title TEXT NOT NULL`       (ex: "New application submitted")
+- `body TEXT`                 (short preview)
+- `is_read BOOLEAN NOT NULL DEFAULT FALSE`
+- `read_at TIMESTAMPTZ`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Indexes:
+- index on `(recipient_admin_user_id, is_read, created_at)`
+
+Notes:
+- If you have multiple admins, you can create one notification per admin.
+- If you want “notify only specific admins”, choose recipients in server logic.
+
+---
+
+## 11.3 How logs → notifications works (implementation note)
+Recommended server rule:
+- Every time you insert an `activity_logs` row:
+  - also insert `admin_notifications` rows for all admins (or chosen admins)
+- This is best done in server code (not SQL trigger) so you can control recipients.
+
+---
+
+# 12) Tables Summary
 
 Users:
 - `users`
@@ -556,7 +420,7 @@ CMS:
 - `pages`
 - `home_sections`
 
-Programs & Cohorts:
+Programs/Cohorts:
 - `programs`
 - `cohorts`
 - `cohort_instructors`
@@ -576,10 +440,10 @@ Applications:
 Enrollments:
 - `enrollments`
 
-Sessions & Attendance:
-- `sessions`
-- `attendance_records`
-
 Comms:
 - `announcements`
 - `contact_messages`
+
+Audit/Notifications:
+- `activity_logs`
+- `admin_notifications`

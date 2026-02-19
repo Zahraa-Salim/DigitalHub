@@ -1,369 +1,592 @@
-# Digital Hub — Server Specification (Express + TypeScript + PostgreSQL/Neon)
+# Digital Hub — Server Implementation Guide
+## Express API + PostgreSQL (Neon)
 
-This document describes **exactly what the server must do** for the Digital Hub project.
-It is written to be understandable for the team **and usable as a Codex prompt** later in VS Code.
+This document defines **exactly what the server must implement** for the Digital Hub platform.
 
-It matches our **updated database model**:
-- `users` has multi-role flags: `is_admin`, `is_student`, `is_instructor`
-- Cohort-first workflow (students/instructors assigned to cohorts, not programs)
-- Sessions are calendar items (onsite/remote/hybrid, day plan, special type)
-- Attendance is linked to sessions + enrollments (Phase 2 included)
-- Announcements can target `website`, `student`, `instructor`, `admin`, `all`
-- Theme colors are stored as `theme_tokens` with variable name + purpose + value
-
-Neon/Postgres notes:
-- Neon typically requires SSL; node-postgres supports SSL via connection config. :contentReference[oaicite:0]{index=0}
-- If you see connection errors, Neon provides specific troubleshooting guidance. :contentReference[oaicite:1]{index=1}
+It is intended to:
+- Guide backend implementation
+- Serve as API contract for frontend
+- Be used as a prompt for AI-assisted code generation (Codex)
+- Ensure consistency with business requirements and database schema
 
 ---
 
-## 1) Tech Stack & Server Rules
+# 1. Architecture Overview
 
-### 1.1 Stack
-- Node.js + Express
-- TypeScript (ESM)
-- PostgreSQL on Neon
-- `pg` library (Pool)
-- `dotenv` for local env
-- Request validation: Zod (recommended)
-- Auth: bcrypt + JWT
+Backend Stack:
+- Node.js
+- Express
+- PostgreSQL (Neon)
+- JWT Authentication
+- Bcrypt Password Hashing
 
-### 1.2 Non-negotiable rules
-- No direct DB access from frontend (web/admin/student/instructor). All access goes through API.
-- All DB queries must be parameterized (avoid SQL injection).
-- Separate public endpoints from protected endpoints.
-- Role checks must use `users.is_admin/is_student/is_instructor` flags.
+Project structure:
 
-### 1.3 Project layout (server)
-Recommended:
 server/
-src/
-index.ts
-db/
-pool.ts
-config/
-env.ts
-middleware/
-auth.ts
-error.ts
-validate.ts
-modules/
-public/
-admin/
-student/
-instructor/
-utils/
-crypto.ts
-pagination.ts
-migrations/
-.env.example
----
-
-## 2) Environment Variables (Neon)
-
-### 2.1 Required `.env` vars (recommended explicit pg vars)
-PORT=5000
-PGHOST=...
-PGPORT=5432
-PGDATABASE=...
-PGUSER=...
-PGPASSWORD=...
-PGSSLMODE=require
-
-
-### 2.2 DB Pool
-- Create a single `Pool` instance.
-- Use SSL for Neon (common approach: `ssl: { rejectUnauthorized: false }` OR rely on sslmode). See node-postgres SSL docs. :contentReference[oaicite:2]{index=2}
-
-**Pool must be reused** across requests (do not create new pools per request).
+│
+├── src/
+│   ├── routes/
+│   ├── controllers/
+│   ├── services/
+│   ├── repositories/
+│   ├── middleware/
+│   ├── validators/
+│   ├── utils/
+│   ├── db/
+│   └── index.ts
+│
+└── .env
 
 ---
 
-## 3) Authentication & Authorization
+# 2. Core Backend Responsibilities
 
-### 3.1 Login strategy
-- Users authenticate with email OR phone + password.
-- Password stored as bcrypt hash.
-- Server issues JWT containing:
-  - `userId`
-  - `is_admin`, `is_student`, `is_instructor`
+Server must:
 
-### 3.2 Middleware
-Implement:
-- `requireAuth`: verifies JWT, attaches `req.user` (id + flags)
-- `requireAdmin`: requires `req.user.is_admin`
-- `requireStudent`: requires `req.user.is_student`
-- `requireInstructor`: requires `req.user.is_instructor`
+- Authenticate Admin users
+- Manage all CMS data
+- Manage users and profiles
+- Manage programs and cohorts
+- Handle applications
+- Approve enrollments
+- Handle announcements
+- Handle events
+- Handle contact messages
+- Generate activity logs
+- Generate in-dashboard admin notifications
 
-### 3.3 Role switching (multi-role users)
-If a user has multiple flags true:
-- Allow access to multiple dashboards.
-- The frontend can show a “Switch Dashboard” UI; server simply enforces route permissions.
+Server must NOT:
+
+- Send push/email notifications automatically (dashboard only for now)
 
 ---
 
-## 4) API Modules (What Server Must Provide)
+# 3. Authentication
 
-### 4.1 Public API (main website)
-Base: `/public/*`
+JWT Admin authentication required for:
 
-#### 4.1.1 Bootstrap / Settings
-- `GET /public/site-settings`
-  - returns `site_settings` (site name, contact info, social links, default event location)
-- `GET /public/theme`
-  - returns `theme_tokens[]` (key, purpose, value, scope)
+- All dashboard endpoints
+- CMS editing
+- User/profile management
+- Applications review
+- Program/Cohort management
+- Announcements
+- Events
+- Contact message replies
 
-#### 4.1.2 Home
-- `GET /public/home`
-  - returns enabled `home_sections` ordered by `sort_order`
+Middleware required:
 
-#### 4.1.3 Pages
-- `GET /public/pages/:key`
-  - returns page `content` if `is_published=true`
+- verifyAdminAuth()
 
-#### 4.1.4 Programs (templates)
+---
+
+# 4. Pagination / Sorting / Filtering (GLOBAL RULE)
+
+All list endpoints MUST support:
+
+Query params:
+
+| Param     | Description |
+|-----------|-------------|
+page        | page number |
+limit       | items per page |
+sortBy      | column name |
+order       | asc / desc |
+search      | full text search |
+status      | optional filter |
+is_public   | optional filter |
+featured    | optional filter |
+cohort_id   | optional filter |
+
+Default:
+page=1  
+limit=10  
+order=desc  
+
+Return format:
+
+{
+  data: [],
+  pagination: {
+    page,
+    limit,
+    total,
+    totalPages
+  }
+}
+
+---
+
+# 5. Logging + Notifications (MANDATORY)
+
+Every admin action MUST:
+
+1. Insert into:
+   activity_logs
+
+2. Insert into:
+   admin_notifications
+   for ALL admin users
+
+Actions that MUST be logged:
+
+- login
+- create/update/delete program
+- create/update cohort
+- change cohort status
+- approve/reject application
+- create enrollment
+- edit pages
+- edit home sections
+- edit site settings
+- edit theme tokens
+- create announcement
+- create event
+- reply to contact message
+- profile visibility change
+
+Helper function required:
+
+logAdminAction({
+ actorUserId,
+ action,
+ entityType,
+ entityId,
+ message,
+ metadata
+})
+
+This function MUST:
+- insert into activity_logs
+- create admin_notifications rows
+
+---
+
+# 6. CMS Endpoints
+
+Admin Only:
+
+GET    /cms/site-settings  
+PATCH  /cms/site-settings  
+
+GET    /cms/pages  
+PATCH  /cms/pages/:id  
+
+GET    /cms/home-sections  
+PATCH  /cms/home-sections/:id  
+
+GET    /cms/theme  
+POST   /cms/theme  
+PATCH  /cms/theme/:id  
+
+All CMS updates MUST log activity.
+
+---
+
+# 7. Programs + Cohorts
+
+Programs = template only  
+Cohorts = real run
+
+Programs:
+
+POST   /programs  
+GET    /programs  
+PATCH  /programs/:id  
+DELETE /programs/:id  
+
+Cohorts:
+
+POST   /cohorts  
+GET    /cohorts  
+PATCH  /cohorts/:id  
+DELETE /cohorts/:id  
+
+POST   /cohorts/:id/open  
+POST   /cohorts/:id/close  
+
+GET    /cohorts/:id/instructors  
+POST   /cohorts/:id/instructors  
+
+All MUST log activity.
+
+---
+
+# 8. Users + Profiles
+
+Admin manages:
+
+- student_profiles
+- instructor_profiles
+- manager_profiles
+
+Endpoints:
+
+GET    /profiles/students  
+PATCH  /profiles/students/:userId  
+
+GET    /profiles/instructors  
+PATCH  /profiles/instructors/:userId  
+
+GET    /profiles/managers  
+PATCH  /profiles/managers/:userId  
+
+Visibility:
+
+PATCH  /profiles/students/:userId/visibility  
+PATCH  /profiles/instructors/:userId/visibility  
+PATCH  /profiles/managers/:userId/visibility  
+
+Visibility changes MUST log activity.
+
+---
+
+# 9. Applications
+
+Visitor applies to cohort.
+
+Public:
+
+POST /applications
+
+Admin:
+
+GET  /applications  
+PATCH /applications/:id/approve  
+PATCH /applications/:id/reject  
+
+Approve must:
+
+- create user
+- create student_profile
+- create enrollment
+- log activity
+
+---
+
+# 10. Announcements
+
+POST   /announcements  
+GET    /announcements  
+PATCH  /announcements/:id  
+DELETE /announcements/:id  
+
+If target = website  
+→ must appear publicly
+
+All must log.
+
+---
+
+# 11. Events
+
+POST   /events  
+GET    /events  
+PATCH  /events/:id  
+DELETE /events/:id  
+
+PATCH  /events/:id/mark-done  
+
+All must log.
+
+---
+
+# 12. Contact Messages
+
+Public:
+
+POST /contact
+
+Admin:
+
+GET    /contact  
+PATCH  /contact/:id/status  
+POST   /contact/:id/reply  
+
+Reply MUST:
+
+- update last_replied_at
+- log action
+
+---
+
+# 13. Admin Notifications
+
+GET    /notifications  
+PATCH  /notifications/:id/read  
+PATCH  /notifications/read-all  
+
+---
+
+# 14. Activity Logs
+
+GET /logs
+
+Supports:
+
+- actor_user_id
+- action
+- entity_type
+- date_from
+- date_to
+
+---
+
+# 15. Public Website Endpoints
+
+GET /public/programs  
+GET /public/cohorts  
+GET /public/events  
+GET /public/announcements  
+GET /public/managers  
+GET /public/instructors  
+GET /public/students  
+
+Public endpoints must only return:
+
+is_public = true
+
+---
+
+# 16. Required Middleware
+
+- verifyAdminAuth
+- validatePagination
+- validateRequest
+- errorHandler
+
+---
+
+# 17. Transactions (MANDATORY)
+
+Use DB transaction when:
+
+- approving application
+- creating enrollment
+- assigning instructor
+- editing CMS
+- creating announcement/event
+
+Rollback on failure.
+
+---
+
+# 18. Security
+
+- Password hashing with bcrypt
+- JWT expiration
+- Role check: is_admin=true
+- Input validation
+- SQL injection prevention
+
+---
+
+# 19. Success Criteria
+
+Server must:
+
+- Support CMS
+- Support Programs/Cohorts
+- Support Applications
+- Support Profiles
+- Support Events
+- Support Announcements
+- Support Contact
+- Generate logs
+- Generate admin dashboard notifications
+- Support pagination/filter/sort
+
+---
+
+# 20. Current Implementation Status (Updated)
+
+## 20.1 What Is Done In Server
+
+- Layered architecture is implemented:
+  - `routes -> controllers -> services -> repositories -> schemas`
+- Standard response helpers are in use:
+  - `sendSuccess`, `sendList`, `sendError`
+- Admin auth middleware is implemented and enforced on admin-only routes:
+  - `verifyAdminAuth`
+- Zod validation is implemented with `validateRequest` on write endpoints.
+- Pagination/filter/sort/search utilities are implemented with:
+  - `parseListQuery`, `parseQueryBoolean`, `buildPagination`
+- Activity logging + admin notifications are implemented through:
+  - `logAdminAction()`
+- Transactions are implemented for key flows:
+  - application approval
+  - CMS edits
+  - announcement/event creation
+  - instructor assignment
+- Seed script is implemented:
+  - `src/scripts/seedAdmin.ts`
+- Duplicate application protection is implemented with normalized email/phone + DB unique indexes.
+
+## 20.2 What You Still Need To Do In Server
+
+- Add missing public website endpoints required by `website.md`:
+  - `GET /public/theme`
+  - `GET /public/home` or `GET /public/home-sections`
+  - `GET /public/pages/:key`
+  - `GET /public/programs/:slug`
+  - `GET /public/students/:public_slug`
+- Add optional form bootstrap endpoint if you want dynamic apply form fields:
+  - `GET /public/forms/cohort-application?cohortId=...`
+- Add missing public filters/rules from website contract:
+  - `GET /public/cohorts?programSlug=...`
+  - `GET /public/events?upcoming=true` and `GET /public/events?is_done=true`
+  - announcement rule: `publish_at <= NOW()` when `publish_at` is set
+- Enforce apply-window rules in public application flow:
+  - reject when cohort is not open for applications
+  - reject when enrollment window is closed
+- Add automated API regression tests (recommended).
+- Add API collection (Postman/Insomnia) for faster frontend QA (recommended).
+
+## 20.3 Implemented Routes (Current)
+
+Health:
+- `GET /`
+- `GET /health`
+
+Auth:
+- `POST /auth/login`
+
+CMS (Admin):
+- `GET /cms/site-settings`
+- `PATCH /cms/site-settings`
+- `GET /cms/pages`
+- `PATCH /cms/pages/:id`
+- `GET /cms/home-sections`
+- `PATCH /cms/home-sections/:id`
+- `GET /cms/theme`
+- `POST /cms/theme`
+- `PATCH /cms/theme/:id`
+
+Programs + Cohorts (Admin):
+- `POST /programs`
+- `GET /programs`
+- `PATCH /programs/:id`
+- `DELETE /programs/:id`
+- `POST /cohorts`
+- `GET /cohorts`
+- `PATCH /cohorts/:id`
+- `DELETE /cohorts/:id`
+- `POST /cohorts/:id/open`
+- `POST /cohorts/:id/close`
+- `GET /cohorts/:id/instructors`
+- `POST /cohorts/:id/instructors`
+
+Profiles (Admin):
+- `GET /profiles/students`
+- `PATCH /profiles/students/:userId`
+- `PATCH /profiles/students/:userId/visibility`
+- `GET /profiles/instructors`
+- `PATCH /profiles/instructors/:userId`
+- `PATCH /profiles/instructors/:userId/visibility`
+- `GET /profiles/managers`
+- `PATCH /profiles/managers/:userId`
+- `PATCH /profiles/managers/:userId/visibility`
+
+Applications:
+- `POST /applications` (Public)
+- `GET /applications` (Admin)
+- `PATCH /applications/:id/approve` (Admin)
+- `PATCH /applications/:id/reject` (Admin)
+
+Announcements (Admin):
+- `POST /announcements`
+- `GET /announcements`
+- `PATCH /announcements/:id`
+- `DELETE /announcements/:id`
+
+Events (Admin):
+- `POST /events`
+- `GET /events`
+- `PATCH /events/:id`
+- `DELETE /events/:id`
+- `PATCH /events/:id/mark-done`
+
+Contact:
+- `POST /contact` (Public)
+- `GET /contact` (Admin)
+- `PATCH /contact/:id/status` (Admin)
+- `POST /contact/:id/reply` (Admin)
+
+Notifications (Admin):
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `PATCH /notifications/read-all`
+
+Logs (Admin):
+- `GET /logs`
+
+Public:
 - `GET /public/programs`
-  - list program templates where `is_published=true`
-- `GET /public/programs/:slug`
-  - program template detail
-
-#### 4.1.5 Cohorts (runs of programs)
-- `GET /public/cohorts?programSlug=...`
-  - list cohorts for a program; website should show status badges
-  - include apply availability based on `status`, `allow_applications`, time window
-- `GET /public/cohorts/:id`
-  - cohort detail + program template info + instructors assigned to cohort
-
-#### 4.1.6 Application Form (dynamic)
-- `GET /public/forms/cohort-application?cohortId=...`
-  - returns active `form_fields` for `forms.key='cohort_application'`
-
-#### 4.1.7 Submit Application
-- `POST /public/applications`
-  - validates cohort is open for applications:
-    - cohort.status == 'open'
-    - cohort.allow_applications == true
-    - (optional) now between enrollment_open_at & enrollment_close_at
-    - capacity not full (server check)
-  - upsert `applicants` (by email/phone)
-  - create `applications` (cohort_id, applicant_id, status='pending')
-  - create `application_submissions` with answers JSON
-  - prevent duplicates (existing application for same applicant+cohort with pending/approved/waitlisted)
-
-#### 4.1.8 Events
-- `GET /public/events?upcoming=true`
-- `GET /public/events/:slug`
-  - location fallback: if event.location empty, return site_settings.default_event_location
-
-#### 4.1.9 People pages
-- `GET /public/instructors`
-  - from `instructor_profiles` (public safe fields)
-- `GET /public/students?featuredOnly=false&search=&page=&limit=`
-  - from `student_profiles` (public safe fields)
-- `GET /public/students/:public_slug` (or `:id` if you keep numeric)
-- `GET /public/managers`
-  - from `manager_profiles` where `is_public=true`
-
-#### 4.1.10 Announcements (public)
+- `GET /public/cohorts`
+- `GET /public/events`
 - `GET /public/announcements`
-  - show announcements where:
-    - `target_audience IN ('website','all')`
-    - `is_published=true`
-    - `publish_at <= now()` if publish_at exists
-
-#### 4.1.11 Contact
-- `POST /public/contact`
-  - inserts into `contact_messages` (status='new')
-  - rate-limit recommended
+- `GET /public/managers`
+- `GET /public/instructors`
+- `GET /public/students`
 
 ---
 
-### 4.2 Admin API
-Base: `/admin/*` (all require `requireAdmin`)
+# 21. Redis, Rate Limit, and Cache Status (Render + Local)
 
-#### 4.2.1 Site Settings + Theme
-- CRUD theme tokens:
-  - `GET /admin/theme-tokens`
-  - `POST /admin/theme-tokens`
-  - `PATCH /admin/theme-tokens/:id`
-  - `DELETE /admin/theme-tokens/:id`
-- Update site settings:
-  - `GET /admin/site-settings`
-  - `PATCH /admin/site-settings`
+## 21.1 What Was Implemented
 
-#### 4.2.2 Pages + Home Sections
-- Pages CRUD (or edit-only):
-  - `GET /admin/pages`
-  - `PATCH /admin/pages/:key`
-  - publish/unpublish
-- Home sections:
-  - `GET /admin/home-sections`
-  - `PATCH /admin/home-sections/:key` (toggle, reorder, content)
+- Optional Redis client utility with graceful fallback:
+  - `src/utils/redis.ts`
+  - Uses `REDIS_URL` when available.
+  - If Redis is missing/unavailable, server still starts and requests continue.
+- Redis-backed rate limiting middleware:
+  - `src/middleware/rateLimit.ts`
+  - Falls back to noop if Redis is down.
+- Cache helpers:
+  - `src/utils/cache.ts`
+  - Safe no-op behavior when Redis is unavailable.
+- Public endpoint caching at service layer:
+  - `GET /public/theme` cached as `public:theme` for `600s`
+  - `GET /public/home` cached as `public:home` for `60s`
+- Cache invalidation after admin CMS writes:
+  - Theme create/update invalidates `public:theme`
+  - Home section update invalidates `public:home`
 
-#### 4.2.3 Programs (templates)
-- `POST /admin/programs`
-- `PATCH /admin/programs/:id`
-- `DELETE /admin/programs/:id` (optional safe delete)
-- publish/unpublish
+## 21.2 Rate-Limited Endpoints
 
-#### 4.2.4 Cohorts
-- `POST /admin/cohorts` (create run)
-- `PATCH /admin/cohorts/:id` (status, dates, capacity, enrollment window)
-- When cohort status becomes `coming_soon`:
-  - auto-create announcement:
-    - target_audience='website'
-    - is_auto=true
-    - cohort_id set
+- `POST /applications`
+  - max 5 requests / 10 minutes per IP
+- `POST /contact`
+  - max 5 requests / 10 minutes per IP
+- `POST /auth/login`
+  - max 10 requests / 10 minutes per IP
 
-#### 4.2.5 Cohort instructors
-- `POST /admin/cohorts/:id/instructors`
-- `PATCH /admin/cohorts/:id/instructors/:instructorUserId` (role)
-- `DELETE /admin/cohorts/:id/instructors/:instructorUserId`
+When limit is exceeded:
+- HTTP `429`
+- code: `RATE_LIMITED`
+- message: `Too many requests. Please try again later.`
 
-#### 4.2.6 Forms management
-- `GET /admin/forms`
-- `POST /admin/forms`
-- `PATCH /admin/forms/:id`
-- `GET /admin/forms/:id/fields`
-- `POST /admin/forms/:id/fields`
-- `PATCH /admin/form-fields/:fieldId`
-- `DELETE /admin/form-fields/:fieldId`
+## 21.3 New Public Endpoints Added
 
-#### 4.2.7 Applications pipeline
-- `GET /admin/applications?status=&cohortId=&page=`
-- `GET /admin/applications/:id`
-- `POST /admin/applications/:id/approve`
-  - creates/updates:
-    - `users` (student flag true)
-    - `student_profiles`
-    - `enrollments` (student_user_id, cohort_id)
-  - updates application status approved
-- `POST /admin/applications/:id/reject`
-- `POST /admin/applications/:id/waitlist`
+- `GET /public/theme`
+- `GET /public/home`
 
-#### 4.2.8 Users & profiles management
-- `GET /admin/users?roleFilter=admin|student|instructor`
-  - roleFilter maps to flags
-- `PATCH /admin/users/:id/roles`
-  - toggle is_admin/is_student/is_instructor
-- Manage profiles:
-  - `PATCH /admin/students/:userId`
-  - `PATCH /admin/instructors/:userId`
-  - `PATCH /admin/managers/:userId` (create/update manager profile + is_public + sort)
+Both use the standard success response:
+- `{ success: true, data: ... }`
 
-#### 4.2.9 Sessions (calendar)
-- `GET /admin/cohorts/:id/sessions`
-- `POST /admin/cohorts/:id/sessions`
-- `PATCH /admin/sessions/:sessionId`
-- `DELETE /admin/sessions/:sessionId`
+## 21.4 Render + Local Environment Notes
 
-#### 4.2.10 Attendance (admin view)
-- `GET /admin/sessions/:sessionId/attendance`
-- `GET /admin/cohorts/:cohortId/attendance-summary`
+- Production on Render:
+  - Set `REDIS_URL` from Render Key Value.
+- Local development:
+  - `REDIS_URL` may be omitted.
+  - Rate limiting and cache degrade gracefully (no crash, no blocking).
+- `.env.example` now includes:
+  - `REDIS_URL=redis://localhost:6379`
 
-#### 4.2.11 Announcements
-- CRUD announcements:
-  - audience: website/student/instructor/admin/all
-  - optional cohort scope
-  - publish scheduling
+## 21.5 Why This Is Useful
 
-#### 4.2.12 Contact messages
-- `GET /admin/contact-messages?status=`
-- `PATCH /admin/contact-messages/:id` (status, assigned_to)
-
----
-
-### 4.3 Student API
-Base: `/student/*` (requireAuth + requireStudent)
-
-- `GET /student/me`
-- `PATCH /student/profile` (bio/avatar/social links, if allowed)
-- `GET /student/enrollments`
-- `GET /student/cohorts/:id` (only if enrolled)
-- `GET /student/sessions?cohortId=`
-- `GET /student/attendance?cohortId=`
-- `GET /student/announcements` (audience student/all + cohort-scoped)
-
----
-
-### 4.4 Instructor API
-Base: `/instructor/*` (requireAuth + requireInstructor)
-
-- `GET /instructor/me`
-- `PATCH /instructor/profile` (bio/expertise/social links)
-- `GET /instructor/cohorts` (assigned cohorts)
-- `GET /instructor/cohorts/:id/roster` (students enrolled)
-- `GET /instructor/cohorts/:id/sessions`
-- Attendance:
-  - `GET /instructor/sessions/:sessionId/attendance`
-  - `PUT /instructor/sessions/:sessionId/attendance` (bulk upsert attendance_records)
-- Announcements:
-  - `POST /instructor/cohorts/:id/announcements` (target student/all)
-
----
-
-## 5) Database Notes (How server uses DB)
-
-### 5.1 Programs vs cohorts
-- `programs` are templates (title, requirements, summary).
-- `cohorts` are the real running instances with:
-  - status, enrollment window, instructors, students, sessions, attendance.
-
-### 5.2 Capacity logic
-Capacity should be enforced at the cohort level:
-- count enrollments where status in ('active','paused') <= cohort.capacity
-- or include waitlist logic (applications waitlisted)
-
-### 5.3 Public identity for students
-Prefer `student_profiles.public_slug` for `/public/students/:slug` to avoid exposing numeric user ids.
-
-### 5.4 Default event location
-When returning events:
-- if `events.location` is empty -> return `site_settings.default_event_location`
-
-### 5.5 SSL connections
-Neon often requires SSL. node-postgres supports passing `ssl` in config. :contentReference[oaicite:3]{index=3}
-For connection problems, follow Neon troubleshooting docs. :contentReference[oaicite:4]{index=4}
-
----
-
-## 6) Validation & Error Handling
-
-### 6.1 Input validation
-Use Zod schemas for:
-- login payload
-- site settings updates
-- page/home section content updates
-- program/cohort creation
-- dynamic form fields
-- application submissions
-- session creation
-- attendance bulk update
-
-### 6.2 Error responses standard
-Return consistent JSON:
-- `{ error: { code, message, details? } }`
-
-### 6.3 Logging
-Log:
-- startup + DB connected
-- request errors
-- auth failures (without leaking secrets)
-
----
-
-## 7) Minimal Implementation Plan (recommended order)
-
-1) DB pool + env config + server skeleton
-2) Auth: login + middleware
-3) Public: site_settings + theme + home_sections + pages
-4) Programs + cohorts public list/detail
-5) Dynamic form endpoints + submit application
-6) Admin: cohorts CRUD + status workflow + auto announcement
-7) Admin: approve pipeline -> creates student user + enrollment
-8) Sessions calendar
-9) Instructor: roster + attendance bulk upsert
-10) Student: calendar + attendance read + announcements
-11) Polishing: contact messages, managers, featured students, events done status
-
----
+- Protects public and auth endpoints from abuse/spam/bruteforce.
+- Reduces DB load and response time for high-read public endpoints.
+- Keeps frontend performance stable with fast repeated responses.
+- Preserves uptime and DX by allowing local/server operation without Redis.

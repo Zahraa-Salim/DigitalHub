@@ -1,339 +1,276 @@
-# Digital Hub — Main Website Workflow (Public) + Students Pages
+# Digital Hub — Public Website
+## Pages • Features • Data from DB • API Integration (Updated)
 
-This document describes the **public website workflow**: what pages exist, what content comes from the database, what actions happen, and key rules/notes.  
-Includes **Students List**, **Students Summary**, **Student Detail**, and **Footer** requirements.
-
----
-
-## 0) Global Website Rules
-
-### 0.1 Global data loaded on every page
-**DB / API sources**
-- `site_settings`
-  - `site_name`
-  - `theme` (JSON of CSS variables)
-  - `default_event_location` (default: "Digital Hub")
-  - `contact_info` (address, phone, email)
-  - `social_links`
-
-**Used for**
-- Header branding + footer contact/social
-- Default event location fallback
-- Theme styling via CSS variables
-
-**Notes**
-- Cache in frontend (e.g., 10 minutes) to reduce requests.
-- Apply theme vars at app start:
-  - `--primary`, `--secondary`, `--bg`, `--text`, etc.
+This document defines the public website behavior based on the latest scope:
+- ✅ Website is content-driven from database (CMS)
+- ✅ Visitor can apply to open cohorts
+- ✅ Visitor can contact Digital Hub (questions / feedback)
+- ✅ Company/Recruiter can request visits via contact form
+- ✅ Website shows programs, cohorts, announcements, events, public profiles
+- ✅ Website reads theme tokens and applies CSS variables
 
 ---
 
-## 1) Home Page (`/`) Workflow
-
-Home is built from **sections stored in DB** and toggled on/off by admin.
-
-### 1.1 Fetch home sections
-**API**
-- `GET /public/home`
-
-**DB**
-- `home_sections` where `is_enabled=true` sorted by `sort_order`
-
-**Section block shape**
-- `key` (unique)
-- `title`
-- `content` (JSON)
-- `is_enabled`
-- `sort_order`
-
-### 1.2 Required home sections (minimum)
-- `hero`
-- `about_summary`
-- `programs_preview`
-- `events_preview`
-- `featured_students` ✅
-- `featured_instructors`
-- `announcements_preview`
-- `cta`
-- `contact_summary`
+# 1) Website Goals
+- Present Digital Hub as an employability / career development platform
+- Show programs and upcoming cohorts
+- Collect applications (cohort-based)
+- Publish announcements and events
+- Show selected people (students/instructors/managers) when public
+- Collect inbound contact + visit requests
 
 ---
 
-## 2) About Page (`/about`)
-**API**
-- `GET /public/pages/about`
+# 2) Global Website Requirements
 
-**DB**
-- `pages` where `key='about'` and `is_published=true`
+## 2.1 Dynamic Theme
+- Website must fetch theme tokens and apply them as CSS variables.
+- Tokens include:
+  - key: `--primary`
+  - purpose: "Primary buttons"
+  - value: "#0b0f19"
 
-**Notes**
-- Block-based JSON rendering (paragraphs, images, bullet lists, cards).
-
----
-
-## 3) Programs List (`/programs`)
-**API**
-- `GET /public/programs?status=coming_soon,open,running,completed&search=&page=`
-
-**DB**
-- `programs`
-
-**Rules**
-- Apply button only if:
-  - `status='open'`
-  - `allow_applications=true`
-  - within enrollment window (optional)
+API:
+- `GET /public/theme`
+(or if your server exposes theme under public bootstrap, use that)
 
 ---
 
-## 4) Program Details (`/programs/:slug`)
-**API**
+## 2.2 Public Content Only
+Any profile shown on website MUST have:
+- `is_public=true`
+
+This applies to:
+- students
+- instructors
+- managers
+
+---
+
+## 2.3 SEO-friendly Routes (recommended)
+- `/programs`
+- `/programs/:slug`
+- `/cohorts` (optional)
+- `/events`
+- `/announcements`
+- `/students`
+- `/students/:public_slug`
+- `/instructors`
+- `/team` (managers)
+- `/contact`
+- `/about` (from pages)
+- `/` home
+
+---
+
+# 3) Website Pages + Data
+
+## 3.1 Home Page (`/`)
+Home page sections are driven by DB.
+
+Data:
+- `home_sections` (enabled + ordered)
+- may include curated blocks like featured students, announcements, events
+
+API:
+- `GET /public/home` (or `GET /public/home-sections`)
+- `GET /public/announcements?limit=...`
+- `GET /public/events?upcoming=true&limit=...`
+- `GET /public/students?featured=true&limit=...`
+
+---
+
+## 3.2 Programs List (`/programs`)
+Shows all published programs.
+
+Data:
+- programs where `is_published=true`
+
+API:
+- `GET /public/programs?page&limit&search&sortBy&order`
+
+Sorting (suggested):
+- title asc
+- updated desc
+
+---
+
+## 3.3 Program Details (`/programs/:slug`)
+Shows:
+- program info
+- cohorts under the program
+
+Data:
+- program by slug
+- cohorts filtered by program
+
+API:
 - `GET /public/programs/:slug`
+- `GET /public/cohorts?programSlug=...`
 
-**DB**
-- `programs`
-- `program_instructors` + `instructor_profiles`
-
-### 4.1 Application form (dynamic fields)
-**Only visible when**
-- `status='open'` and `allow_applications=true`
-- within enrollment open/close (if used)
-- capacity not full (checked in API)
-
-**Form schema**
-- `forms` + `form_fields` (`key='program_application'`)
-
-**Submit**
-- `POST /public/applications`
-- writes:
-  - `applicants` (upsert)
-  - `applications`
-  - `application_submissions` (answers JSON)
-
-**Duplicate apply rule**
-- If same applicant already has pending/approved/waitlisted application for same program:
-  - show “Already applied” message + current status
+Cohorts show:
+- status badge (coming_soon/open/running/completed)
+- apply button visible only if:
+  - status == open
+  - allow_applications == true
+  - now within enrollment window (if used)
 
 ---
 
-## 5) Events List (`/events`) & Event Details (`/events/:slug`)
-**API**
-- `GET /public/events?upcoming=true`
-- `GET /public/events/:slug`
+## 3.4 Cohort Application (`/apply/:cohortId` or modal)
+Visitor applies to a cohort.
 
-**DB**
-- `events`
+Data:
+- dynamic form fields from DB
+- cohort status + rules
 
-**Location rule**
-- If `events.location` is null/empty → use `site_settings.default_event_location`
+API:
+- `GET /public/forms/cohort-application?cohortId=...` (if implemented)
+- `POST /applications` (public)
 
----
-
-## 6) Instructors List (`/instructors`) & Instructor Detail (optional)
-**API**
-- `GET /public/instructors`
-- optional: `GET /public/instructors/:id`
-
-**DB**
-- `instructor_profiles` (and `users` where `role='instructor'` and active)
+Rules:
+- reject submission if cohort enrollment is closed
+- reject duplicates if same applicant already applied
 
 ---
 
-## 7) Contact Page (`/contact`)
-**Display**
-- `site_settings.contact_info`
-- `site_settings.social_links`
+## 3.5 Announcements (`/announcements`)
+Shows announcements intended for website visitors.
 
-**Submit**
-- `POST /public/contact`
-- writes:
-  - `contact_messages`
+Data:
+- announcements:
+  - `target_audience IN ('website','all')`
+  - `is_published=true`
+  - publish_at <= now() if publish_at exists
 
-**Notes**
-- Add rate-limiting to prevent spam.
-
----
-
-# 8) Students Pages (Public)
-
-You requested:
-- Students list
-- Students list summary
-- Student detail (with id)
-- Featured support
-- Footer requirements
-
-These are public-facing pages to showcase students (not the private student dashboard).
+API:
+- `GET /public/announcements?page&limit&search&sortBy&order`
 
 ---
 
-## 8.1 Students List Summary (Home section) ✅
-### Purpose
-Display a short preview of featured students on the home page.
+## 3.6 Events (`/events`)
+Shows upcoming + done events.
 
-**Section**
-- `home_sections.key='featured_students'`
+Data:
+- events:
+  - `is_published=true`
+  - optional filter by is_done/upcoming
 
-**Expected `content`**
-- `title` (optional override)
-- `subtitle`
-- `limit` (e.g., 4)
-- `showFeaturedOnly` (boolean, default true)
-- `ctaText` (e.g., "View All Students")
-- `ctaLink` (e.g., "/students")
+API:
+- `GET /public/events?upcoming=true&page&limit`
+- `GET /public/events?is_done=true&page&limit`
 
-**DB needed**
-- `student_profiles`
-  - `featured=true`
-  - order by `featured_rank` asc, then `created_at` desc
-
-**Fields shown per student card**
-- `student_profiles.user_id` (or `public_id`, see notes)
-- `full_name`
-- `avatar_url`
-- `bio` short
-- optional: `program_name` (if you want to show current program)
-
-**Notes**
-- If no featured students exist:
-  - hide section OR show fallback text from section content.
+Event location:
+- if event.location is null:
+  - use `site_settings.default_event_location`
 
 ---
 
-## 8.2 Students List Page (`/students`) ✅
-### Purpose
-Public directory of students (or featured students).
+## 3.7 Students (`/students`)
+Shows public students.
 
-**API**
-- `GET /public/students?featuredOnly=false&search=&page=&limit=`
+Data:
+- `student_profiles` where `is_public=true`
+- optional featured section:
+  - featured=true ordered by featured_rank
 
-**DB**
-- `student_profiles`
-- join `users` (role='student', is_active=true)
+API:
+- `GET /public/students?page&limit&search&featured=true&sortBy&order`
 
-**Filters**
-- `featuredOnly=true` → only `student_profiles.featured=true`
-- search by `full_name` (ILIKE)
-
-**Sorting**
-- featured first (if mixed)
-- `featured_rank` asc
-- then `full_name` asc
-
-**Fields returned**
-- `id` (recommended: `student_profiles.user_id` as stable identifier)
-- `full_name`
-- `avatar_url`
-- `bio` (short)
-- `featured` (boolean)
-- optional: `featured_rank`
-
-**UI requirements**
-- Search input
-- Featured filter toggle (optional)
-- Pagination
-
-**Notes (privacy)**
-- Do NOT expose: phone, email, address, personal data.
-- Keep only public profile fields.
+Student detail:
+- `GET /public/students/:public_slug`
 
 ---
 
-## 8.3 Student Detail Page (`/students/:id`) ✅
-### Purpose
-Public profile for one student.
+## 3.8 Instructors (`/instructors`)
+Shows public instructors.
 
-**API**
-- `GET /public/students/:id`
+Data:
+- `instructor_profiles` where `is_public=true`
 
-**DB**
-- `student_profiles` by `user_id`
-- join `users` to ensure role is student + active
-
-**Fields displayed**
-- `id` (user_id)
-- `full_name`
-- `avatar_url`
-- `bio`
-- `featured` (boolean)
-- optional: achievements / gallery / projects (if you add later)
-- optional: related programs (ONLY if you want public association)
-
-**Error states**
-- If student not found or not public → 404 page.
-
-**Notes**
-- If you want to avoid exposing raw numeric ids publicly:
-  - add `public_slug` or `public_id` column to `student_profiles` and route by that instead.
+API:
+- `GET /public/instructors?page&limit&search`
 
 ---
 
-# 9) Footer (All Pages) ✅
+## 3.9 Team / Managers (`/team`)
+Shows public managers (admins who chose to appear on website).
 
-### 9.1 Footer content sources
-**DB**
-- `site_settings`
-  - `site_name`
-  - `contact_info` (address, phone, email)
-  - `social_links`
-- optional: `pages` keys (published)
-  - to generate footer links automatically
+Data:
+- `manager_profiles` where `is_public=true` ordered by sort_order
 
-### 9.2 Footer sections (recommended)
-1. Brand
-   - site name + short description (optional in `site_settings`)
-2. Quick Links
-   - Home, About, Programs, Events, Instructors, Students, Contact
-3. Contact
-   - address, phone, email
-4. Social
-   - icons + links
-5. Copyright
-   - `© {year} {site_name}. All rights reserved.`
-
-**Notes**
-- Footer should be consistent across web pages.
-- Footer should not require multiple requests: include `site_settings` in app bootstrap.
+API:
+- `GET /public/managers`
 
 ---
 
-# 10) Attendance Note (No Email Confirmation)
-Public website does not confirm attendance.
-Attendance is recorded by instructors in instructor dashboard via:
-- `attendance_records(session_id, enrollment_id, status, marked_by, marked_at)`
+## 3.10 Pages (About, etc.) (`/about`, `/page/:key`)
+Pages are DB-driven.
 
-Optional student self check-in (phase 2):
-- session code entry, stored in `attendance_checkins`.
+Data:
+- `pages` where is_published=true
 
----
-
-# 11) Data Summary — What public site reads/writes
-
-## Reads
-- `site_settings`
-- `home_sections`
-- `pages`
-- `programs`
-- `events`
-- `instructor_profiles`
-- `student_profiles` ✅
-- `forms` + `form_fields`
-- `announcements` (optional public)
-
-## Writes
-- `contact_messages`
-- `applications` + `applicants` + `application_submissions`
+API:
+- `GET /public/pages/:key`
 
 ---
 
-# 12) Implementation Notes / Rules
-- Programs:
-  - `coming_soon` → details visible, apply hidden
-  - `open` → apply visible only if `allow_applications=true` and within window
-- Events:
-  - default location from `site_settings.default_event_location`
-- Students:
-  - featured supported via `student_profiles.featured=true` + `featured_rank`
-  - avoid exposing private fields publicly
-- Theme:
-  - store CSS variables in `site_settings.theme` and apply globally at runtime
+## 3.11 Contact (`/contact`)
+Contact form supports:
+- Questions
+- Feedback
+- Company/Recruiter visit request
+
+Data written:
+- `contact_messages` with kind:
+  - question | feedback | visit_request
+
+API:
+- `POST /contact` (public)
+
+Fields:
+- name (required)
+- email (required)
+- phone (optional)
+- subject (optional)
+- message (required)
+- kind (required)
+- company fields optional:
+  - company_name
+  - company_role
+  - visit_preferred_dates
+  - visit_notes
+
+---
+
+# 4) Website List Standards (Pagination/Sort/Filter)
+
+For list pages, website should use:
+- page, limit
+- search
+- sortBy + order
+
+Examples:
+- `/public/programs?page=1&limit=12&search=ui&sortBy=title&order=asc`
+- `/public/students?page=1&limit=12&featured=true&sortBy=featured_rank&order=asc`
+
+---
+
+# 5) Security / Privacy Rules (Website)
+- Never show:
+  - user email/phone
+  - password hash
+  - admin-only internal notes
+- Only show profiles with is_public=true
+- Only show published pages, events, announcements
+
+---
+
+# 6) Future Enhancements (Website)
+- Newsletter signup
+- Public media gallery
+- Partner/company showcase page
+- Application status lookup (if you choose later)
+- Multi-language (Arabic/English)
+
+---
