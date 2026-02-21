@@ -1,23 +1,7 @@
 /* File: src/styles/index.scss
- * Purpose: Global stylesheet entry that imports framework/theme styles and local overrides.
- * If you change this file: Changing style imports or global rules can cascade across the entire site and cause broad visual regressions.
+ * Purpose: Global custom overrides for project-specific sections and animations.
+ * If you change this file: Updating these selectors changes people directory cards/filters and breadcrumb line behavior site-wide.
  */
-@import "react-toastify/dist/ReactToastify.css";
-@import "swiper/css/bundle";
-@import "aos/dist/aos.css";
-@import "react-responsive-modal/styles.css";
-
-@import "../../public/assets/css/animate.min.css";
-@import "../../public/assets/css/aos.css";
-@import "../../public/assets/css/bootstrap.min.css";
-@import "../../public/assets/css/default-icons.css";
-@import "../../public/assets/css/flaticon-skillgro-new.css";
-@import "../../public/assets/css/flaticon-skillgro.css";
-@import "../../public/assets/css/fontawesome-all.min.css";
-@import "../../public/assets/css/spacing.css";
-@import "../../public/assets/css/plyr.css";
-@import "../../public/assets/css/tg-cursor.css";
-@import "../../public/assets/scss/main.scss";
 
 /* People directory */
 .people-directory {

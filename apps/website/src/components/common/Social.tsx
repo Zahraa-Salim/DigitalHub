@@ -43,7 +43,7 @@ const DEFAULT_SOCIALS: SocialItem[] = [
 
 /* map DB social -> icon */
 const ICON_MAP: Record<string, string> = {
-  email: "/assets/img/icons/email.svg",
+  email: "/assets/img/icons/emial.svg",
   github: "/assets/img/icons/github.svg",
   linkedin: "/assets/img/icons/linkedin.svg",
   facebook: "/assets/img/icons/facebook.svg",

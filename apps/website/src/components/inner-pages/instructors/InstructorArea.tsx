@@ -17,7 +17,7 @@ type TeamMember = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
-const fallbackThumb = "/assets/img/instructor/instructor01.jpg";
+const fallbackThumb = "/assets/img/instructor/instructor01.png";
 
 function normalizeLinkedIn(url: string) {
   const v = (url || "").trim();
@@ -122,4 +122,3 @@ export default function InstructorArea() {
     </section>
   );
 }
-
