@@ -30,7 +30,7 @@ server/
 │   ├── services/
 │   ├── repositories/
 │   ├── middleware/
-│   ├── validators/
+│   ├── schemas/
 │   ├── utils/
 │   ├── db/
 │   └── index.ts
@@ -218,7 +218,7 @@ Admin manages:
 
 - student_profiles
 - instructor_profiles
-- manager_profiles
+- admin_profiles
 
 Endpoints:
 
@@ -238,6 +238,15 @@ PATCH  /profiles/instructors/:userId/visibility
 PATCH  /profiles/managers/:userId/visibility  
 
 Visibility changes MUST log activity.
+
+Student profile updates include:
+- is_graduated
+- is_working
+- open_to_work
+- company_work_for
+
+Admin profile updates include:
+- admin_role (admin / super_admin)
 
 ---
 
@@ -291,6 +300,28 @@ All must log.
 
 ---
 
+# 11.5 Projects
+
+Admin:
+
+POST   /projects  
+GET    /projects  
+PATCH  /projects/:id  
+DELETE /projects/:id  
+
+Public:
+
+GET /public/projects  
+GET /public/projects/:id  
+GET /public/participants/:public_slug/projects  
+
+Notes:
+- Admin list supports: page, limit, search, sortBy, order, is_public, student_user_id
+- Public list/detail returns only `is_public=true`
+- All admin writes MUST call `logAdminAction` with project action codes
+
+---
+
 # 12. Contact Messages
 
 Public:
@@ -334,6 +365,8 @@ Supports:
 
 # 15. Public Website Endpoints
 
+GET /public/theme  
+GET /public/home  
 GET /public/programs  
 GET /public/cohorts  
 GET /public/events  
@@ -341,6 +374,10 @@ GET /public/announcements
 GET /public/managers  
 GET /public/instructors  
 GET /public/students  
+GET /public/students/:public_slug  
+GET /public/projects  
+GET /public/projects/:id  
+GET /public/participants/:public_slug/projects  
 
 Public endpoints must only return:
 
@@ -421,15 +458,25 @@ Server must:
 - Seed script is implemented:
   - `src/scripts/seedAdmin.ts`
 - Duplicate application protection is implemented with normalized email/phone + DB unique indexes.
+- Profile storage now uses `admin_profiles` (route compatibility kept as `/profiles/managers` and `/public/managers`).
+- `admin_profiles.admin_role` is supported in profile/auth payloads.
+- Student profile patch supports:
+  - `is_graduated`, `is_working`, `open_to_work`, `company_work_for`
+- Projects module is implemented end-to-end (admin CRUD + public reads):
+  - `src/routes/projects.routes.ts`
+  - `src/controllers/projects.controller.ts`
+  - `src/services/projects.service.ts`
+  - `src/repositories/projects.repository.ts`
+  - `src/schemas/projects.schema.ts`
+- Public student detail endpoint is implemented:
+  - `GET /public/students/:public_slug`
+  - returns safe student fields and public projects
 
 ## 20.2 What You Still Need To Do In Server
 
 - Add missing public website endpoints required by `website.md`:
-  - `GET /public/theme`
-  - `GET /public/home` or `GET /public/home-sections`
   - `GET /public/pages/:key`
   - `GET /public/programs/:slug`
-  - `GET /public/students/:public_slug`
 - Add optional form bootstrap endpoint if you want dynamic apply form fields:
   - `GET /public/forms/cohort-application?cohortId=...`
 - Add missing public filters/rules from website contract:
@@ -520,7 +567,15 @@ Notifications (Admin):
 Logs (Admin):
 - `GET /logs`
 
+Projects (Admin):
+- `POST /projects`
+- `GET /projects`
+- `PATCH /projects/:id`
+- `DELETE /projects/:id`
+
 Public:
+- `GET /public/theme`
+- `GET /public/home`
 - `GET /public/programs`
 - `GET /public/cohorts`
 - `GET /public/events`
@@ -528,6 +583,10 @@ Public:
 - `GET /public/managers`
 - `GET /public/instructors`
 - `GET /public/students`
+- `GET /public/students/:public_slug`
+- `GET /public/projects`
+- `GET /public/projects/:id`
+- `GET /public/participants/:public_slug/projects`
 
 ---
 

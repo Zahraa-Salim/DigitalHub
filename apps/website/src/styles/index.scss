@@ -1,0 +1,274 @@
+/* File: src/styles/index.scss
+ * Purpose: Global stylesheet entry that imports framework/theme styles and local overrides.
+ * If you change this file: Changing style imports or global rules can cascade across the entire site and cause broad visual regressions.
+ */
+@import "react-toastify/dist/ReactToastify.css";
+@import "swiper/css/bundle";
+@import "aos/dist/aos.css";
+@import "react-responsive-modal/styles.css";
+
+@import "../../public/assets/css/animate.min.css";
+@import "../../public/assets/css/aos.css";
+@import "../../public/assets/css/bootstrap.min.css";
+@import "../../public/assets/css/default-icons.css";
+@import "../../public/assets/css/flaticon-skillgro-new.css";
+@import "../../public/assets/css/flaticon-skillgro.css";
+@import "../../public/assets/css/fontawesome-all.min.css";
+@import "../../public/assets/css/spacing.css";
+@import "../../public/assets/css/plyr.css";
+@import "../../public/assets/css/tg-cursor.css";
+@import "../../public/assets/scss/main.scss";
+
+/* People directory */
+.people-directory {
+  background: radial-gradient(
+      circle at 12% 8%,
+      rgba(13, 110, 253, 0.09),
+      transparent 38%
+    ),
+    radial-gradient(circle at 90% 0%, rgba(21, 32, 72, 0.08), transparent 34%);
+}
+
+.people-filters {
+  display: grid;
+  gap: 18px;
+}
+
+.people-filters__card {
+  background: #fff;
+  border: 1px solid rgba(10, 24, 60, 0.1);
+  border-radius: 18px;
+  padding: 24px 22px;
+  box-shadow: 0 10px 30px rgba(10, 24, 60, 0.05);
+}
+
+.people-filters__title {
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+
+.people-filters__list {
+  display: grid;
+  gap: 10px;
+}
+
+.people-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #4d5f78;
+}
+
+.people-filter-check input {
+  accent-color: #0d6efd;
+}
+
+.people-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(10, 24, 60, 0.08);
+}
+
+.people-toolbar__count {
+  margin: 0;
+  color: #23314f;
+  font-weight: 600;
+}
+
+.people-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.people-toolbar__sort select {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(10, 24, 60, 0.2);
+  padding: 0 12px;
+  color: #1d2f50;
+  background: #fff;
+}
+
+.people-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(10, 24, 60, 0.1);
+  background: linear-gradient(145deg, #ffffff, #f5f8ff);
+  padding: 22px;
+  min-height: 100%;
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.people-card::before {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  right: -24px;
+  top: -24px;
+  border-radius: 50%;
+  background: linear-gradient(120deg, rgba(13, 110, 253, 0.16), rgba(0, 0, 0, 0));
+  transition: transform 0.35s ease;
+}
+
+.people-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(13, 110, 253, 0.3);
+  box-shadow: 0 18px 44px rgba(18, 40, 90, 0.14);
+}
+
+.people-card:hover::before {
+  transform: scale(1.08);
+}
+
+.people-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.people-card__avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 2px solid rgba(13, 110, 253, 0.2);
+  box-shadow: 0 6px 14px rgba(12, 35, 86, 0.12);
+  animation: people-float 3.6s ease-in-out infinite;
+}
+
+.people-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.people-card__status {
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.people-card__status.is-open {
+  background: rgba(9, 165, 122, 0.16);
+  color: #067856;
+}
+
+.people-card__status.is-busy {
+  background: rgba(238, 81, 81, 0.15);
+  color: #b83a3a;
+}
+
+.people-card__name {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.people-card__role {
+  margin: 0 0 10px;
+  color: #0d6efd;
+  font-weight: 600;
+}
+
+.people-card__bio {
+  margin: 0 0 14px;
+  color: #60708a;
+  line-height: 1.6;
+}
+
+.people-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.people-card__tags span {
+  font-size: 12px;
+  color: #2b3e60;
+  background: #eef3ff;
+  border: 1px solid #dbe7ff;
+  padding: 5px 10px;
+  border-radius: 99px;
+}
+
+.people-card__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(13, 110, 253, 0.3);
+  color: #0d6efd;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.people-card__cta:hover {
+  background: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+.people-empty {
+  margin: 10px 0 0;
+  padding: 18px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px dashed rgba(10, 24, 60, 0.24);
+  color: #425371;
+}
+
+@keyframes people-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Breadcrumb line animation restore */
+.breadcrumb__shape-wrap .breadcrumb-line {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: -1;
+  width: 514px;
+  height: 300px;
+  pointer-events: none;
+}
+
+.breadcrumb__shape-wrap .breadcrumb-line svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 1199.98px) {
+  .breadcrumb__shape-wrap .breadcrumb-line {
+    right: -30px;
+    width: 400px;
+    height: 285px;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .breadcrumb__shape-wrap .breadcrumb-line {
+    display: none;
+  }
+}

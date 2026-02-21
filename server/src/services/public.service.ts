@@ -4,9 +4,11 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
+import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { cacheGetJson, cacheSetJson } from "../utils/cache.js";
-import { countPublicResources, getPublicSiteSettings, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { listPublicProjectsByStudentUserId } from "../repositories/projects.repository.js";
 async function listPublicResource(query, config) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
     const params = [];
@@ -75,12 +77,12 @@ const announcementsConfig = {
 const managersConfig = {
     sortableColumns: ["user_id", "full_name", "sort_order", "created_at"],
     defaultSort: "sort_order",
-    searchableColumns: ["mp.full_name", "COALESCE(mp.job_title, '')", "COALESCE(mp.bio, '')"],
-    extraWhere: ["mp.is_public = TRUE"],
+    searchableColumns: ["ap.full_name", "COALESCE(ap.job_title, '')", "COALESCE(ap.bio, '')", "COALESCE(ap.admin_role, '')"],
+    extraWhere: ["ap.is_public = TRUE"],
     resourceConfig: {
-        tableExpression: "manager_profiles mp",
-        selectFields: "mp.user_id, mp.full_name, mp.avatar_url, mp.bio, mp.job_title, mp.linkedin_url, mp.github_url, mp.portfolio_url, mp.sort_order",
-        sortPrefix: "mp",
+        tableExpression: "admin_profiles ap",
+        selectFields: "ap.user_id, ap.full_name, ap.avatar_url, ap.bio, ap.job_title, ap.admin_role, ap.linkedin_url, ap.github_url, ap.portfolio_url, ap.sort_order",
+        sortPrefix: "ap",
     },
 };
 const instructorsConfig = {
@@ -126,6 +128,18 @@ export function listPublicInstructorsService(query) {
 }
 export function listPublicStudentsService(query) {
     return listPublicResource(query, studentsConfig);
+}
+export async function getPublicStudentDetailService(publicSlug) {
+    const profileResult = await getPublicStudentBySlug(publicSlug);
+    if (!profileResult.rowCount) {
+        throw new AppError(404, "NOT_FOUND", "Student profile not found.");
+    }
+    const profile = profileResult.rows[0];
+    const projectsResult = await listPublicProjectsByStudentUserId(Number(profile.user_id));
+    return {
+        ...profile,
+        projects: projectsResult.rows,
+    };
 }
 export async function getPublicThemeService() {
     const cacheKey = "public:theme";

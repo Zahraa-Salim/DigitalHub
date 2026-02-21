@@ -40,5 +40,28 @@ export async function getPublicSiteSettings(db = pool) {
       WHERE id = 1
     `);
 }
+export async function getPublicStudentBySlug(publicSlug, db = pool) {
+    return db.query(`
+      SELECT
+        sp.user_id,
+        sp.full_name,
+        sp.avatar_url,
+        sp.bio,
+        sp.linkedin_url,
+        sp.github_url,
+        sp.portfolio_url,
+        sp.featured,
+        sp.featured_rank,
+        sp.public_slug,
+        sp.is_graduated,
+        sp.is_working,
+        sp.open_to_work,
+        sp.company_work_for
+      FROM student_profiles sp
+      WHERE sp.is_public = TRUE
+        AND sp.public_slug = $1
+      LIMIT 1
+    `, [publicSlug]);
+}
 
 

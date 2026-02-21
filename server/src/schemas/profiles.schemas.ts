@@ -21,6 +21,10 @@ export const studentPatchSchema = z
     featured: z.boolean().optional(),
     featured_rank: z.number().int().nullable().optional(),
     public_slug: z.string().trim().min(1).nullable().optional(),
+    is_graduated: z.boolean().optional(),
+    is_working: z.boolean().optional(),
+    open_to_work: z.boolean().optional(),
+    company_work_for: z.string().trim().nullable().optional(),
 })
     .strict()
     .refine((payload) => Object.keys(payload).length > 0, { message: "At least one field is required." });
@@ -42,6 +46,7 @@ export const managerPatchSchema = z
     avatar_url: z.string().trim().url().nullable().optional(),
     bio: z.string().trim().nullable().optional(),
     job_title: z.string().trim().nullable().optional(),
+    admin_role: z.enum(["admin", "super_admin"]).optional(),
     linkedin_url: z.string().trim().url().nullable().optional(),
     github_url: z.string().trim().url().nullable().optional(),
     portfolio_url: z.string().trim().url().nullable().optional(),

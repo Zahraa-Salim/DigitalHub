@@ -39,6 +39,10 @@ export const patchStudentProfile = createPatchHandler("student_profiles", [
     "featured",
     "featured_rank",
     "public_slug",
+    "is_graduated",
+    "is_working",
+    "open_to_work",
+    "company_work_for",
 ]);
 export const patchStudentVisibility = createVisibilityHandler("student_profiles");
 export const getInstructorProfiles = createListHandler("instructor_profiles", [
@@ -56,22 +60,24 @@ export const patchInstructorProfile = createPatchHandler("instructor_profiles", 
     "portfolio_url",
 ]);
 export const patchInstructorVisibility = createVisibilityHandler("instructor_profiles");
-export const getManagerProfiles = createListHandler("manager_profiles", [
+export const getManagerProfiles = createListHandler("admin_profiles", [
     "user_id",
     "full_name",
+    "admin_role",
     "sort_order",
     "created_at",
 ]);
-export const patchManagerProfile = createPatchHandler("manager_profiles", [
+export const patchManagerProfile = createPatchHandler("admin_profiles", [
     "full_name",
     "avatar_url",
     "bio",
     "job_title",
+    "admin_role",
     "linkedin_url",
     "github_url",
     "portfolio_url",
     "sort_order",
 ]);
-export const patchManagerVisibility = createVisibilityHandler("manager_profiles");
+export const patchManagerVisibility = createVisibilityHandler("admin_profiles");
 
 

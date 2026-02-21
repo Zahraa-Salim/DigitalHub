@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { Router } from "express";
-import { getPublicAnnouncements, getPublicCohorts, getPublicEvents, getPublicHome, getPublicInstructors, getPublicManagers, getPublicPrograms, getPublicStudents, getPublicTheme, } from "../controllers/public.controller.js";
+import { getPublicAnnouncements, getPublicCohorts, getPublicEvents, getPublicHome, getPublicInstructors, getPublicManagers, getPublicPrograms, getPublicStudentBySlug, getPublicStudents, getPublicTheme, } from "../controllers/public.controller.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const publicRouter = Router();
 publicRouter.get("/theme", asyncHandler(getPublicTheme));
@@ -16,6 +16,7 @@ publicRouter.get("/announcements", asyncHandler(getPublicAnnouncements));
 publicRouter.get("/managers", asyncHandler(getPublicManagers));
 publicRouter.get("/instructors", asyncHandler(getPublicInstructors));
 publicRouter.get("/students", asyncHandler(getPublicStudents));
+publicRouter.get("/students/:public_slug", asyncHandler(getPublicStudentBySlug));
 export { publicRouter };
 
 

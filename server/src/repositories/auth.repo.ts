@@ -10,9 +10,10 @@ export async function findActiveAdminByEmail(email, db = pool) {
         u.id,
         u.email,
         u.password_hash,
-        COALESCE(mp.full_name, 'Admin') AS full_name
+        COALESCE(ap.full_name, 'Admin') AS full_name,
+        COALESCE(ap.admin_role, 'admin') AS admin_role
       FROM users u
-      LEFT JOIN manager_profiles mp ON mp.user_id = u.id
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.id
       WHERE u.email = $1
         AND u.is_admin = TRUE
         AND u.is_active = TRUE

@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { getPublicHomeService, getPublicThemeService, listPublicAnnouncementsService, listPublicCohortsService, listPublicEventsService, listPublicInstructorsService, listPublicManagersService, listPublicProgramsService, listPublicStudentsService, } from "../services/public.service.js";
+import { getPublicHomeService, getPublicStudentDetailService, getPublicThemeService, listPublicAnnouncementsService, listPublicCohortsService, listPublicEventsService, listPublicInstructorsService, listPublicManagersService, listPublicProgramsService, listPublicStudentsService, } from "../services/public.service.js";
 export async function getPublicPrograms(req, res) {
     const result = await listPublicProgramsService(req.query);
     sendList(res, result.data, result.pagination);
@@ -32,6 +32,10 @@ export async function getPublicInstructors(req, res) {
 export async function getPublicStudents(req, res) {
     const result = await listPublicStudentsService(req.query);
     sendList(res, result.data, result.pagination);
+}
+export async function getPublicStudentBySlug(req, res) {
+    const data = await getPublicStudentDetailService(String(req.params.public_slug));
+    sendSuccess(res, data);
 }
 export async function getPublicTheme(_req, res) {
     const data = await getPublicThemeService();
