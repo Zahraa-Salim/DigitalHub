@@ -77,7 +77,7 @@ export function ApplicationsPage() {
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [cohortFilter, setCohortFilter] = useState("all");
   const [sortBy, setSortBy] = useState<SortBy>("submitted_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -149,8 +149,8 @@ export function ApplicationsPage() {
         const result = await apiList<CohortOption>(
           `/cohorts${buildQueryString({
             limit: 100,
-            sortBy: "name",
-            order: "asc",
+            sortBy: "updated_at",
+            order: "desc",
           })}`,
         );
 
@@ -317,6 +317,17 @@ export function ApplicationsPage() {
   const rejectedCount = applications.filter((row) => row.status === "rejected").length;
   const lastSubmitted = applications[0]?.submitted_at ?? "";
   const totalPagesSafe = Math.max(pagination.totalPages, 1);
+  const hasActiveFilters = search.trim() !== "" || statusFilter !== "pending" || cohortFilter !== "all" || sortBy !== "submitted_at" || sortOrder !== "desc";
+
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setStatusFilter("pending");
+    setCohortFilter("all");
+    setSortBy("submitted_at");
+    setSortOrder("desc");
+    setPage(1);
+  };
 
   const approveApplication = async () => {
     if (!approveTarget) {
@@ -501,7 +512,7 @@ export function ApplicationsPage() {
           </>
         ) : null}
 
-        {!loading ? (
+        {!loading && applications.length ? (
           <Card className="card--table desktop-only dh-table-wrap">
             <Table<ApplicationRow>
               rows={applications}
@@ -550,6 +561,22 @@ export function ApplicationsPage() {
                 },
               ]}
             />
+          </Card>
+        ) : null}
+
+        {!loading && !applications.length ? (
+          <Card className="desktop-only">
+            <div className="empty-state">
+              <p className="empty-state__title">No applications found</p>
+              <p className="empty-state__description">No records match your current filters.</p>
+              {hasActiveFilters ? (
+                <div className="table-actions empty-state__actions">
+                  <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={clearFilters}>
+                    Clear Filters
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </Card>
         ) : null}
 
@@ -603,7 +630,14 @@ export function ApplicationsPage() {
               <Card>
                 <div className="empty-state">
                   <p className="empty-state__title">No applications found</p>
-                  <p className="empty-state__description">Try removing filters or using a broader search.</p>
+                  <p className="empty-state__description">No records match your current filters.</p>
+                  {hasActiveFilters ? (
+                    <div className="table-actions empty-state__actions">
+                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={clearFilters}>
+                        Clear Filters
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </Card>
             )}

@@ -1226,6 +1226,11 @@ select.field__control {
   font-size: 0.9rem;
 }
 
+.empty-state__actions {
+  margin-top: 10px;
+  justify-content: center;
+}
+
 .info-text {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -1560,6 +1565,55 @@ select.field__control {
 .application-mobile-item__actions .btn {
   min-height: 40px;
   font-size: 0.9rem;
+}
+
+.announcement-mobile-item__meta,
+.event-mobile-item__meta {
+  margin: 0;
+}
+
+.announcement-mobile-item__actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.announcement-mobile-item__actions .btn {
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+.event-mobile-item__actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.event-mobile-item__actions .btn {
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+.announcement-form-grid,
+.event-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+
+.announcement-form-switch,
+.event-form-switch,
+.event-upcoming-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.announcement-form-switch input,
+.event-form-switch input,
+.event-upcoming-toggle input {
+  width: 18px;
+  height: 18px;
 }
 
 .application-json-block {
@@ -1928,6 +1982,10 @@ select.field__control {
   gap: 10px;
 }
 
+.notification-filter-row {
+  align-items: center;
+}
+
 .sidebar-desktop--collapsed .sidebar-brand__eyebrow,
 .sidebar-desktop--collapsed .sidebar-profile__info,
 .sidebar-desktop--collapsed .sidebar-footer .btn,
@@ -2028,8 +2086,29 @@ select.field__control {
     grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
   }
 
+  .dh-form-grid--announcements {
+    grid-template-columns: minmax(0, 1.45fr) repeat(4, minmax(0, 1fr));
+  }
+
+  .dh-form-grid--events {
+    grid-template-columns: minmax(0, 1.35fr) repeat(5, minmax(0, 1fr));
+  }
+
+  .dh-form-grid--logs {
+    grid-template-columns: minmax(0, 1.35fr) repeat(7, minmax(0, 1fr));
+  }
+
+  .dh-form-grid--contact {
+    grid-template-columns: minmax(0, 1.45fr) repeat(4, minmax(0, 1fr));
+  }
+
   .dh-form-grid--cohorts {
     grid-template-columns: minmax(0, 1.4fr) repeat(5, minmax(0, 1fr));
+  }
+
+  .announcement-form-grid,
+  .event-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .cohort-inline-program__grid {
@@ -2082,6 +2161,11 @@ select.field__control {
   }
 
   .application-mobile-item__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .announcement-mobile-item__actions,
+  .event-mobile-item__actions {
     grid-template-columns: 1fr;
   }
 

@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { AuthUser } from "../utils/auth";
+import { apiList } from "../utils/api";
 
 type TopbarProps = {
   title: string;
@@ -17,7 +20,38 @@ export function Topbar({
   sidebarCollapsed,
   onLogout,
 }: TopbarProps) {
+  const navigate = useNavigate();
+  const [unreadCount, setUnreadCount] = useState(0);
   const displayName = user.full_name || "Admin";
+
+  useEffect(() => {
+    let active = true;
+
+    const loadUnreadCount = async () => {
+      try {
+        const result = await apiList<unknown>(
+          "/notifications?is_read=false&page=1&limit=1&sortBy=created_at&order=desc",
+        );
+        if (active) {
+          setUnreadCount(result.pagination.total);
+        }
+      } catch {
+        if (active) {
+          setUnreadCount(0);
+        }
+      }
+    };
+
+    void loadUnreadCount();
+    const interval = window.setInterval(() => {
+      void loadUnreadCount();
+    }, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   return (
     <header className="topbar card">
@@ -45,9 +79,9 @@ export function Topbar({
       </div>
 
       <div className="topbar__actions">
-        <button className="icon-btn" type="button" aria-label="Notifications (placeholder)">
+        <button className="icon-btn" type="button" aria-label="Notifications" onClick={() => navigate("/admin/notifications")}>
           <span aria-hidden>🔔</span>
-          <span className="icon-btn__badge">3</span>
+          {unreadCount > 0 ? <span className="icon-btn__badge">{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
         </button>
 
         <div className="topbar__user">
