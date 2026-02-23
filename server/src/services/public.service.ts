@@ -34,7 +34,7 @@ const programsConfig = {
     sortableColumns: ["id", "title", "created_at", "updated_at"],
     defaultSort: "updated_at",
     searchableColumns: ["p.title", "p.slug", "COALESCE(p.summary, '')"],
-    extraWhere: ["p.is_published = TRUE"],
+    extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL"],
     resourceConfig: {
         tableExpression: "programs p",
         selectFields: "p.id, p.slug, p.title, p.summary, p.description, p.requirements, p.default_capacity, p.created_at, p.updated_at",
@@ -45,7 +45,7 @@ const cohortsConfig = {
     sortableColumns: ["id", "name", "start_date", "created_at"],
     defaultSort: "start_date",
     searchableColumns: ["c.name", "p.title"],
-    extraWhere: ["p.is_published = TRUE", "c.status <> 'cancelled'"],
+    extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL", "c.deleted_at IS NULL", "c.status <> 'cancelled'"],
     resourceConfig: {
         tableExpression: "cohorts c JOIN programs p ON p.id = c.program_id",
         selectFields: "c.id, c.program_id, p.title AS program_title, c.name, c.status, c.allow_applications, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
@@ -56,7 +56,7 @@ const eventsConfig = {
     sortableColumns: ["id", "starts_at", "created_at", "title"],
     defaultSort: "starts_at",
     searchableColumns: ["e.title", "COALESCE(e.description, '')", "COALESCE(e.location, '')"],
-    extraWhere: ["e.is_published = TRUE"],
+    extraWhere: ["e.is_published = TRUE", "e.deleted_at IS NULL"],
     resourceConfig: {
         tableExpression: "events e",
         selectFields: "e.id, e.slug, e.title, e.description, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.created_at, e.updated_at",
@@ -67,7 +67,7 @@ const announcementsConfig = {
     sortableColumns: ["id", "created_at", "publish_at", "title"],
     defaultSort: "created_at",
     searchableColumns: ["a.title", "a.body"],
-    extraWhere: ["a.is_published = TRUE", "a.target_audience IN ('website', 'all')"],
+    extraWhere: ["a.is_published = TRUE", "a.deleted_at IS NULL", "a.target_audience IN ('website', 'all')"],
     resourceConfig: {
         tableExpression: "announcements a",
         selectFields: "a.id, a.title, a.body, a.target_audience, a.cohort_id, a.publish_at, a.created_at",

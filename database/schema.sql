@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
 
   CONSTRAINT projects_unique_student_github UNIQUE (student_user_id, github_url)
 );
@@ -124,6 +125,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_student_user_id ON projects(student_user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_is_public ON projects(is_public);
 CREATE INDEX IF NOT EXISTS idx_projects_sort_order ON projects(sort_order);
+CREATE INDEX IF NOT EXISTS idx_projects_deleted_at ON projects(deleted_at);
 
 -- =========================
 -- 4) SITE CMS
@@ -190,7 +192,8 @@ CREATE TABLE IF NOT EXISTS programs (
   is_published     BOOLEAN NOT NULL DEFAULT TRUE,
   created_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at       TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS cohorts (
@@ -210,11 +213,14 @@ CREATE TABLE IF NOT EXISTS cohorts (
   end_date           DATE,
 
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at         TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_cohorts_program ON cohorts (program_id);
 CREATE INDEX IF NOT EXISTS idx_cohorts_status ON cohorts (status);
+CREATE INDEX IF NOT EXISTS idx_programs_deleted_at ON programs (deleted_at);
+CREATE INDEX IF NOT EXISTS idx_cohorts_deleted_at ON cohorts (deleted_at);
 
 CREATE TABLE IF NOT EXISTS cohort_instructors (
   cohort_id          BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
@@ -241,11 +247,13 @@ CREATE TABLE IF NOT EXISTS events (
 
   created_by   BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at   TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_starts_at ON events (starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_published ON events (is_published);
+CREATE INDEX IF NOT EXISTS idx_events_deleted_at ON events (deleted_at);
 
 -- =========================
 -- 7) FORMS
@@ -361,6 +369,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   is_auto         BOOLEAN NOT NULL DEFAULT FALSE,
   is_published    BOOLEAN NOT NULL DEFAULT TRUE,
   publish_at      TIMESTAMPTZ,
+  deleted_at      TIMESTAMPTZ,
 
   created_by      BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -368,6 +377,14 @@ CREATE TABLE IF NOT EXISTS announcements (
 
 CREATE INDEX IF NOT EXISTS idx_announcements_audience_published
   ON announcements (target_audience, is_published, publish_at);
+CREATE INDEX IF NOT EXISTS idx_announcements_deleted_at ON announcements (deleted_at);
+
+-- Ensure existing databases gain soft-delete columns.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 -- =========================
 -- 11) CONTACT MESSAGES

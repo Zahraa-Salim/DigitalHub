@@ -8,7 +8,7 @@ import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
-import { closeCohort, countCohortInstructors, countCohorts, countPrograms, createCohort, createProgram, deleteCohort, deleteProgram, findActiveInstructor, getCohortStatusById, listCohortInstructors, listCohorts, listPrograms, openCohort, updateCohort, updateProgram, upsertCohortInstructor, } from "../repositories/programs.repo.js";
+import { closeCohort, countCohortInstructors, countCohorts, countPrograms, createCohort, createProgram, deleteCohort, deleteProgram, findActiveInstructor, findActiveProgramById, getCohortStatusById, listCohortInstructors, listCohorts, listPrograms, openCohort, softDeleteCohortsByProgramId, updateCohort, updateProgram, upsertCohortInstructor, } from "../repositories/programs.repo.js";
 export async function createProgramService(adminId, payload) {
     const result = await createProgram({
         ...payload,
@@ -68,22 +68,32 @@ export async function patchProgramService(id, adminId, payload) {
     return result.rows[0];
 }
 export async function deleteProgramService(id, adminId) {
-    const result = await deleteProgram(id);
-    if (!result.rowCount) {
-        throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
-    }
-    await logAdminAction({
-        actorUserId: adminId,
-        action: "delete program",
-        entityType: "programs",
-        entityId: id,
-        message: `Program ${result.rows[0].title} was deleted.`,
-        title: "Program Deleted",
-        body: `Program #${id} was deleted.`,
+    return withTransaction(async (client) => {
+        const result = await deleteProgram(id, client);
+        if (!result.rowCount) {
+            throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+        }
+        await softDeleteCohortsByProgramId(id, client);
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "delete program",
+            entityType: "programs",
+            entityId: id,
+            message: `Program ${result.rows[0].title} was deleted.`,
+            title: "Program Deleted",
+            body: `Program #${id} was deleted.`,
+        }, client);
+        return { id };
     });
-    return { id };
 }
 export async function createCohortService(adminId, payload) {
+    const activeProgramResult = await findActiveProgramById(payload.program_id);
+    if (!activeProgramResult.rowCount) {
+        throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+    }
+    if ((payload.allow_applications ?? false) && !payload.enrollment_open_at && !payload.enrollment_close_at) {
+        throw new AppError(400, "VALIDATION_ERROR", "Allow applications cannot be enabled without enrollment date/time.");
+    }
     const result = await createCohort({
         ...payload,
         status: payload.status ?? "planned",
@@ -131,6 +141,15 @@ export async function patchCohortService(id, adminId, payload) {
     const oldStatusResult = await getCohortStatusById(id);
     if (!oldStatusResult.rowCount) {
         throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+    }
+    if (payload.program_id !== undefined) {
+        const activeProgramResult = await findActiveProgramById(payload.program_id);
+        if (!activeProgramResult.rowCount) {
+            throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+        }
+    }
+    if (payload.allow_applications === true && !payload.enrollment_open_at && !payload.enrollment_close_at) {
+        throw new AppError(400, "VALIDATION_ERROR", "Allow applications cannot be enabled without enrollment date/time.");
     }
     const oldStatus = String(oldStatusResult.rows[0].status);
     const { setClause, values } = buildUpdateQuery(payload, ["program_id", "name", "status", "allow_applications", "capacity", "enrollment_open_at", "enrollment_close_at", "start_date", "end_date"], 1);
@@ -227,11 +246,18 @@ export async function listCohortInstructorsService(id, query) {
 }
 export async function assignInstructorService(cohortId, adminId, input) {
     return withTransaction(async (client) => {
+        const cohortResult = await getCohortStatusById(cohortId, client);
+        if (!cohortResult.rowCount) {
+            throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+        }
         const instructorCheck = await findActiveInstructor(input.instructor_user_id, client);
         if (!instructorCheck.rowCount) {
             throw new AppError(404, "INSTRUCTOR_NOT_FOUND", "Instructor user not found or not active.");
         }
         const upsertResult = await upsertCohortInstructor(cohortId, input.instructor_user_id, input.cohort_role, client);
+        if (!upsertResult.rowCount) {
+            throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+        }
         await logAdminAction({
             actorUserId: adminId,
             action: "assign instructor",
