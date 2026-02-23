@@ -10,6 +10,7 @@ import Link from "@/components/common/Link";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000";
+const EXACT_LOCATION_QUERY = "Siblin Training Centre, JC9J+8W9, Sebline";
 
 type ContactInfo = {
   address: string; // multi-line text with "\n"
@@ -21,11 +22,10 @@ type ContactInfo = {
 };
 
 const DEFAULTS: ContactInfo = {
-  address: "Awamileaug Drive, Kensington\nLondon, UK",
-  phone: "+1 (800) 123 456 789",
-  email: "info@gmail.com",
-  mapEmbedUrl:
-    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d48409.69813174607!2d-74.05163325136718!3d40.68264649999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25bae694479a3%3A0xb9949385da52e69e!2sBarclays%20Center!5e0!3m2!1sen!2sbd!4v1684309529719!5m2!1sen!2sbd",
+  address: "Siblin Training Centre\nJC9J+8W9, Sebline",
+  phone: "+961 70639085",
+  email: "info@digitalhub.com",
+  mapEmbedUrl: "",
   contactFormTitle: "Send Us Message",
   contactFormSubtitle:
     "Your email address will not be published. Required fields are marked *",
@@ -72,6 +72,12 @@ const ContactArea: React.FC = () => {
   const info = contactInfo ?? DEFAULTS;
 
   const addressLines = (info.address || DEFAULTS.address).split("\n");
+  const fallbackPinnedMapUrl = `https://www.google.com/maps?q=${encodeURIComponent(
+    EXACT_LOCATION_QUERY
+  )}&z=15&output=embed`;
+  const dbMapUrl = (info.mapEmbedUrl || "").trim();
+  const useDbMapUrl = dbMapUrl.length > 0 && !dbMapUrl.includes("Barclays%20Center");
+  const mapSrc = useDbMapUrl ? dbMapUrl : fallbackPinnedMapUrl;
 
   return (
     <section className="contact-area section-py-120">
@@ -153,7 +159,7 @@ const ContactArea: React.FC = () => {
         </div>
         <div className="contact-map">
           <iframe
-            src={info.mapEmbedUrl || DEFAULTS.mapEmbedUrl}
+            src={mapSrc}
             style={{ border: "0" }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"

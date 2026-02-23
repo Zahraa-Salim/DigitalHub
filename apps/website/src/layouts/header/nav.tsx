@@ -6,6 +6,7 @@
 import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
 import { usePathname } from "@/utils/navigation";
+import { useState } from "react";
 
 import logo from "@/assets/img/logo/digitalhub.png";
 
@@ -13,6 +14,7 @@ type MenuItem = {
   id: number;
   title: string;
   link: string;
+  children?: MenuItem[];
 };
 
 const menuData: MenuItem[] = [
@@ -30,6 +32,23 @@ const menuData: MenuItem[] = [
     id: 3,
     title: "About",
     link: "/about-us",
+    children: [
+      {
+        id: 31,
+        title: "Mission",
+        link: "/about-us",
+      },
+      {
+        id: 32,
+        title: "Team",
+        link: "/team",
+      },
+      {
+        id: 33,
+        title: "Events",
+        link: "/events",
+      },
+    ],
   },
   {
     id: 4,
@@ -38,11 +57,6 @@ const menuData: MenuItem[] = [
   },
   {
     id: 5,
-    title: "Team",
-    link: "/team",
-  },
-  {
-    id: 6,
     title: "Contact",
     link: "/contact",
   },
@@ -53,6 +67,12 @@ const isActive = (pathname: string, href: string) => {
   return pathname === href || pathname.startsWith(`${href}/`);
 };
 
+const isMenuActive = (pathname: string, item: MenuItem) => {
+  if (isActive(pathname, item.link)) return true;
+  if (!item.children) return false;
+  return item.children.some((child) => isActive(pathname, child.link));
+};
+
 export const NavMenu = () => {
   const pathname = usePathname();
 
@@ -61,9 +81,20 @@ export const NavMenu = () => {
       {menuData.map((menu) => (
         <li
           key={menu.id}
-          className={isActive(pathname, menu.link) ? "active is-active" : ""}
+          className={`${menu.children ? "menu-item-has-children" : ""} ${
+            isMenuActive(pathname, menu) ? "active is-active" : ""
+          }`.trim()}
         >
           <Link to={menu.link}>{menu.title}</Link>
+          {menu.children && (
+            <ul className="sub-menu">
+              {menu.children.map((child) => (
+                <li key={child.id} className={isActive(pathname, child.link) ? "active" : ""}>
+                  <Link to={child.link}>{child.title}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </li>
       ))}
     </ul>
@@ -76,17 +107,47 @@ type MobileMenuProps = {
 
 export const MobileMenu = ({ onNavigate }: MobileMenuProps) => {
   const pathname = usePathname();
+  const [openMenus, setOpenMenus] = useState<Record<number, boolean>>({});
+
+  const toggleOpen = (id: number) => {
+    setOpenMenus((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <ul className="navigation">
       {menuData.map((menu) => (
         <li
           key={menu.id}
-          className={isActive(pathname, menu.link) ? "active is-active" : ""}
+          className={`${menu.children ? "menu-item-has-children" : ""} ${
+            isMenuActive(pathname, menu) ? "active is-active" : ""
+          }`.trim()}
         >
           <Link to={menu.link} onClick={onNavigate}>
             {menu.title}
           </Link>
+          {menu.children && (
+            <>
+              <button
+                type="button"
+                className={`dropdown-btn ${
+                  openMenus[menu.id] ?? isMenuActive(pathname, menu) ? "open" : ""
+                }`}
+                onClick={() => toggleOpen(menu.id)}
+                aria-label={`Toggle ${menu.title} submenu`}
+              >
+                <span className="plus-line"></span>
+              </button>
+              <ul style={{ display: openMenus[menu.id] ?? isMenuActive(pathname, menu) ? "block" : "none" }}>
+                {menu.children.map((child) => (
+                  <li key={child.id} className={isActive(pathname, child.link) ? "active" : ""}>
+                    <Link to={child.link} onClick={onNavigate}>
+                      {child.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </li>
       ))}
     </ul>

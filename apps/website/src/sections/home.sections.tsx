@@ -6,9 +6,7 @@ import HeaderOne from "@/layouts/header/Header";
 import HomeOneAbout from "@/components/homes/home-one/About";
 import HomeOneBanner from "@/components/homes/home-one/Banner";
 import HomeOneBlog from "@/components/homes/home-one/Blog";
-import HomeOneCounter from "@/components/homes/home-one/Counter";
 import HomeOneCourseArea from "@/components/homes/home-one/CourseArea";
-import HomeOneFaqArea from "@/components/homes/home-one/FaqArea";
 import HomeOneFeatures from "@/components/homes/home-one/Features";
 import HomeOneInstructor from "@/components/homes/home-one/Instructor";
 import HomeOneInstructorTwo from "@/components/homes/home-one/InstructorTwo";
@@ -25,8 +23,7 @@ export const HomeOne = () => {
         <HomeOneCourseArea />
         <HomeOneNewsletter />
         <HomeOneInstructor />
-        <HomeOneCounter />
-        <HomeOneFaqArea />
+        {/* <HomeOneFaqArea /> */}
         <HomeOneFeatures />
         <HomeOneInstructorTwo />
         <HomeOneBlog />

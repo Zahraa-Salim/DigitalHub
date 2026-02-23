@@ -109,6 +109,8 @@ export default function CourseArea() {
                 <nav className="pagination__wrap mt-30">
                   <ReactPaginate
                     breakLabel="..."
+                    previousLabel="←"
+                    nextLabel="→"
                     onPageChange={handlePageClick}
                     pageRangeDisplayed={3}
                     pageCount={pageCount}

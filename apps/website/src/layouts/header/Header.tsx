@@ -38,7 +38,7 @@ const Header = () => {
                     </div>
 
                     <div className="tgmenu__action dh-navbar__actions d-none d-lg-flex">
-                      <Link to="/contact" className="dh-auth-btn">
+                      <Link to="/contact" className="dh-auth-btn dh-auth-btn--special">
                         Contact
                       </Link>
                     </div>

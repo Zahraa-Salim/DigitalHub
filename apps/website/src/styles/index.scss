@@ -256,3 +256,40 @@
     display: none;
   }
 }
+
+/* Home FAQ spacing when fact counter is removed from home */
+.faq__area.faq__area--home {
+  margin-top: 0;
+  padding-top: 120px;
+}
+
+@media (max-width: 767.98px) {
+  .faq__area.faq__area--home {
+    padding-top: 100px;
+  }
+}
+
+/* Navbar contact button emphasis */
+.dh-navbar .dh-auth-btn.dh-auth-btn--special {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  min-width: 120px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3f46b5 0%, #5a61d9 100%);
+  box-shadow: 0 10px 24px rgba(63, 70, 181, 0.28);
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+  letter-spacing: 0.2px;
+}
+
+.dh-navbar .dh-auth-btn.dh-auth-btn--special:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(63, 70, 181, 0.34);
+  background: linear-gradient(135deg, #353cab 0%, #525ad3 100%);
+  color: #fff;
+}
