@@ -46,7 +46,7 @@ const DEFAULT_FOOTER: FooterData = {
         { label: "Home", url: "/#header-fixed-height" },
         { label: "Contact", url: "/contact" },
         { label: "About", url: "/#home-about" },
-        { label: "Blog", url: "/blog" },
+        // { label: "Blog", url: "/blog" },
       ],
     },
     {
