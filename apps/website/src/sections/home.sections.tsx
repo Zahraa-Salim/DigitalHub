@@ -5,7 +5,6 @@ import FooterOne from "@/layouts/footers/FooterOne";
 import HeaderOne from "@/layouts/header/Header";
 import HomeOneAbout from "@/components/homes/home-one/About";
 import HomeOneBanner from "@/components/homes/home-one/Banner";
-import HomeOneBlog from "@/components/homes/home-one/Blog";
 import HomeOneCourseArea from "@/components/homes/home-one/CourseArea";
 import HomeOneFeatures from "@/components/homes/home-one/Features";
 import HomeOneInstructor from "@/components/homes/home-one/Instructor";
@@ -26,7 +25,6 @@ export const HomeOne = () => {
         {/* <HomeOneFaqArea /> */}
         <HomeOneFeatures />
         <HomeOneInstructorTwo />
-        <HomeOneBlog />
       </main>
       <FooterOne />
     </>
