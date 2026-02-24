@@ -55,7 +55,7 @@ export const announcementsMock = [
 export const eventsMock = [
   { id: 81, title: "Career Fair", date: "2026-03-12", location: "Main Hall", isPublished: true, isDone: false },
   { id: 82, title: "UX Portfolio Review", date: "2026-02-01", location: "Lab B", isPublished: true, isDone: true },
-  { id: 83, title: "Cloud Workshop", date: "2026-04-05", location: "Tech Center", isPublished: false, isDone: false },
+  // { id: 83, title: "Cloud Workshop", date: "2026-04-05", location: "Tech Center", isPublished: false, isDone: false },
 ];
 
 export const studentsMock = [

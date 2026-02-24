@@ -1,5 +1,6 @@
 import type { AuthUser } from "../utils/auth";
 
+import Notification  from "../assets/Notification.png";
 type TopbarProps = {
   title: string;
   user: AuthUser;
@@ -46,7 +47,11 @@ export function Topbar({
 
       <div className="topbar__actions">
         <button className="icon-btn" type="button" aria-label="Notifications (placeholder)">
-          <span aria-hidden>🔔</span>
+    <img
+  src={Notification}
+  alt="notification"
+  style={{ width: "20px", height: "24px" }}
+/>
           <span className="icon-btn__badge">3</span>
         </button>
 
