@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -398,7 +398,9 @@ export function AnnouncementsPage() {
           </Card>
           <Card className="stats-card">
             <p className="stats-card__label">Latest Created</p>
-            <p className="stats-card__value">{latestCreated ? formatDateTime(latestCreated) : "No records"}</p>
+            <p className="stats-card__value" style={{ fontSize: "1.1rem" }}>
+              {latestCreated ? formatDateTime(latestCreated) : "No records"}
+            </p>
             <p className="stats-card__hint">Most recent row in current list</p>
           </Card>
         </div>
@@ -572,7 +574,10 @@ export function AnnouncementsPage() {
       {selected ? (
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">Announcement Details</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
+              <h3 className="modal-title">Announcement Details</h3>
+            </header>
             <div className="post-details">
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
               <p className="post-details__line"><strong>Audience:</strong> {selected.target_audience}</p>
@@ -592,7 +597,10 @@ export function AnnouncementsPage() {
       {formMode ? (
         <div className="modal-overlay" role="presentation" onClick={closeForm}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">{formMode === "create" ? "Add Announcement" : "Edit Announcement"}</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={closeForm}>X</button>
+              <h3 className="modal-title">{formMode === "create" ? "Add Announcement" : "Edit Announcement"}</h3>
+            </header>
             <div className="form-stack">
               <label className="field"><span className="field__label">Title</span><input className="field__control" type="text" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></label>
               <label className="field"><span className="field__label">Body</span><textarea className="textarea-control" value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} /></label>
@@ -615,7 +623,10 @@ export function AnnouncementsPage() {
       {deleteTarget ? (
         <div className="modal-overlay" role="presentation" onClick={() => setDeleteTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">Delete Announcement</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setDeleteTarget(null)}>X</button>
+              <h3 className="modal-title">Delete Announcement</h3>
+            </header>
             <p className="post-details__line">Delete <strong>{deleteTarget.title}</strong>? This uses soft delete on the server.</p>
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>Cancel</button>
@@ -649,4 +660,8 @@ export function AnnouncementsPage() {
     </PageShell>
   );
 }
+
+
+
+
 

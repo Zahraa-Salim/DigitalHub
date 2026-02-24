@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -655,6 +655,7 @@ export function ApplicationsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Application Details</h3>
             </header>
 
@@ -730,6 +731,7 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setApproveTarget(null)}>X</button>
               <h3 className="modal-title">Approve Application</h3>
             </header>
             <p className="post-details__line">
@@ -757,6 +759,7 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setRejectTarget(null)}>X</button>
               <h3 className="modal-title">Reject Application</h3>
             </header>
             <p className="post-details__line">
@@ -852,3 +855,6 @@ export function ApplicationsPage() {
     </PageShell>
   );
 }
+
+
+

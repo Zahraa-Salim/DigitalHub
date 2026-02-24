@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -479,7 +479,10 @@ export function EventsPage() {
       {selected ? (
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">Event Details</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
+              <h3 className="modal-title">Event Details</h3>
+            </header>
             <div className="post-details">
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
               <p className="post-details__line"><strong>Slug:</strong> {selected.slug}</p>
@@ -502,7 +505,10 @@ export function EventsPage() {
       {formMode ? (
         <div className="modal-overlay" role="presentation" onClick={closeForm}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">{formMode === "create" ? "Add Event" : "Edit Event"}</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={closeForm}>X</button>
+              <h3 className="modal-title">{formMode === "create" ? "Add Event" : "Edit Event"}</h3>
+            </header>
             <div className="form-stack">
               <label className="field"><span className="field__label">Title</span><input className="field__control" type="text" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></label>
               <label className="field"><span className="field__label">Slug</span><input className="field__control" type="text" value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} placeholder="Leave blank to auto-generate from title" /></label>
@@ -523,7 +529,10 @@ export function EventsPage() {
       {deleteTarget ? (
         <div className="modal-overlay" role="presentation" onClick={() => setDeleteTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">Delete Event</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setDeleteTarget(null)}>X</button>
+              <h3 className="modal-title">Delete Event</h3>
+            </header>
             <p className="post-details__line">Delete <strong>{deleteTarget.title}</strong>? This uses soft delete on the server.</p>
             <div className="modal-actions"><button className="btn btn--secondary" type="button" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>Cancel</button><button className="btn btn--danger" type="button" onClick={confirmDelete} disabled={isDeleting}>{isDeleting ? "Deleting..." : "Delete"}</button></div>
           </div>
@@ -533,7 +542,10 @@ export function EventsPage() {
       {markDoneTarget ? (
         <div className="modal-overlay" role="presentation" onClick={() => setMarkDoneTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header"><h3 className="modal-title">Mark Event Done</h3></header>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setMarkDoneTarget(null)}>X</button>
+              <h3 className="modal-title">Mark Event Done</h3>
+            </header>
             <p className="post-details__line">Mark <strong>{markDoneTarget.title}</strong> as completed?</p>
             <div className="modal-actions"><button className="btn btn--secondary" type="button" onClick={() => setMarkDoneTarget(null)} disabled={isMarkingDone}>Cancel</button><button className="btn btn--primary" type="button" onClick={confirmMarkDone} disabled={isMarkingDone}>{isMarkingDone ? "Updating..." : "Mark Done"}</button></div>
           </div>
@@ -565,4 +577,8 @@ export function EventsPage() {
     </PageShell>
   );
 }
+
+
+
+
 

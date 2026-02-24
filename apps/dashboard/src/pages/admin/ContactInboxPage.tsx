@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -489,6 +489,7 @@ export function ContactInboxPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Message Details</h3>
             </header>
             <div className="post-details">
@@ -575,6 +576,7 @@ export function ContactInboxPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setReplyTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setReplyTarget(null)}>X</button>
               <h3 className="modal-title">Reply to {replyTarget.name}</h3>
             </header>
             <label className="field">
@@ -664,3 +666,6 @@ export function ContactInboxPage() {
     </PageShell>
   );
 }
+
+
+

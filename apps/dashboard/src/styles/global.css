@@ -146,6 +146,7 @@ a {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .sidebar-brand {
@@ -178,6 +179,35 @@ html.dark .sidebar-brand {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-left: 4px;
+  scrollbar-gutter: stable;
+  direction: rtl;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+
+.sidebar-nav > * {
+  direction: ltr;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
 }
 
 .sidebar-nav__link {
@@ -196,19 +226,29 @@ html.dark .sidebar-brand {
 }
 
 .sidebar-nav__icon {
-  width: 18px;
+  width: 20px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   opacity: 0.9;
 }
 
-.sidebar-nav__icon-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1px solid #94a3b8;
-  background: #cbd5e1;
+.sidebar-nav__icon-glyph {
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.sidebar-nav__icon-glyph svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .sidebar-nav__label {
@@ -235,9 +275,21 @@ html.dark .sidebar-brand {
 
 .sidebar-nav__caret {
   margin-left: auto;
-  font-size: 0.78rem;
   color: var(--text-muted);
   transition: transform 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-nav__caret svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .sidebar-nav__caret--open {
@@ -295,12 +347,11 @@ html.dark .sidebar-brand {
   color: var(--text);
 }
 
-.sidebar-nav__link:hover .sidebar-nav__icon-dot,
-.sidebar-nav__sublink:hover .sidebar-nav__icon-dot,
-.sidebar-nav__sublink--active .sidebar-nav__icon-dot,
-.sidebar-nav__link--active .sidebar-nav__icon-dot {
-  border-color: #64748b;
-  background: #94a3b8;
+.sidebar-nav__link:hover .sidebar-nav__icon-glyph,
+.sidebar-nav__sublink:hover .sidebar-nav__icon-glyph,
+.sidebar-nav__sublink--active .sidebar-nav__icon-glyph,
+.sidebar-nav__link--active .sidebar-nav__icon-glyph {
+  color: #334155;
 }
 
 .sidebar-footer {
@@ -581,13 +632,25 @@ html.dark .sidebar-brand {
 .page-section--scroll {
   overflow-y: auto;
   padding-right: 4px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
 }
 
 .page-section--scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 6px;
+}
+
+.page-section--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-section--scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+}
+
+.page-section--scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
 }
 
 .page-header {
@@ -1833,7 +1896,7 @@ select.field__control {
   margin-bottom: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
 }
 
@@ -1844,17 +1907,32 @@ select.field__control {
 }
 
 .modal-close {
-  border: 0;
-  background: transparent;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
   color: var(--text-muted);
-  font-size: 0.85rem;
-  padding: 6px 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
   border-radius: 8px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .modal-close:hover {
-  background: var(--surface-soft);
+  background: var(--secondary);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .modal-actions {

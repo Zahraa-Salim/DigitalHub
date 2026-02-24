@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -827,6 +827,7 @@ export function CohortsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Cohort Details</h3>
             </header>
             <div className="post-details">
@@ -888,6 +889,7 @@ export function CohortsPage() {
         <div className="modal-overlay" role="presentation" onClick={closeForm}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={closeForm}>X</button>
               <h3 className="modal-title">{formTitle}</h3>
             </header>
 
@@ -1101,6 +1103,7 @@ export function CohortsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setDeleteTarget(null)}>X</button>
               <h3 className="modal-title">Delete Cohort</h3>
             </header>
 
@@ -1205,3 +1208,7 @@ export function CohortsPage() {
     </PageShell>
   );
 }
+
+
+
+
