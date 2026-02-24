@@ -14,7 +14,8 @@ const isExternal = (value: string) =>
   value.startsWith("https://") ||
   value.startsWith("mailto:") ||
   value.startsWith("tel:") ||
-  value.startsWith("#");
+  value.startsWith("#") ||
+  value.includes("#");
 
 const Link = ({ to, href, children, ...props }: Props) => {
   const target = to ?? href ?? "#";

@@ -43,9 +43,9 @@ const DEFAULT_FOOTER: FooterData = {
     {
       title: "Useful Links",
       links: [
-        { label: "Home", url: "/" },
+        { label: "Home", url: "/#header-fixed-height" },
         { label: "Contact", url: "/contact" },
-        { label: "About", url: "/about" },
+        { label: "About", url: "/#home-about" },
         { label: "Blog", url: "/blog" },
       ],
     },
@@ -67,6 +67,13 @@ const API_BASE = "http://localhost:3000";
 
 const FooterCommon = () => {
   const [data, setData] = useState<FooterData>(DEFAULT_FOOTER);
+
+  const resolveLinkUrl = (link: SectionLink) => {
+    const normalized = link.label.trim().toLowerCase();
+    if (normalized === "home") return "/#header-fixed-height";
+    if (normalized === "about") return "/#home-about";
+    return link.url;
+  };
 
   useEffect(() => {
     fetch(`${API_BASE}/footer`, { cache: "no-store" })
@@ -144,7 +151,7 @@ const FooterCommon = () => {
               <ul className="list-wrap">
                 {section.links.map((link, j) => (
                   <li key={j}>
-                    <Link to={link.url}>{link.label}</Link>
+                    <Link to={resolveLinkUrl(link)}>{link.label}</Link>
                   </li>
                 ))}
               </ul>
