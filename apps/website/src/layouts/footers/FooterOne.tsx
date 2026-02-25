@@ -1,4 +1,4 @@
-// File: src/layouts/footers/FooterOne.tsx
+﻿// File: src/layouts/footers/FooterOne.tsx
 // Purpose: Shared layout container used across pages and sections.
 // If you change this file: Changing structure or wrapper logic can affect navigation, shared UI placement, and consistency across routes.
 "use client";
@@ -49,7 +49,8 @@ const DEFAULT_DATA: FooterData = {
 
 const FooterOne = ({ style, style_2 }: StyleType) => {
   const [data, setData] = useState<FooterData>(DEFAULT_DATA);
-  const [loaded, setLoaded] = useState(false); // ✅ FIX
+  const [loaded, setLoaded] = useState(false);
+  const currentYear = new Date().getFullYear().toString();
 
   useEffect(() => {
     fetch("http://localhost:3000/footer", { cache: "no-store" })
@@ -58,10 +59,10 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
         if (res) setData(res);
       })
       .catch(() => {})
-      .finally(() => setLoaded(true)); // ✅ FIX
+      .finally(() => setLoaded(true)); // âœ… FIX
   }, []);
 
-  // ⛔ Prevent default flash on refresh
+  // â›” Prevent default flash on refresh
   if (!loaded) return null;
 
   return (
@@ -114,7 +115,7 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
             <div className="col-md-7">
               <div className="copy-right-text">
                 <p>
-                  © {data.legal.copyright} The Digital Hub. All rights reserved.
+                  &copy; {currentYear} The Digital Hub. All rights reserved.
                 </p>
               </div>
             </div>
@@ -139,5 +140,7 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
 };
 
 export default FooterOne;
+
+
 
 
