@@ -28,17 +28,21 @@ export function errorHandler(error, _req, res, _next) {
         sendError(res, error.statusCode, error.code, error.message, error.details);
         return;
     }
-    if (typeof error === "object" && error !== null && "code" in error) {
-        const dbCode = String(error.code);
-        if (dbCode === "23505") {
-            sendError(res, 409, "VALIDATION_ERROR", "Duplicate value violates a unique constraint.");
-            return;
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const dbCode = String(error.code);
+    if (dbCode === "23505") {
+      sendError(res, 409, "VALIDATION_ERROR", "Duplicate value violates a unique constraint.");
+      return;
         }
-        if (dbCode === "23503") {
-            sendError(res, 422, "VALIDATION_ERROR", "Related resource was not found.");
-            return;
-        }
+    if (dbCode === "23503") {
+      sendError(res, 422, "VALIDATION_ERROR", "Related resource was not found.");
+      return;
     }
+    if (dbCode === "22P02") {
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid value format.");
+      return;
+    }
+  }
     sendError(res, 500, "INTERNAL_ERROR", "Internal server error");
 }
 

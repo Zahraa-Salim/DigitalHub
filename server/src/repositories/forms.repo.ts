@@ -5,6 +5,29 @@
 // @ts-nocheck
 import { pool } from "../db/index.js";
 
+function toJsonbParam(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    // Accept already-JSON strings and plain strings safely.
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      return JSON.stringify(trimmed);
+    }
+  }
+
+  return JSON.stringify(value);
+}
+
 export async function findFormByKey(key, db = pool) {
   return db.query(
     `
@@ -99,7 +122,7 @@ export async function replaceFormFields(formId, fields, db = pool) {
         field.label,
         field.type,
         field.required ?? false,
-        field.options ?? null,
+        toJsonbParam(field.options),
         field.placeholder ?? null,
         field.min_length ?? null,
         field.max_length ?? null,

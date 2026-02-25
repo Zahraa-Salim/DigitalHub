@@ -1359,12 +1359,19 @@ export function CohortsPage() {
                 className="btn btn--secondary"
                 type="button"
                 onClick={applyGeneralFormToOpenCohort}
-                disabled={isAssigningGeneralForm}
+                disabled={isAssigningGeneralForm || isPreparingCustomForm}
               >
                 {isAssigningGeneralForm ? "Saving..." : "Use General Form"}
               </button>
-              <button className="btn btn--primary" type="button" onClick={goToCustomizeForm}>
-                Customize Form
+              <button
+                className="btn btn--primary"
+                type="button"
+                onClick={() => {
+                  void goToCustomizeForm();
+                }}
+                disabled={isAssigningGeneralForm || isPreparingCustomForm}
+              >
+                {isPreparingCustomForm ? "Preparing..." : "Customize Form"}
               </button>
             </div>
           </div>
@@ -1453,4 +1460,29 @@ export function CohortsPage() {
                     { label: "Created Date", value: "created_at" },
                     { label: "Start Date", value: "start_date" },
                     { label: "Name", value: "name" },
-             
+                    { label: "Status", value: "status" },
+                  ],
+                  onChange: (value) => setSortBy(value as SortBy),
+                },
+                {
+                  label: "Sort Order",
+                  value: sortOrder,
+                  options: [
+                    { label: "Descending", value: "desc" },
+                    { label: "Ascending", value: "asc" },
+                  ],
+                  onChange: (value) => setSortOrder(value as "asc" | "desc"),
+                },
+              ]}
+            />
+          </div>
+        </div>
+      ) : null}
+    </PageShell>
+  );
+}
+
+
+
+
+

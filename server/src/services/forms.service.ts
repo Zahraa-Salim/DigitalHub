@@ -239,6 +239,9 @@ function shouldUpgradeLegacyDefault(fieldsRows) {
 }
 
 async function ensureGeneralForm(client) {
+  // Serialize general-form bootstrap/upgrade to avoid concurrent replace collisions.
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [GENERAL_FORM_KEY]);
+
   let formResult = await findFormByKey(GENERAL_FORM_KEY, client);
   let formRow;
 

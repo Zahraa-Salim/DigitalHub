@@ -504,6 +504,7 @@ export function FormsPage() {
             : createRecommendedFieldDrafts(),
         );
         setOpenGeneralFieldKey(null);
+        setError("");
       } catch (err) {
         if (!active) {
           return;
@@ -540,6 +541,7 @@ export function FormsPage() {
         }
 
         setCohorts(result.data);
+        setError("");
 
         if (!selectedCohortId && result.data.length) {
           const nextId = queryCohortId || String(result.data[0].id);
@@ -596,6 +598,7 @@ export function FormsPage() {
         setCustomForm(normalizedCustom);
         setCustomFieldsDraft(normalizedCustom.fields.map((field, index) => toFieldDraft(field, index)));
         setOpenCustomFieldKey(null);
+        setError("");
       } catch (err) {
         if (!active) {
           return;
@@ -696,7 +699,7 @@ export function FormsPage() {
                   type="button"
                   onClick={() => setOpenFieldKey((current) => (current === field.key ? null : field.key))}
                 >
-                  {openFieldKey === field.key ? "Close" : "Edit"}
+                  {openFieldKey === field.key ? "Save" : "Edit"}
                 </button>
                 <button
                   className="btn btn--secondary btn--sm"
