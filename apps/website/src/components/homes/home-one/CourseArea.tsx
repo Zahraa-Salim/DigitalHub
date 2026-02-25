@@ -129,7 +129,10 @@ export default function CourseArea({ style }: StyleType) {
             <div className="courses-button-prev">
               <i className="flaticon-arrow-right"></i>
             </div>
-            <div className="courses-button-next">
+            <div
+              className="courses-button-next"
+              onClick={() => document.querySelector<HTMLDivElement>(".courses-button-prev")?.click()}
+            >
               <i className="flaticon-arrow-right"></i>
             </div>
           </div>

@@ -109,12 +109,21 @@ export default function CourseArea() {
                 <nav className="pagination__wrap mt-30">
                   <ReactPaginate
                     breakLabel="..."
-                    previousLabel="←"
-                    nextLabel="→"
                     onPageChange={handlePageClick}
                     pageRangeDisplayed={3}
                     pageCount={pageCount}
                     className="list-wrap"
+                    previousLabel={
+                      <i
+                        className="flaticon-arrow-right"
+                        style={{ transform: "rotate(180deg)", display: "inline-block" }}
+                      ></i>
+                    }
+                    nextLabel={<i className="flaticon-arrow-right"></i>}
+                    previousAriaLabel="Previous page"
+                    nextAriaLabel="Next page"
+                    previousClassName="previous pagination__arrow"
+                    nextClassName="next pagination__arrow"
                   />
                 </nav>
               </div>

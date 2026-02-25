@@ -17,7 +17,7 @@ const About = () => {
 
    return (
       <>
-         <section className="about-area tg-motion-effects section-py-120">
+         <section id="home-about" className="about-area tg-motion-effects section-py-120">
             <div className="container">
                <div className="row align-items-center justify-content-center">
                   <div className="col-lg-6 col-md-9">

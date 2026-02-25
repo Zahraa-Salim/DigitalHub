@@ -42,7 +42,7 @@ const DEFAULT_DATA: FooterData = {
   legal: {
     terms: "Terms of Use",
     privacy: "Privacy Policy",
-    copyright: "2025",
+    copyright: "2026",
   },
 };
 /* ================================================= */

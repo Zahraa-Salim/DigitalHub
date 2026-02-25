@@ -258,6 +258,35 @@
 }
 
 /* Home FAQ spacing when fact counter is removed from home */
+
+@media (min-width: 768px) {
+  .courses__nav .courses-button-prev {
+    left: 12px;
+  }
+
+  .courses__nav .courses-button-next {
+    right: 12px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .courses__nav .courses-button-prev,
+  .courses__nav .courses-button-next {
+    margin: 0 14px;
+  }
+}
+
+.courses-area .courses-swiper-active {
+  padding: 0 44px;
+  margin: 0 24px;
+}
+
+@media (max-width: 767.98px) {
+  .courses-area .courses-swiper-active {
+    padding: 0 28px;
+    margin: 0 16px;
+  }
+}
 .faq__area.faq__area--home {
   margin-top: 0;
   padding-top: 120px;
