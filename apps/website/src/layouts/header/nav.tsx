@@ -179,11 +179,11 @@ export const MobileSidebar = ({ isActive, setIsActive }: MobileSidebarProps) => 
 
           <div className="dh-mobile-auth">
             <Link
-              to="/contact"
+              to="/apply"
               className="dh-mobile-auth__btn"
               onClick={() => setIsActive(false)}
             >
-              Contact
+              Apply Now
             </Link>
           </div>
         </nav>
