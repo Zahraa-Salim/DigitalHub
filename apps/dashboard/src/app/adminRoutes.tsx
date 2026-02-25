@@ -9,6 +9,7 @@ import { CmsThemeTokensPage } from "../pages/admin/CmsThemeTokensPage";
 import { CohortsPage } from "../pages/admin/CohortsPage";
 import { ContactInboxPage } from "../pages/admin/ContactInboxPage";
 import { EventsPage } from "../pages/admin/EventsPage";
+import { FormsPage } from "../pages/admin/FormsPage";
 import { MyProfilePage } from "../pages/admin/MyProfilePage";
 import { NotificationsPage } from "../pages/admin/NotificationsPage";
 import { ProfilesInstructorsPage } from "../pages/admin/ProfilesInstructorsPage";
@@ -37,6 +38,7 @@ export type AdminRoute = {
 export const navConfig: NavItem[] = [
   { label: "Dashboard", path: "/admin" },
   { label: "Applications", path: "/admin/applications" },
+  { label: "Application Forms", path: "/admin/forms" },
   { label: "Cohorts", path: "/admin/cohorts" },
   { label: "Programs", path: "/admin/programs" },
   {
@@ -87,6 +89,7 @@ export function getAdminRouteTitle(pathname: string): string {
 export const adminRoutes: AdminRoute[] = [
   { index: true, element: <OverviewPage /> },
   { path: "applications", element: <ApplicationsPage /> },
+  { path: "forms", element: <FormsPage /> },
   { path: "cohorts", element: <CohortsPage /> },
   { path: "programs", element: <ProgramsPage /> },
   { path: "cms/site-settings", element: <CmsSiteSettingsPage /> },

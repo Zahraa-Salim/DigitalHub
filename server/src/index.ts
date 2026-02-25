@@ -15,6 +15,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { cmsRouter } from "./routes/cms.routes.js";
 import { contactRouter } from "./routes/contact.routes.js";
 import { eventsRouter } from "./routes/events.routes.js";
+import { formsRouter } from "./routes/forms.routes.js";
 import { logsRouter } from "./routes/logs.routes.js";
 import { notificationsRouter } from "./routes/notifications.routes.js";
 import { profilesRouter } from "./routes/profiles.routes.js";
@@ -52,6 +53,7 @@ app.use("/profiles", profilesRouter);
 app.use("/applications", applicationsRouter);
 app.use("/announcements", announcementsRouter);
 app.use("/events", eventsRouter);
+app.use("/forms", formsRouter);
 app.use("/contact", contactRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/logs", logsRouter);
@@ -64,8 +66,16 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
+      ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      UPDATE cohorts
+      SET status = 'coming_soon', updated_at = NOW()
+      WHERE status = 'planned'
+        AND deleted_at IS NULL;
     `);
 }
 async function startServer() {

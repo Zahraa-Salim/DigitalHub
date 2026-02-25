@@ -21,6 +21,7 @@ type ApplicationRow = {
   status: ApplicationStatus;
   reviewed_by: number | null;
   reviewed_at: string | null;
+  review_message?: string | null;
   submitted_at: string;
   applicant_id: number | null;
   full_name: string | null;
@@ -38,6 +39,15 @@ type CohortOption = {
 };
 
 type ToastTone = "success" | "error";
+type ReviewAction = "approve" | "reject";
+type ReviewModalState = {
+  action: ReviewAction;
+  targets: ApplicationRow[];
+};
+type DecisionBucketEntry = {
+  action: ReviewAction;
+  row: ApplicationRow;
+};
 
 const defaultPagination: PaginationMeta = {
   page: 1,
@@ -72,6 +82,40 @@ function formatJson(value: unknown): string {
   }
 }
 
+function formatAnswerValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "N/A";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatAnswerValue(item)).join(", ");
+  }
+
+  return formatJson(value);
+}
+
+function buildAnswerEntries(value: unknown): Array<{ key: string; value: string }> {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => ({
+      key: `Answer ${index + 1}`,
+      value: formatAnswerValue(entry),
+    }));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(([key, entry]) => ({
+      key: key.replace(/_/g, " "),
+      value: formatAnswerValue(entry),
+    }));
+  }
+
+  return [];
+}
+
 export function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
@@ -87,9 +131,12 @@ export function ApplicationsPage() {
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<ApplicationRow | null>(null);
-  const [approveTarget, setApproveTarget] = useState<ApplicationRow | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<ApplicationRow | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [decisionBucket, setDecisionBucket] = useState<Record<number, DecisionBucketEntry>>({});
+  const [reviewModal, setReviewModal] = useState<ReviewModalState | null>(null);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [sendByEmail, setSendByEmail] = useState(true);
+  const [sendByPhone, setSendByPhone] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
@@ -202,6 +249,39 @@ export function ApplicationsPage() {
 
         setApplications(result.data);
         setPagination(result.pagination);
+        setSelectedIds((current) => {
+          if (!current.length) {
+            return current;
+          }
+
+          const pendingIds = new Set(result.data.filter((row) => row.status === "pending").map((row) => row.id));
+          return current.filter((id) => pendingIds.has(id));
+        });
+        setDecisionBucket((current) => {
+          if (!Object.keys(current).length) {
+            return current;
+          }
+
+          const next = { ...current };
+          result.data.forEach((row) => {
+            const entry = next[row.id];
+            if (!entry) {
+              return;
+            }
+
+            if (row.status !== "pending") {
+              delete next[row.id];
+              return;
+            }
+
+            next[row.id] = {
+              ...entry,
+              row,
+            };
+          });
+
+          return next;
+        });
       } catch (err) {
         if (!active) {
           return;
@@ -327,90 +407,191 @@ export function ApplicationsPage() {
     setSortBy("submitted_at");
     setSortOrder("desc");
     setPage(1);
+    setSelectedIds([]);
   };
 
-  const approveApplication = async () => {
-    if (!approveTarget) {
+  const pendingRows = useMemo(() => applications.filter((row) => row.status === "pending"), [applications]);
+  const pendingIds = useMemo(() => pendingRows.map((row) => row.id), [pendingRows]);
+  const groupedApprovedRows = useMemo(
+    () => Object.values(decisionBucket).filter((entry) => entry.action === "approve").map((entry) => entry.row),
+    [decisionBucket],
+  );
+  const groupedRejectedRows = useMemo(
+    () => Object.values(decisionBucket).filter((entry) => entry.action === "reject").map((entry) => entry.row),
+    [decisionBucket],
+  );
+  const selectedPendingRows = useMemo(
+    () => pendingRows.filter((row) => selectedIds.includes(row.id)),
+    [pendingRows, selectedIds],
+  );
+  const allPendingSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.includes(id));
+  const selectedCount = selectedPendingRows.length;
+  const selectedAnswerEntries = useMemo(() => {
+    if (!selected) {
+      return [];
+    }
+    return buildAnswerEntries(extractAnswersPayload(selected));
+  }, [selected]);
+
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds((current) => {
+      if (current.includes(id)) {
+        return current.filter((entry) => entry !== id);
+      }
+      return [...current, id];
+    });
+  };
+
+  const toggleSelectAllPending = () => {
+    setSelectedIds((current) => {
+      if (allPendingSelected) {
+        const pendingIdSet = new Set(pendingIds);
+        return current.filter((id) => !pendingIdSet.has(id));
+      }
+      const merged = new Set([...current, ...pendingIds]);
+      return Array.from(merged);
+    });
+  };
+
+  const setRowDecision = (row: ApplicationRow, action: ReviewAction) => {
+    if (row.status !== "pending") {
+      showToast("error", "Only pending applications can be grouped.");
       return;
     }
 
-    setIsActionLoading(true);
-    setError("");
-
-    try {
-      await api<{ status: string }>(`/applications/${approveTarget.id}/approve`, {
-        method: "PATCH",
-      });
-      showToast("success", "Application approved successfully.");
-      setApproveTarget(null);
-      setSelected(null);
-      setRefreshKey((current) => current + 1);
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message || "Failed to approve application." : "Failed to approve application.";
-      setError(message);
-      showToast("error", message);
-    } finally {
-      setIsActionLoading(false);
-    }
+    setDecisionBucket((current) => {
+      const next = { ...current };
+      if (next[row.id]?.action === action) {
+        delete next[row.id];
+      } else {
+        next[row.id] = { action, row };
+      }
+      return next;
+    });
   };
 
-  const rejectApplication = async () => {
-    if (!rejectTarget) {
+  const setRowsDecision = (rows: ApplicationRow[], action: ReviewAction) => {
+    const pendingTargets = rows.filter((row) => row.status === "pending");
+    if (!pendingTargets.length) {
+      showToast("error", "Only pending applications can be grouped.");
       return;
     }
 
-    setIsActionLoading(true);
-    setError("");
-
-    const trimmedReason = rejectReason.trim();
-
-    try {
-      await api<{ status: string }>(`/applications/${rejectTarget.id}/reject`, {
-        method: "PATCH",
-        body: JSON.stringify(trimmedReason ? { reason: trimmedReason } : {}),
+    setDecisionBucket((current) => {
+      const next = { ...current };
+      pendingTargets.forEach((row) => {
+        next[row.id] = { action, row };
       });
-      showToast("success", "Application rejected successfully.");
-      setRejectTarget(null);
-      setRejectReason("");
-      setSelected(null);
-      setRefreshKey((current) => current + 1);
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message || "Failed to reject application." : "Failed to reject application.";
-      setError(message);
-      showToast("error", message);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const renderActions = (row: ApplicationRow) => {
-    const isPending = row.status === "pending";
-
-    return (
-      <div className="table-actions dh-table-actions">
-        <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>
-          View
-        </button>
-        <button
-          className="btn btn--primary btn--sm dh-btn"
-          type="button"
-          onClick={() => setApproveTarget(row)}
-          disabled={!isPending}
-          title={isPending ? "Approve application" : "Only pending applications can be approved"}
-        >
-          Approve
-        </button>
-        <button
-          className="btn btn--danger btn--sm dh-btn"
-          type="button"
-          onClick={() => setRejectTarget(row)}
-          disabled={!isPending}
-          title={isPending ? "Reject application" : "Only pending applications can be rejected"}
-        >
-          Reject
-        </button>
-      </div>
+      return next;
+    });
+    showToast(
+      "success",
+      `${pendingTargets.length} application(s) added to ${action === "approve" ? "Accepted" : "Rejected"} group.`,
     );
+  };
+
+  const addSelectedToGroup = (action: ReviewAction) => {
+    if (!selectedPendingRows.length) {
+      showToast("error", "Select at least one pending application first.");
+      return;
+    }
+    setRowsDecision(selectedPendingRows, action);
+  };
+
+  const openReviewModalForGroup = (action: ReviewAction) => {
+    const targets = action === "approve" ? groupedApprovedRows : groupedRejectedRows;
+    if (!targets.length) {
+      showToast("error", `No applications in ${action === "approve" ? "Accepted" : "Rejected"} group.`);
+      return;
+    }
+    setReviewMessage("");
+    setSendByEmail(true);
+    setSendByPhone(true);
+    setReviewModal({
+      action,
+      targets,
+    });
+  };
+
+  const submitReviewAction = async () => {
+    if (!reviewModal || !reviewModal.targets.length) {
+      return;
+    }
+    if (!sendByEmail && !sendByPhone) {
+      showToast("error", "Select at least one channel: email or phone.");
+      return;
+    }
+
+    setIsActionLoading(true);
+    setError("");
+
+    const trimmedMessage = reviewMessage.trim();
+    const endpoint = reviewModal.action === "approve" ? "approve" : "reject";
+    const payload = {
+      ...(trimmedMessage ? { message: trimmedMessage } : {}),
+      ...(reviewModal.action === "reject" && trimmedMessage ? { reason: trimmedMessage } : {}),
+      send_email: sendByEmail,
+      send_phone: sendByPhone,
+    };
+
+    try {
+      const results = await Promise.allSettled(
+        reviewModal.targets.map((target) =>
+          api<{ status: string }>(`/applications/${target.id}/${endpoint}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          }),
+        ),
+      );
+
+      const successfulIds: number[] = [];
+      const failedReasons: string[] = [];
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          successfulIds.push(reviewModal.targets[index].id);
+        } else {
+          const reason = result.reason;
+          if (reason instanceof ApiError) {
+            failedReasons.push(reason.message || "Request failed.");
+          } else {
+            failedReasons.push("Request failed.");
+          }
+        }
+      });
+
+      if (successfulIds.length) {
+        const actionLabel = reviewModal.action === "approve" ? "approved" : "rejected";
+        showToast("success", `${successfulIds.length} application(s) ${actionLabel} and message queued successfully.`);
+        setRefreshKey((current) => current + 1);
+        setSelectedIds((current) => current.filter((id) => !successfulIds.includes(id)));
+        setDecisionBucket((current) => {
+          const next = { ...current };
+          successfulIds.forEach((id) => {
+            delete next[id];
+          });
+          return next;
+        });
+        if (selected && successfulIds.includes(selected.id)) {
+          setSelected(null);
+        }
+      }
+
+      if (failedReasons.length) {
+        const uniqueReasons = Array.from(new Set(failedReasons));
+        showToast("error", uniqueReasons[0] || "Some applications could not be updated.");
+      }
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message || "Failed to process application action." : "Failed to process application action.";
+      setError(message);
+      showToast("error", message);
+    } finally {
+      setIsActionLoading(false);
+      setReviewModal(null);
+      setReviewMessage("");
+      setSendByEmail(true);
+      setSendByPhone(true);
+    }
   };
 
   return (
@@ -513,55 +694,178 @@ export function ApplicationsPage() {
         ) : null}
 
         {!loading && applications.length ? (
-          <Card className="card--table desktop-only dh-table-wrap">
-            <Table<ApplicationRow>
-              rows={applications}
-              rowKey={(row) => row.id}
-              emptyMessage="No applications found. Try changing filters or search terms."
-              columns={[
-                {
-                  key: "applicant",
-                  label: "Applicant",
-                  className: "table-cell-strong",
-                  render: (row) => (
-                    <button className="program-title-btn" type="button" onClick={() => setSelected(row)}>
-                      {row.full_name || "Unnamed applicant"}
-                    </button>
-                  ),
-                },
-                {
-                  key: "email",
-                  label: "Email",
-                  render: (row) => row.email || "N/A",
-                },
-                {
-                  key: "phone",
-                  label: "Phone",
-                  render: (row) => row.phone || "N/A",
-                },
-                {
-                  key: "cohort",
-                  label: "Cohort",
-                  render: (row) => row.cohort_name || `#${row.cohort_id}`,
-                },
-                {
-                  key: "status",
-                  label: "Status",
-                  render: (row) => <Badge tone={row.status}>{row.status}</Badge>,
-                },
-                {
-                  key: "submitted",
-                  label: "Submitted",
-                  render: (row) => formatDateTime(row.submitted_at),
-                },
-                {
-                  key: "actions",
-                  label: "Actions",
-                  render: (row) => renderActions(row),
-                },
-              ]}
-            />
-          </Card>
+          <>
+            <Card className="applications-bulk-card">
+              <div className="applications-bulk-actions">
+                <label className="applications-select-all">
+                  <input
+                    type="checkbox"
+                    checked={allPendingSelected}
+                    onChange={toggleSelectAllPending}
+                    disabled={!pendingIds.length || isActionLoading}
+                  />
+                  <span>Select all pending on this page</span>
+                </label>
+                <div className="applications-bulk-actions__buttons">
+                  <span className="info-text applications-bulk-actions__count">{selectedCount} selected</span>
+                  <button
+                    className="btn btn--primary btn--sm dh-btn"
+                    type="button"
+                    onClick={() => addSelectedToGroup("approve")}
+                    disabled={!selectedCount || isActionLoading}
+                  >
+                    Group As Accepted
+                  </button>
+                  <button
+                    className="btn btn--danger btn--sm dh-btn"
+                    type="button"
+                    onClick={() => addSelectedToGroup("reject")}
+                    disabled={!selectedCount || isActionLoading}
+                  >
+                    Group As Rejected
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="applications-groups-card">
+              <div className="applications-groups-grid">
+                <section className="applications-group applications-group--approve">
+                  <p className="applications-group__title">Accepted Group</p>
+                  <p className="applications-group__count">{groupedApprovedRows.length}</p>
+                  <p className="info-text applications-group__preview">
+                    {groupedApprovedRows.length
+                      ? groupedApprovedRows
+                          .slice(0, 3)
+                          .map((row) => row.full_name || `#${row.id}`)
+                          .join(", ")
+                      : "No applications grouped yet."}
+                  </p>
+                  <button
+                    className="btn btn--primary btn--sm dh-btn"
+                    type="button"
+                    onClick={() => openReviewModalForGroup("approve")}
+                    disabled={!groupedApprovedRows.length || isActionLoading}
+                  >
+                    Send Accepted Group
+                  </button>
+                </section>
+                <section className="applications-group applications-group--reject">
+                  <p className="applications-group__title">Rejected Group</p>
+                  <p className="applications-group__count">{groupedRejectedRows.length}</p>
+                  <p className="info-text applications-group__preview">
+                    {groupedRejectedRows.length
+                      ? groupedRejectedRows
+                          .slice(0, 3)
+                          .map((row) => row.full_name || `#${row.id}`)
+                          .join(", ")
+                      : "No applications grouped yet."}
+                  </p>
+                  <button
+                    className="btn btn--danger btn--sm dh-btn"
+                    type="button"
+                    onClick={() => openReviewModalForGroup("reject")}
+                    disabled={!groupedRejectedRows.length || isActionLoading}
+                  >
+                    Send Rejected Group
+                  </button>
+                </section>
+              </div>
+            </Card>
+
+            <Card className="card--table desktop-only dh-table-wrap">
+              <Table<ApplicationRow>
+                rows={applications}
+                rowKey={(row) => row.id}
+                emptyMessage="No applications found. Try changing filters or search terms."
+                columns={[
+                  {
+                    key: "select",
+                    label: (
+                      <input
+                        type="checkbox"
+                        aria-label="Select all pending applications"
+                        checked={allPendingSelected}
+                        onChange={toggleSelectAllPending}
+                        disabled={!pendingIds.length || isActionLoading}
+                      />
+                    ),
+                    className: "application-select-cell",
+                    render: (row) => (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select application ${row.id}`}
+                        checked={selectedIds.includes(row.id)}
+                        onChange={() => toggleRowSelection(row.id)}
+                        disabled={row.status !== "pending" || isActionLoading}
+                      />
+                    ),
+                  },
+                  {
+                    key: "applicant",
+                    label: "Applicant",
+                    className: "table-cell-strong",
+                    render: (row) => (
+                      <button className="program-title-btn" type="button" onClick={() => setSelected(row)}>
+                        {row.full_name || "Unnamed applicant"}
+                      </button>
+                    ),
+                  },
+                  {
+                    key: "cohort",
+                    label: "Cohort",
+                    render: (row) => row.cohort_name || `#${row.cohort_id}`,
+                  },
+                  {
+                    key: "group",
+                    label: "Group",
+                    render: (row) =>
+                      decisionBucket[row.id]?.action === "approve" ? (
+                        <Badge tone="approved">accepted</Badge>
+                      ) : decisionBucket[row.id]?.action === "reject" ? (
+                        <Badge tone="rejected">rejected</Badge>
+                      ) : (
+                        <span className="info-text info-text--small">Not grouped</span>
+                      ),
+                  },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (row) => <Badge tone={row.status}>{row.status}</Badge>,
+                  },
+                  {
+                    key: "submitted",
+                    label: "Submitted",
+                    render: (row) => formatDateTime(row.submitted_at),
+                  },
+                  {
+                    key: "actions",
+                    label: "Actions",
+                    render: (row) => (
+                      <div className="table-actions dh-table-actions application-row-actions">
+                        <button
+                          className={`btn btn--sm dh-btn ${decisionBucket[row.id]?.action === "approve" ? "btn--primary" : "btn--secondary"}`}
+                          type="button"
+                          onClick={() => setRowDecision(row, "approve")}
+                          disabled={row.status !== "pending" || isActionLoading}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className={`btn btn--sm dh-btn ${decisionBucket[row.id]?.action === "reject" ? "btn--danger" : "btn--secondary"}`}
+                          type="button"
+                          onClick={() => setRowDecision(row, "reject")}
+                          disabled={row.status !== "pending" || isActionLoading}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+          </>
         ) : null}
 
         {!loading && !applications.length ? (
@@ -585,15 +889,18 @@ export function ApplicationsPage() {
             {applications.length ? (
               applications.map((row) => (
                 <article className="program-mobile-item application-mobile-item" key={row.id}>
-                  <button className="program-mobile-item__title" type="button" onClick={() => setSelected(row)}>
-                    {row.full_name || "Unnamed applicant"}
-                  </button>
-                  <p className="info-text application-mobile-item__meta">
-                    <strong>Email:</strong> {row.email || "N/A"}
-                  </p>
-                  <p className="info-text application-mobile-item__meta">
-                    <strong>Phone:</strong> {row.phone || "N/A"}
-                  </p>
+                  <div className="application-mobile-item__head">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select application ${row.id}`}
+                      checked={selectedIds.includes(row.id)}
+                      onChange={() => toggleRowSelection(row.id)}
+                      disabled={row.status !== "pending" || isActionLoading}
+                    />
+                    <button className="program-mobile-item__title" type="button" onClick={() => setSelected(row)}>
+                      {row.full_name || "Unnamed applicant"}
+                    </button>
+                  </div>
                   <p className="info-text application-mobile-item__meta">
                     <strong>Cohort:</strong> {row.cohort_name || `#${row.cohort_id}`}
                   </p>
@@ -603,23 +910,29 @@ export function ApplicationsPage() {
                   <div className="application-mobile-item__status">
                     <Badge tone={row.status}>{row.status}</Badge>
                   </div>
-                  <div className="table-actions program-mobile-item__actions application-mobile-item__actions">
-                    <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>
-                      View
-                    </button>
+                  <div className="application-mobile-item__status">
+                    {decisionBucket[row.id]?.action === "approve" ? (
+                      <Badge tone="approved">accepted group</Badge>
+                    ) : decisionBucket[row.id]?.action === "reject" ? (
+                      <Badge tone="rejected">rejected group</Badge>
+                    ) : (
+                      <span className="info-text info-text--small">Not grouped</span>
+                    )}
+                  </div>
+                  <div className="table-actions application-mobile-item__actions">
                     <button
-                      className="btn btn--primary btn--sm dh-btn"
+                      className={`btn btn--sm dh-btn ${decisionBucket[row.id]?.action === "approve" ? "btn--primary" : "btn--secondary"}`}
                       type="button"
-                      onClick={() => setApproveTarget(row)}
-                      disabled={row.status !== "pending"}
+                      onClick={() => setRowDecision(row, "approve")}
+                      disabled={row.status !== "pending" || isActionLoading}
                     >
-                      Approve
+                      Accept
                     </button>
                     <button
-                      className="btn btn--danger btn--sm dh-btn"
+                      className={`btn btn--sm dh-btn ${decisionBucket[row.id]?.action === "reject" ? "btn--danger" : "btn--secondary"}`}
                       type="button"
-                      onClick={() => setRejectTarget(row)}
-                      disabled={row.status !== "pending"}
+                      onClick={() => setRowDecision(row, "reject")}
+                      disabled={row.status !== "pending" || isActionLoading}
                     >
                       Reject
                     </button>
@@ -652,14 +965,19 @@ export function ApplicationsPage() {
       </div>
 
       {selected ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
-          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-overlay applications-modal-overlay" role="presentation" onClick={() => setSelected(null)}>
+          <div
+            className="modal-card applications-modal-card applications-modal-card--details"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
             <header className="modal-header">
               <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Application Details</h3>
             </header>
 
-            <div className="post-details">
+            <div className="post-details applications-details-grid">
               <p className="post-details__line">
                 <strong>Applicant:</strong> {selected.full_name || "Unnamed applicant"}
               </p>
@@ -685,6 +1003,9 @@ export function ApplicationsPage() {
                 <strong>Reviewed By:</strong> {selected.reviewed_by ?? "N/A"}
               </p>
               <p className="post-details__line">
+                <strong>Review Message:</strong> {selected.review_message || "N/A"}
+              </p>
+              <p className="post-details__line">
                 <strong>Applicant ID:</strong> {selected.applicant_id ?? "N/A"}
               </p>
             </div>
@@ -693,8 +1014,15 @@ export function ApplicationsPage() {
               <p className="post-details__line">
                 <strong>Submission Answers</strong>
               </p>
-              {extractAnswersPayload(selected) ? (
-                <pre className="metadata-block application-json-preview">{formatJson(extractAnswersPayload(selected))}</pre>
+              {selectedAnswerEntries.length ? (
+                <div className="applications-answers-list">
+                  {selectedAnswerEntries.map((entry, index) => (
+                    <div className="applications-answers-item" key={`${entry.key}-${index}`}>
+                      <p className="applications-answers-item__key">{entry.key}</p>
+                      <p className="applications-answers-item__value">{entry.value}</p>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <p className="post-details__line">No submission answers available from this endpoint.</p>
               )}
@@ -704,88 +1032,97 @@ export function ApplicationsPage() {
               <button
                 className="btn btn--primary"
                 type="button"
-                onClick={() => setApproveTarget(selected)}
+                onClick={() => setRowDecision(selected, "approve")}
                 disabled={selected.status !== "pending"}
               >
-                Approve
+                Add To Accepted Group
               </button>
               <button
                 className="btn btn--danger"
                 type="button"
-                onClick={() => setRejectTarget(selected)}
+                onClick={() => setRowDecision(selected, "reject")}
                 disabled={selected.status !== "pending"}
               >
-                Reject
+                Add To Rejected Group
               </button>
             </div>
           </div>
         </div>
       ) : null}
 
-      {approveTarget ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setApproveTarget(null)}>
+      {reviewModal ? (
+        <div className="modal-overlay applications-modal-overlay" role="presentation" onClick={() => setReviewModal(null)}>
           <div
-            className="modal-card modal-card--narrow"
+            className="modal-card modal-card--narrow applications-modal-card applications-modal-card--review"
             role="dialog"
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setApproveTarget(null)}>X</button>
               <h3 className="modal-title">Approve Application</h3>
             </header>
             <p className="post-details__line">
-              Approve <strong>{approveTarget.full_name || "this applicant"}</strong> for{" "}
-              <strong>{approveTarget.cohort_name || `#${approveTarget.cohort_id}`}</strong>?
+              Send {reviewModal.action === "approve" ? "acceptance" : "rejection"} message for{" "}
+              <strong>{reviewModal.targets.length === 1 ? (reviewModal.targets[0].full_name || "this applicant") : `${reviewModal.targets.length} grouped applications`}</strong>
+              {reviewModal.targets.length === 1 ? (
+                <>
+                  {" "}for <strong>{reviewModal.targets[0].cohort_name || `#${reviewModal.targets[0].cohort_id}`}</strong>
+                </>
+              ) : null}
+              ?
             </p>
-            <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => setApproveTarget(null)} disabled={isActionLoading}>
-                Cancel
-              </button>
-              <button className="btn btn--primary" type="button" onClick={approveApplication} disabled={isActionLoading}>
-                {isActionLoading ? "Approving..." : "Approve"}
-              </button>
+            <div className="applications-send-channels">
+              <label className="field cohort-form-switch applications-send-channels__item">
+                <span className="field__label">Send Email</span>
+                <input
+                  className="cohort-form-switch__checkbox"
+                  type="checkbox"
+                  checked={sendByEmail}
+                  onChange={(event) => setSendByEmail(event.target.checked)}
+                />
+              </label>
+              <label className="field cohort-form-switch applications-send-channels__item">
+                <span className="field__label">Send Phone</span>
+                <input
+                  className="cohort-form-switch__checkbox"
+                  type="checkbox"
+                  checked={sendByPhone}
+                  onChange={(event) => setSendByPhone(event.target.checked)}
+                />
+              </label>
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {rejectTarget ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setRejectTarget(null)}>
-          <div
-            className="modal-card modal-card--narrow"
-            role="dialog"
-            aria-modal="true"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="modal-header">
-              <h3 className="modal-title">Reject Application</h3>
-            </header>
-            <p className="post-details__line">
-              Reject <strong>{rejectTarget.full_name || "this applicant"}</strong>? You can include an optional reason.
-            </p>
             <label className="field">
-              <span className="field__label">Reason (optional)</span>
+              <span className="field__label">Message To Group (optional)</span>
               <textarea
                 className="textarea-control"
-                value={rejectReason}
-                onChange={(event) => setRejectReason(event.target.value)}
-                placeholder="Add context for the rejection."
+                value={reviewMessage}
+                onChange={(event) => setReviewMessage(event.target.value)}
+                placeholder={reviewModal.action === "approve" ? "Optional acceptance message." : "Optional rejection message."}
               />
             </label>
             <div className="modal-actions">
               <button
                 className="btn btn--secondary"
                 type="button"
-                onClick={() => {
-                  setRejectTarget(null);
-                  setRejectReason("");
-                }}
+                onClick={() => setReviewModal(null)}
                 disabled={isActionLoading}
               >
                 Cancel
               </button>
-              <button className="btn btn--danger" type="button" onClick={rejectApplication} disabled={isActionLoading}>
-                {isActionLoading ? "Rejecting..." : "Reject"}
+              <button
+                className={`btn ${reviewModal.action === "approve" ? "btn--primary" : "btn--danger"}`}
+                type="button"
+                onClick={submitReviewAction}
+                disabled={isActionLoading}
+              >
+                {isActionLoading
+                  ? reviewModal.action === "approve"
+                    ? "Sending Accepted Group..."
+                    : "Sending Rejected Group..."
+                  : reviewModal.action === "approve"
+                    ? "Send Accepted Group"
+                    : "Send Rejected Group"}
               </button>
             </div>
           </div>
@@ -853,6 +1190,3 @@ export function ApplicationsPage() {
     </PageShell>
   );
 }
-
-
-

@@ -11,15 +11,23 @@ export async function createApplicant(fullName, email, phone, db = pool) {
       RETURNING *
     `, [fullName, email, phone]);
 }
-export async function createApplication(cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, db = pool) {
+export async function createApplication(cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, submissionAnswers, db = pool) {
     return db.query(`
-      INSERT INTO applications (cohort_id, applicant_id, applicant_email_norm, applicant_phone_norm, status, submitted_at)
-      SELECT $1, $2, $3, $4, 'pending', NOW()
+      INSERT INTO applications (
+        cohort_id,
+        applicant_id,
+        applicant_email_norm,
+        applicant_phone_norm,
+        submission_answers,
+        status,
+        submitted_at
+      )
+      SELECT $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), 'pending', NOW()
       FROM cohorts c
       WHERE c.id = $1
         AND c.deleted_at IS NULL
       RETURNING *
-    `, [cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm]);
+    `, [cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, submissionAnswers ?? null]);
 }
 export async function createApplicationSubmission(applicationId, formId, answers, db = pool) {
     return db.query(`
@@ -45,13 +53,26 @@ export async function listApplications(whereClause, sortBy, order, params, limit
         a.status,
         a.reviewed_by,
         a.reviewed_at,
+        a.review_message,
         a.submitted_at,
+        COALESCE(
+          NULLIF(a.submission_answers, '{}'::jsonb),
+          latest_submission.answers,
+          '{}'::jsonb
+        ) AS submission_answers,
         ap.id AS applicant_id,
         ap.full_name,
         ap.email,
         ap.phone
       FROM applications a
       LEFT JOIN applicants ap ON ap.id = a.applicant_id
+      LEFT JOIN LATERAL (
+        SELECT s.answers
+        FROM application_submissions s
+        WHERE s.application_id = a.id
+        ORDER BY s.created_at DESC, s.id DESC
+        LIMIT 1
+      ) latest_submission ON TRUE
       JOIN cohorts c ON c.id = a.cohort_id AND c.deleted_at IS NULL
       ${whereClause}
       ORDER BY a.${sortBy} ${order}
@@ -119,21 +140,22 @@ export async function createEnrollment(studentUserId, cohortId, applicationId, d
       RETURNING *
     `, [studentUserId, cohortId, applicationId]);
 }
-export async function markApplicationApproved(applicationId, reviewerId, db = pool) {
+export async function markApplicationApproved(applicationId, reviewerId, reviewMessage, db = pool) {
     return db.query(`
       UPDATE applications
-      SET status = 'approved', reviewed_by = $1, reviewed_at = NOW()
+      SET status = 'approved', reviewed_by = $1, reviewed_at = NOW(), review_message = $3
       WHERE id = $2
-    `, [reviewerId, applicationId]);
+      RETURNING *
+    `, [reviewerId, applicationId, reviewMessage ?? null]);
 }
-export async function rejectPendingApplication(applicationId, reviewerId, db = pool) {
+export async function rejectPendingApplication(applicationId, reviewerId, reviewMessage, db = pool) {
     return db.query(`
       UPDATE applications
-      SET status = 'rejected', reviewed_by = $1, reviewed_at = NOW()
+      SET status = 'rejected', reviewed_by = $1, reviewed_at = NOW(), review_message = $3
       WHERE id = $2
         AND status = 'pending'
       RETURNING *
-    `, [reviewerId, applicationId]);
+    `, [reviewerId, applicationId, reviewMessage ?? null]);
 }
 
 

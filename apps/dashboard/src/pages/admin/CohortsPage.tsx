@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Badge } from "../../components/Badge";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
@@ -9,7 +9,7 @@ import { ApiError, api, apiList } from "../../utils/api";
 import { formatDate, formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 
-type CohortStatus = "planned" | "coming_soon" | "open" | "running" | "completed" | "cancelled";
+type CohortStatus = "coming_soon" | "open" | "running" | "completed" | "cancelled";
 type SortBy = "updated_at" | "created_at" | "name" | "start_date" | "status";
 
 type CohortRow = {
@@ -18,7 +18,6 @@ type CohortRow = {
   program_title: string;
   name: string;
   status: CohortStatus;
-  allow_applications: boolean;
   capacity: number | null;
   enrollment_open_at: string | null;
   enrollment_close_at: string | null;
@@ -39,8 +38,6 @@ type ProgramOption = {
 type CohortFormState = {
   programId: string;
   name: string;
-  status: CohortStatus;
-  allowApplications: boolean;
   capacity: string;
   enrollmentOpenAt: string;
   enrollmentCloseAt: string;
@@ -55,6 +52,32 @@ type ProgramInlineFormState = {
   defaultCapacity: string;
 };
 
+type CohortSavePayload = {
+  program_id: number;
+  name: string;
+  capacity: number | null;
+  enrollment_open_at: string | null;
+  enrollment_close_at: string | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+type ComingSoonPrompt =
+  | {
+      kind: "save";
+      payload: CohortSavePayload;
+    }
+  | {
+      kind: "status";
+      row: CohortRow;
+      nextStatus: CohortStatus;
+    };
+
+type OpenFormPrompt = {
+  cohortId: number;
+  cohortName: string;
+};
+
 type FormMode = "create" | "edit" | null;
 
 const NEW_PROGRAM_VALUE = "__new_program__";
@@ -62,8 +85,6 @@ const NEW_PROGRAM_VALUE = "__new_program__";
 const initialCohortForm: CohortFormState = {
   programId: "",
   name: "",
-  status: "planned",
-  allowApplications: false,
   capacity: "",
   enrollmentOpenAt: "",
   enrollmentCloseAt: "",
@@ -130,8 +151,6 @@ function toCohortFormState(cohort: CohortRow | null): CohortFormState {
   return {
     programId: String(cohort.program_id),
     name: cohort.name,
-    status: cohort.status,
-    allowApplications: cohort.allow_applications,
     capacity: cohort.capacity === null ? "" : String(cohort.capacity),
     enrollmentOpenAt: toDateTimeInputValue(cohort.enrollment_open_at),
     enrollmentCloseAt: toDateTimeInputValue(cohort.enrollment_close_at),
@@ -168,12 +187,64 @@ function parseProgramCapacity(value: string): number | undefined {
   return parsed;
 }
 
+function parseDate(value: string | null): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function deriveStatusFromDates(input: {
+  enrollment_open_at: string | null;
+  enrollment_close_at: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}): CohortStatus {
+  const now = new Date();
+  const enrollmentOpenAt = parseDate(input.enrollment_open_at);
+  const enrollmentCloseAt = parseDate(input.enrollment_close_at);
+  const startDate = parseDate(input.start_date);
+  const endDate = parseDate(input.end_date);
+
+  if (endDate) {
+    const endOfDay = new Date(endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (now > endOfDay) {
+      return "completed";
+    }
+  }
+
+  if (startDate) {
+    const startOfDay = new Date(startDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    if (now >= startOfDay) {
+      return "running";
+    }
+  }
+
+  if (enrollmentOpenAt && now < enrollmentOpenAt) {
+    return "coming_soon";
+  }
+
+  if (enrollmentOpenAt && (!enrollmentCloseAt || now <= enrollmentCloseAt)) {
+    return "open";
+  }
+
+  if (!enrollmentOpenAt && enrollmentCloseAt && now <= enrollmentCloseAt) {
+    return "open";
+  }
+
+  return "coming_soon";
+}
+
 export function CohortsPage() {
+  const navigate = useNavigate();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [allowApplicationsFilter, setAllowApplicationsFilter] = useState<"all" | "true" | "false">("all");
   const [programFilter, setProgramFilter] = useState("all");
   const [sortBy, setSortBy] = useState<SortBy>("updated_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -195,6 +266,11 @@ export function CohortsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CohortRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [comingSoonPrompt, setComingSoonPrompt] = useState<ComingSoonPrompt | null>(null);
+  const [openFormPrompt, setOpenFormPrompt] = useState<OpenFormPrompt | null>(null);
+  const [isAssigningGeneralForm, setIsAssigningGeneralForm] = useState(false);
+  const [isPreparingCustomForm, setIsPreparingCustomForm] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
 
@@ -300,13 +376,9 @@ export function CohortsPage() {
           return false;
         }
 
-        if (allowApplicationsFilter !== "all" && String(row.allow_applications) !== allowApplicationsFilter) {
-          return false;
-        }
-
         return true;
       }),
-    [allowApplicationsFilter, cohorts, programFilter],
+    [cohorts, programFilter],
   );
 
   const totalCohorts = rows.length;
@@ -391,6 +463,21 @@ export function CohortsPage() {
     };
   }, [showFiltersMobile]);
 
+  useEffect(() => {
+    if (!success && !error) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccess("");
+      setError("");
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [success, error]);
+
   const openCreate = () => {
     const firstProgramId = programs[0]?.id ? String(programs[0].id) : "";
     setFormMode("create");
@@ -473,81 +560,97 @@ export function CohortsPage() {
     return created;
   };
 
-  const handleSave = async () => {
+  const buildSavePayload = async (): Promise<CohortSavePayload | null> => {
     const cohortName = form.name.trim();
     if (!cohortName) {
       setFormError("Cohort name is required.");
-      return;
+      return null;
     }
 
+    let programIdValue = form.programId;
+
+    if (programIdValue === NEW_PROGRAM_VALUE || isInlineProgramOpen) {
+      const createdProgram = await createProgramInline();
+      programIdValue = String(createdProgram.id);
+      setInlineProgramForm(initialInlineProgramForm);
+      setIsInlineProgramOpen(false);
+    }
+
+    const programId = Number(programIdValue);
+    if (!Number.isInteger(programId) || programId <= 0) {
+      setFormError("Program selection is required.");
+      return null;
+    }
+
+    const capacity = parseCapacity(form.capacity);
+    const enrollmentOpenAt = toIsoDateTime(form.enrollmentOpenAt);
+    const enrollmentCloseAt = toIsoDateTime(form.enrollmentCloseAt);
+
+    if (form.enrollmentOpenAt && !enrollmentOpenAt) {
+      setFormError("Enrollment open date/time is invalid.");
+      return null;
+    }
+
+    if (form.enrollmentCloseAt && !enrollmentCloseAt) {
+      setFormError("Enrollment close date/time is invalid.");
+      return null;
+    }
+
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      setFormError("End date cannot be before start date.");
+      return null;
+    }
+
+    return {
+      program_id: programId,
+      name: cohortName,
+      capacity,
+      enrollment_open_at: enrollmentOpenAt,
+      enrollment_close_at: enrollmentCloseAt,
+      start_date: form.startDate || null,
+      end_date: form.endDate || null,
+    };
+  };
+
+  const persistCohort = async (payload: CohortSavePayload, autoAnnounce: boolean) => {
     setIsSubmitting(true);
     setFormError("");
     setError("");
 
     try {
-      let programIdValue = form.programId;
-
-      if (programIdValue === NEW_PROGRAM_VALUE || isInlineProgramOpen) {
-        const createdProgram = await createProgramInline();
-        programIdValue = String(createdProgram.id);
-        setInlineProgramForm(initialInlineProgramForm);
-        setIsInlineProgramOpen(false);
+      const requestBody: Record<string, unknown> = { ...payload };
+      if (autoAnnounce) {
+        requestBody.auto_announce = true;
       }
 
-      const programId = Number(programIdValue);
-      if (!Number.isInteger(programId) || programId <= 0) {
-        setFormError("Program selection is required.");
-        return;
-      }
-
-      const capacity = parseCapacity(form.capacity);
-      const enrollmentOpenAt = toIsoDateTime(form.enrollmentOpenAt);
-      const enrollmentCloseAt = toIsoDateTime(form.enrollmentCloseAt);
-
-      if (form.enrollmentOpenAt && !enrollmentOpenAt) {
-        setFormError("Enrollment open date/time is invalid.");
-        return;
-      }
-
-      if (form.enrollmentCloseAt && !enrollmentCloseAt) {
-        setFormError("Enrollment close date/time is invalid.");
-        return;
-      }
-
-      if (form.allowApplications && !enrollmentOpenAt && !enrollmentCloseAt) {
-        setFormError("Allow Applications cannot be enabled without enrollment date/time.");
-        return;
-      }
-
-      const payload = {
-        program_id: programId,
-        name: cohortName,
-        status: form.status,
-        allow_applications: form.allowApplications,
-        capacity,
-        enrollment_open_at: enrollmentOpenAt,
-        enrollment_close_at: enrollmentCloseAt,
-        start_date: form.startDate || null,
-        end_date: form.endDate || null,
-      };
-
+      let saved: CohortRow;
       if (formMode === "create") {
-        await api<CohortRow>("/cohorts", {
+        saved = await api<CohortRow>("/cohorts", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestBody),
         });
         setSuccess("Cohort added successfully.");
       } else if (formMode === "edit" && editing) {
-        await api<CohortRow>(`/cohorts/${editing.id}`, {
+        saved = await api<CohortRow>(`/cohorts/${editing.id}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestBody),
         });
         setSuccess("Cohort updated successfully.");
+      } else {
+        return;
       }
 
       setFormMode(null);
       setEditing(null);
       setRefreshKey((current) => current + 1);
+
+      const wasOpenBefore = formMode === "edit" && editing?.status === "open";
+      if (saved.status === "open" && !wasOpenBefore) {
+        setOpenFormPrompt({
+          cohortId: saved.id,
+          cohortName: saved.name,
+        });
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setFormError(err.message || "Failed to save cohort.");
@@ -558,6 +661,165 @@ export function CohortsPage() {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const applyStatusChange = async (row: CohortRow, nextStatus: CohortStatus, autoAnnounce: boolean) => {
+    setStatusUpdatingId(row.id);
+    setError("");
+    setSuccess("");
+
+    try {
+      const body: Record<string, unknown> = { status: nextStatus };
+      if (autoAnnounce) {
+        body.auto_announce = true;
+      }
+
+      const updated = await api<CohortRow>(`/cohorts/${row.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+
+      setSuccess("Cohort status updated successfully.");
+      setRefreshKey((current) => current + 1);
+
+      if (updated.status === "open" && row.status !== "open") {
+        setOpenFormPrompt({
+          cohortId: updated.id,
+          cohortName: updated.name,
+        });
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "Failed to update cohort status.");
+      } else {
+        setError("Failed to update cohort status.");
+      }
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
+  const requestStatusChange = (row: CohortRow, nextStatus: CohortStatus) => {
+    if (row.status === nextStatus) {
+      return;
+    }
+
+    if (nextStatus === "coming_soon" && row.status !== "coming_soon") {
+      setComingSoonPrompt({
+        kind: "status",
+        row,
+        nextStatus,
+      });
+      return;
+    }
+
+    void applyStatusChange(row, nextStatus, false);
+  };
+
+  const handleSave = async () => {
+    setFormError("");
+    setError("");
+
+    try {
+      const payload = await buildSavePayload();
+      if (!payload) {
+        return;
+      }
+
+      const predictedStatus = deriveStatusFromDates(payload);
+      const shouldPromptComingSoon =
+        predictedStatus === "coming_soon" && (formMode === "create" || editing?.status !== "coming_soon");
+
+      if (shouldPromptComingSoon) {
+        setComingSoonPrompt({
+          kind: "save",
+          payload,
+        });
+        return;
+      }
+
+      await persistCohort(payload, false);
+    } catch (err) {
+      if (err instanceof Error) {
+        setFormError(err.message || "Failed to save cohort.");
+      } else {
+        setFormError("Failed to save cohort.");
+      }
+    }
+  };
+
+  const handleComingSoonPromptDecision = (shouldCreateAnnouncement: boolean) => {
+    const prompt = comingSoonPrompt;
+    setComingSoonPrompt(null);
+
+    if (!prompt) {
+      return;
+    }
+
+    if (prompt.kind === "save") {
+      void persistCohort(prompt.payload, shouldCreateAnnouncement);
+      return;
+    }
+
+    void applyStatusChange(prompt.row, prompt.nextStatus, shouldCreateAnnouncement);
+  };
+
+  const applyGeneralFormToOpenCohort = async () => {
+    if (!openFormPrompt) {
+      return;
+    }
+
+    setIsAssigningGeneralForm(true);
+
+    try {
+      await api(`/cohorts/${openFormPrompt.cohortId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          use_general_form: true,
+          application_form_id: null,
+        }),
+      });
+      setSuccess("General form assigned to cohort.");
+      setOpenFormPrompt(null);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === "VALIDATION_ERROR" && err.message.toLowerCase().includes("invalid request data")) {
+          setError("Forms actions need the latest backend version. Restart the server and try again.");
+        } else {
+          setError(err.message || "Failed to assign general form.");
+        }
+      } else {
+        setError("Failed to assign general form.");
+      }
+    } finally {
+      setIsAssigningGeneralForm(false);
+    }
+  };
+
+  const goToCustomizeForm = async () => {
+    if (!openFormPrompt) {
+      return;
+    }
+
+    const cohortId = openFormPrompt.cohortId;
+    setIsPreparingCustomForm(true);
+
+    try {
+      // Quick preflight so CTA does not route users into a missing forms API.
+      await api("/forms/general");
+      setOpenFormPrompt(null);
+      navigate(`/admin/forms?cohort_id=${cohortId}&mode=custom`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND") {
+        setError("Forms API is unavailable on the current backend process. Restart the server and try again.");
+      } else if (err instanceof ApiError) {
+        setError(err.message || "Failed to open form customization.");
+      } else {
+        setError("Failed to open form customization.");
+      }
+    } finally {
+      setIsPreparingCustomForm(false);
     }
   };
 
@@ -598,6 +860,21 @@ export function CohortsPage() {
       }
     >
       <div className="dh-page">
+        {(success || error) ? (
+          <div className="dh-toast-stack dh-toast-stack--top-right" aria-live="polite" aria-atomic="true">
+            {success ? (
+              <div className="dh-toast dh-toast--success">
+                <p className="dh-toast__message">{success}</p>
+              </div>
+            ) : null}
+            {error ? (
+              <div className="dh-toast dh-toast--error">
+                <p className="dh-toast__message">{error}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="stats-grid stats-grid--compact dh-stats">
           <StatsCard label="Total Cohorts" value={String(totalCohorts)} hint="Rows after current filters" />
           <StatsCard label="Open Cohorts" value={String(openCount)} hint="Accepting applications" />
@@ -621,7 +898,6 @@ export function CohortsPage() {
                   value: statusFilter,
                   options: [
                     { label: "All", value: "all" },
-                    { label: "Planned", value: "planned" },
                     { label: "Coming Soon", value: "coming_soon" },
                     { label: "Open", value: "open" },
                     { label: "Running", value: "running" },
@@ -629,16 +905,6 @@ export function CohortsPage() {
                     { label: "Cancelled", value: "cancelled" },
                   ],
                   onChange: setStatusFilter,
-                },
-                {
-                  label: "Allow Applications",
-                  value: allowApplicationsFilter,
-                  options: [
-                    { label: "All", value: "all" },
-                    { label: "Enabled", value: "true" },
-                    { label: "Disabled", value: "false" },
-                  ],
-                  onChange: (value) => setAllowApplicationsFilter(value as "all" | "true" | "false"),
                 },
                 {
                   label: "Program",
@@ -689,18 +955,6 @@ export function CohortsPage() {
           </div>
         </div>
 
-        {success ? (
-          <Card>
-            <p className="alert alert--success dh-alert dh-alert--success">{success}</p>
-          </Card>
-        ) : null}
-
-        {error ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{error}</p>
-          </Card>
-        ) : null}
-
         {loading ? (
           <>
             <Card className="card--table desktop-only dh-table-wrap">
@@ -743,22 +997,23 @@ export function CohortsPage() {
                   ),
                 },
                 {
-                  key: "program",
-                  label: "Program",
-                  render: (row) => row.program_title,
-                },
-                {
                   key: "status",
                   label: "Status",
-                  render: (row) => <Badge tone={row.status}>{row.status}</Badge>,
-                },
-                {
-                  key: "allow_applications",
-                  label: "Allow Applications",
                   render: (row) => (
-                    <Badge tone={row.allow_applications ? "published" : "unpublished"}>
-                      {row.allow_applications ? "enabled" : "disabled"}
-                    </Badge>
+                    <div className="cohort-status-cell">
+                      <select
+                        className={`field__control cohort-status-cell__select cohort-status-cell__select--${row.status}`}
+                        value={row.status}
+                        disabled={statusUpdatingId === row.id}
+                        onChange={(event) => requestStatusChange(row, event.target.value as CohortStatus)}
+                      >
+                        <option value="coming_soon">Coming Soon</option>
+                        <option value="open">Open</option>
+                        <option value="running">Running</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
                   ),
                 },
                 {
@@ -799,8 +1054,22 @@ export function CohortsPage() {
                     {row.name}
                   </button>
                   <p className="info-text">
-                    Allow Applications: <span className="text-strong">{row.allow_applications ? "Enabled" : "Disabled"}</span>
+                    Program: <span className="text-strong">{row.program_title}</span>
                   </p>
+                  <div className="cohort-status-cell cohort-status-cell--mobile">
+                    <select
+                      className={`field__control cohort-status-cell__select cohort-status-cell__select--${row.status}`}
+                      value={row.status}
+                      disabled={statusUpdatingId === row.id}
+                      onChange={(event) => requestStatusChange(row, event.target.value as CohortStatus)}
+                    >
+                      <option value="coming_soon">Coming Soon</option>
+                      <option value="open">Open</option>
+                      <option value="running">Running</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
                   <div className="table-actions program-mobile-item__actions">
                     <button className="btn btn--secondary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>
                       Edit
@@ -839,9 +1108,6 @@ export function CohortsPage() {
               </p>
               <p className="post-details__line">
                 <strong>Status:</strong> {selected.status}
-              </p>
-              <p className="post-details__line">
-                <strong>Allow Applications:</strong> {selected.allow_applications ? "Yes" : "No"}
               </p>
               <p className="post-details__line">
                 <strong>Capacity:</strong> {selected.capacity ?? "N/A"}
@@ -990,24 +1256,6 @@ export function CohortsPage() {
 
               <div className="cohort-form-grid">
                 <label className="field">
-                  <span className="field__label">Status</span>
-                  <select
-                    className="field__control"
-                    value={form.status}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, status: event.target.value as CohortStatus }))
-                    }
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="coming_soon">Coming Soon</option>
-                    <option value="open">Open</option>
-                    <option value="running">Running</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </label>
-
-                <label className="field">
                   <span className="field__label">Capacity</span>
                   <input
                     className="field__control"
@@ -1019,18 +1267,6 @@ export function CohortsPage() {
                   />
                 </label>
               </div>
-
-              <label className="field cohort-form-switch">
-                <span className="field__label">Allow Applications</span>
-                <input
-                  className="cohort-form-switch__checkbox"
-                  type="checkbox"
-                  checked={form.allowApplications}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, allowApplications: event.target.checked }))
-                  }
-                />
-              </label>
 
               <div className="cohort-form-grid">
                 <label className="field">
@@ -1077,6 +1313,10 @@ export function CohortsPage() {
                   />
                 </label>
               </div>
+
+              <p className="dh-field-help">
+                Status is calculated automatically from dates by default. You can update status directly from the list.
+              </p>
             </div>
 
             {formError ? <p className="alert alert--error">{formError}</p> : null}
@@ -1087,6 +1327,70 @@ export function CohortsPage() {
               </button>
               <button className="btn btn--primary" type="button" onClick={handleSave} disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {comingSoonPrompt ? (
+        <div className="modal-overlay" role="presentation" onClick={() => setComingSoonPrompt(null)}>
+          <div
+            className="modal-card modal-card--narrow"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <h3 className="modal-title">Create Announcement?</h3>
+            </header>
+            <p className="post-details__line">
+              This cohort is <strong>Coming Soon</strong>. Do you want to automatically create and publish an announcement now?
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn--secondary" type="button" onClick={() => handleComingSoonPromptDecision(false)}>
+                No
+              </button>
+              <button className="btn btn--primary" type="button" onClick={() => handleComingSoonPromptDecision(true)}>
+                Yes, Create Announcement
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {openFormPrompt ? (
+        <div className="modal-overlay" role="presentation" onClick={() => setOpenFormPrompt(null)}>
+          <div
+            className="modal-card modal-card--narrow"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <h3 className="modal-title">Application Form Setup</h3>
+            </header>
+            <p className="post-details__line">
+              <strong>{openFormPrompt.cohortName}</strong> is now open. Do you want to use the general form or customize a specific form for this cohort?
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={applyGeneralFormToOpenCohort}
+                disabled={isAssigningGeneralForm || isPreparingCustomForm}
+              >
+                {isAssigningGeneralForm ? "Saving..." : "Use General Form"}
+              </button>
+              <button
+                className="btn btn--primary"
+                type="button"
+                onClick={() => {
+                  void goToCustomizeForm();
+                }}
+                disabled={isAssigningGeneralForm || isPreparingCustomForm}
+              >
+                {isPreparingCustomForm ? "Preparing..." : "Customize Form"}
               </button>
             </div>
           </div>
@@ -1106,7 +1410,7 @@ export function CohortsPage() {
             </header>
 
             <p className="post-details__line">
-              Delete <strong>{deleteTarget.name}</strong>? This will soft-delete the cohort and disable applications.
+              Delete <strong>{deleteTarget.name}</strong>? This will soft-delete the cohort.
             </p>
 
             <div className="modal-actions">
@@ -1146,7 +1450,6 @@ export function CohortsPage() {
                   value: statusFilter,
                   options: [
                     { label: "All", value: "all" },
-                    { label: "Planned", value: "planned" },
                     { label: "Coming Soon", value: "coming_soon" },
                     { label: "Open", value: "open" },
                     { label: "Running", value: "running" },
@@ -1154,16 +1457,6 @@ export function CohortsPage() {
                     { label: "Cancelled", value: "cancelled" },
                   ],
                   onChange: setStatusFilter,
-                },
-                {
-                  label: "Allow Applications",
-                  value: allowApplicationsFilter,
-                  options: [
-                    { label: "All", value: "all" },
-                    { label: "Enabled", value: "true" },
-                    { label: "Disabled", value: "false" },
-                  ],
-                  onChange: (value) => setAllowApplicationsFilter(value as "all" | "true" | "false"),
                 },
                 {
                   label: "Program",
@@ -1206,6 +1499,7 @@ export function CohortsPage() {
     </PageShell>
   );
 }
+
 
 
 

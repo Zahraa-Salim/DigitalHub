@@ -425,6 +425,240 @@ ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
   status=EXCLUDED.status;
 
 -- =========================================================
+-- 9B) MORE REALISTIC APPLICATION PIPELINE DATA
+-- =========================================================
+-- More applicants for the open Full Stack cohort with mixed outcomes.
+WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
+  VALUES
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
+),
+target_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'Full Stack — Spring 2026'
+  LIMIT 1
+),
+admin_actor AS (
+  SELECT id
+  FROM users
+  WHERE email = 'admin@digitalhub.com'
+  LIMIT 1
+)
+INSERT INTO applicants (full_name, email, phone)
+SELECT ea.full_name, ea.email, ea.phone
+FROM extra_applicants ea
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM applicants a
+  WHERE lower(a.email) = lower(ea.email)
+);
+
+WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
+  VALUES
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
+),
+target_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'Full Stack — Spring 2026'
+  LIMIT 1
+),
+admin_actor AS (
+  SELECT id
+  FROM users
+  WHERE email = 'admin@digitalhub.com'
+  LIMIT 1
+),
+applicant_map AS (
+  SELECT lower(email) AS email_norm, MAX(id) AS applicant_id
+  FROM applicants
+  GROUP BY lower(email)
+)
+INSERT INTO applications (
+  cohort_id,
+  applicant_id,
+  applicant_email_norm,
+  applicant_phone_norm,
+  status,
+  reviewed_by,
+  reviewed_at,
+  submitted_at
+)
+SELECT
+  tc.id,
+  am.applicant_id,
+  lower(ea.email) AS applicant_email_norm,
+  regexp_replace(COALESCE(ea.phone, ''), '\D', '', 'g') AS applicant_phone_norm,
+  ea.status::text,
+  CASE
+    WHEN ea.status IN ('approved', 'rejected', 'waitlisted') THEN aa.id
+    ELSE NULL
+  END AS reviewed_by,
+  CASE
+    WHEN ea.status IN ('approved', 'rejected', 'waitlisted') THEN NOW() - (ea.reviewed_days || ' days')::interval
+    ELSE NULL
+  END AS reviewed_at,
+  NOW() - (ea.submitted_days || ' days')::interval AS submitted_at
+FROM extra_applicants ea
+JOIN target_cohort tc ON TRUE
+JOIN admin_actor aa ON TRUE
+JOIN applicant_map am ON am.email_norm = lower(ea.email)
+ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT NULL DO UPDATE SET
+  applicant_id = EXCLUDED.applicant_id,
+  applicant_phone_norm = EXCLUDED.applicant_phone_norm,
+  status = EXCLUDED.status,
+  reviewed_by = EXCLUDED.reviewed_by,
+  reviewed_at = EXCLUDED.reviewed_at,
+  submitted_at = EXCLUDED.submitted_at;
+
+WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
+  VALUES
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
+),
+target_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'Full Stack — Spring 2026'
+  LIMIT 1
+),
+target_form AS (
+  SELECT id
+  FROM forms
+  WHERE key = 'cohort_application'
+  LIMIT 1
+)
+INSERT INTO application_submissions (application_id, form_id, answers)
+SELECT
+  ap.id,
+  tf.id,
+  jsonb_build_object(
+    'full_name', ea.full_name,
+    'email', ea.email,
+    'phone', ea.phone,
+    'why_join', ea.why_join
+  )
+FROM extra_applicants ea
+JOIN target_cohort tc ON TRUE
+JOIN target_form tf ON TRUE
+JOIN applications ap
+  ON ap.cohort_id = tc.id
+ AND ap.applicant_email_norm = lower(ea.email)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM application_submissions sub
+  WHERE sub.application_id = ap.id
+);
+
+-- Create student accounts/profiles for approved applicants to support realistic enrollment demos.
+INSERT INTO users (email, password_hash, is_student, is_active)
+VALUES
+  ('omar.nasser@example.com', crypt('ChangeMe123!', gen_salt('bf', 10)), TRUE, TRUE),
+  ('leila.farah@example.com', crypt('ChangeMe123!', gen_salt('bf', 10)), TRUE, TRUE),
+  ('rana.tarek@example.com', crypt('ChangeMe123!', gen_salt('bf', 10)), TRUE, TRUE)
+ON CONFLICT (email) DO UPDATE
+SET is_student = TRUE, is_active = TRUE;
+
+INSERT INTO student_profiles (
+  user_id, full_name, avatar_url, bio,
+  linkedin_url, github_url, portfolio_url,
+  is_public, featured, featured_rank, public_slug
+)
+VALUES
+  (
+    (SELECT id FROM users WHERE email='omar.nasser@example.com'),
+    'Omar Nasser',
+    NULL,
+    'Backend-focused learner building API and database projects.',
+    NULL,
+    'https://github.com/omar-nasser',
+    NULL,
+    TRUE,
+    FALSE,
+    NULL,
+    'omar-nasser'
+  ),
+  (
+    (SELECT id FROM users WHERE email='leila.farah@example.com'),
+    'Leila Farah',
+    NULL,
+    'Career-switcher focused on frontend architecture and UX quality.',
+    NULL,
+    'https://github.com/leila-farah',
+    NULL,
+    TRUE,
+    FALSE,
+    NULL,
+    'leila-farah'
+  ),
+  (
+    (SELECT id FROM users WHERE email='rana.tarek@example.com'),
+    'Rana Tarek',
+    NULL,
+    'Developer interested in full-stack projects and deployment workflows.',
+    NULL,
+    'https://github.com/rana-tarek',
+    NULL,
+    TRUE,
+    FALSE,
+    NULL,
+    'rana-tarek'
+  )
+ON CONFLICT (user_id) DO UPDATE SET
+  full_name = EXCLUDED.full_name,
+  bio = EXCLUDED.bio,
+  github_url = EXCLUDED.github_url,
+  is_public = EXCLUDED.is_public,
+  public_slug = EXCLUDED.public_slug;
+
+INSERT INTO enrollments (student_user_id, cohort_id, application_id, status, enrolled_at)
+SELECT
+  u.id AS student_user_id,
+  ap.cohort_id,
+  ap.id AS application_id,
+  CASE
+    WHEN lower(u.email) = 'rana.tarek@example.com' THEN 'paused'
+    ELSE 'active'
+  END AS status,
+  NOW() - INTERVAL '5 days' AS enrolled_at
+FROM users u
+JOIN applications ap
+  ON ap.applicant_email_norm = lower(u.email)
+WHERE ap.status = 'approved'
+  AND ap.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
+  AND lower(u.email) IN ('omar.nasser@example.com', 'leila.farah@example.com', 'rana.tarek@example.com')
+ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
+  application_id = EXCLUDED.application_id,
+  status = EXCLUDED.status,
+  enrolled_at = EXCLUDED.enrolled_at;
+
+-- =========================================================
 -- 10) ANNOUNCEMENTS (website)
 -- =========================================================
 INSERT INTO announcements (

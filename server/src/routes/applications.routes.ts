@@ -8,7 +8,7 @@ import { approveApplication, createApplication, getApplications, rejectApplicati
 import { rateLimit } from "../middleware/rateLimit.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { applicationCreateSchema, idParamsSchema, rejectBodySchema, } from "../schemas/applications.schemas.js";
+import { applicationCreateSchema, approveBodySchema, idParamsSchema, rejectBodySchema, } from "../schemas/applications.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const applicationsRouter = Router();
 applicationsRouter.post("/", rateLimit({
@@ -18,7 +18,7 @@ applicationsRouter.post("/", rateLimit({
 }), validateRequest({ body: applicationCreateSchema }), asyncHandler(createApplication));
 applicationsRouter.use(verifyAdminAuth);
 applicationsRouter.get("/", asyncHandler(getApplications));
-applicationsRouter.patch("/:id/approve", validateRequest({ params: idParamsSchema }), asyncHandler(approveApplication));
+applicationsRouter.patch("/:id/approve", validateRequest({ params: idParamsSchema, body: approveBodySchema }), asyncHandler(approveApplication));
 applicationsRouter.patch("/:id/reject", validateRequest({ params: idParamsSchema, body: rejectBodySchema }), asyncHandler(rejectApplication));
 export { applicationsRouter };
 

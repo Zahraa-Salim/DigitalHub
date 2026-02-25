@@ -201,10 +201,12 @@ CREATE TABLE IF NOT EXISTS cohorts (
   program_id          BIGINT NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
   name               TEXT NOT NULL,
 
-  status             TEXT NOT NULL DEFAULT 'planned'
-    CHECK (status IN ('planned','coming_soon','open','running','completed','cancelled')),
+  status             TEXT NOT NULL DEFAULT 'coming_soon'
+    CHECK (status IN ('coming_soon','open','running','completed','cancelled')),
 
   allow_applications BOOLEAN NOT NULL DEFAULT FALSE,
+  use_general_form   BOOLEAN NOT NULL DEFAULT TRUE,
+  application_form_id BIGINT,
   capacity           INTEGER CHECK (capacity IS NULL OR capacity >= 0),
   enrollment_open_at TIMESTAMPTZ,
   enrollment_close_at TIMESTAMPTZ,
@@ -219,6 +221,7 @@ CREATE TABLE IF NOT EXISTS cohorts (
 
 CREATE INDEX IF NOT EXISTS idx_cohorts_program ON cohorts (program_id);
 CREATE INDEX IF NOT EXISTS idx_cohorts_status ON cohorts (status);
+CREATE INDEX IF NOT EXISTS idx_cohorts_form_id ON cohorts (application_form_id);
 CREATE INDEX IF NOT EXISTS idx_programs_deleted_at ON programs (deleted_at);
 CREATE INDEX IF NOT EXISTS idx_cohorts_deleted_at ON cohorts (deleted_at);
 
@@ -306,12 +309,14 @@ CREATE TABLE IF NOT EXISTS applications (
   applicant_id  BIGINT REFERENCES applicants(id) ON DELETE SET NULL,
   applicant_email_norm TEXT,
   applicant_phone_norm TEXT,
+  submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb,
 
   status       TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','approved','rejected','waitlisted')),
 
   reviewed_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
   reviewed_at  TIMESTAMPTZ,
+  review_message TEXT,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -383,6 +388,10 @@ CREATE INDEX IF NOT EXISTS idx_announcements_deleted_at ON announcements (delete
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 

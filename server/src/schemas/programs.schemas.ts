@@ -30,13 +30,13 @@ export const programPatchSchema = z
 })
     .strict()
     .refine((payload) => Object.keys(payload).length > 0, { message: "At least one field is required." });
-export const cohortStatusSchema = z.enum(["planned", "coming_soon", "open", "running", "completed", "cancelled"]);
+export const cohortStatusSchema = z.enum(["coming_soon", "open", "running", "completed", "cancelled"]);
 export const cohortCreateSchema = z
     .object({
     program_id: z.number().int().positive(),
     name: z.string().trim().min(1),
     status: cohortStatusSchema.optional(),
-    allow_applications: z.boolean().optional(),
+    auto_announce: z.boolean().optional(),
     capacity: z.number().int().min(0).nullable().optional(),
     enrollment_open_at: z.string().datetime().nullable().optional(),
     enrollment_close_at: z.string().datetime().nullable().optional(),
@@ -45,11 +45,13 @@ export const cohortCreateSchema = z
 })
     .strict();
 export const cohortPatchSchema = z
-    .object({
+  .object({
     program_id: z.number().int().positive().optional(),
     name: z.string().trim().min(1).optional(),
     status: cohortStatusSchema.optional(),
-    allow_applications: z.boolean().optional(),
+    use_general_form: z.boolean().optional(),
+    application_form_id: z.number().int().positive().nullable().optional(),
+    auto_announce: z.boolean().optional(),
     capacity: z.number().int().min(0).nullable().optional(),
     enrollment_open_at: z.string().datetime().nullable().optional(),
     enrollment_close_at: z.string().datetime().nullable().optional(),

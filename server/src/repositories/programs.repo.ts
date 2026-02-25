@@ -112,8 +112,8 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
         c.program_id,
         p.title AS program_title,
         c.name,
-        c.status,
-        c.allow_applications,
+        CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
+        (CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END) AS allow_applications,
         c.capacity,
         c.enrollment_open_at,
         c.enrollment_close_at,
@@ -131,10 +131,21 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
 }
 export async function getCohortStatusById(id, db = pool) {
     return db.query(`
-      SELECT status
-      FROM cohorts
-      WHERE id = $1
-        AND deleted_at IS NULL
+      SELECT
+        c.id,
+        c.program_id,
+        p.title AS program_title,
+        c.name,
+        CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
+        c.enrollment_open_at,
+        c.enrollment_close_at,
+        c.start_date,
+        c.end_date
+      FROM cohorts c
+      JOIN programs p ON p.id = c.program_id
+      WHERE c.id = $1
+        AND c.deleted_at IS NULL
+        AND p.deleted_at IS NULL
     `, [id]);
 }
 export async function updateCohort(id, setClause, values, db = pool) {

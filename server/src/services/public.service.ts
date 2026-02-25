@@ -48,7 +48,7 @@ const cohortsConfig = {
     extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL", "c.deleted_at IS NULL", "c.status <> 'cancelled'"],
     resourceConfig: {
         tableExpression: "cohorts c JOIN programs p ON p.id = c.program_id",
-        selectFields: "c.id, c.program_id, p.title AS program_title, c.name, c.status, c.allow_applications, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
+        selectFields: "c.id, c.program_id, p.title AS program_title, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
         sortPrefix: "c",
     },
 };
