@@ -238,6 +238,10 @@ function createEmptyFieldDraft(index: number): FieldDraft {
   };
 }
 
+function createDraftKey(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function createRecommendedFieldDrafts(): FieldDraft[] {
   return RECOMMENDED_FIELD_TEMPLATES.map((template, index) => ({
     ...template,
@@ -659,12 +663,14 @@ export function FormsPage() {
     setDrafts: Dispatch<SetStateAction<FieldDraft[]>>,
     setOpenFieldKey: Dispatch<SetStateAction<string | null>>,
   ) => {
-    let createdKey: string | null = null;
-    setDrafts((current) => {
-      const next = createEmptyFieldDraft(current.length);
-      createdKey = next.key;
-      return [...current, next];
-    });
+    const createdKey = createDraftKey("new");
+    setDrafts((current) => [
+      ...current,
+      {
+        ...createEmptyFieldDraft(current.length),
+        key: createdKey,
+      },
+    ]);
     setOpenFieldKey(createdKey);
   };
 
@@ -697,9 +703,9 @@ export function FormsPage() {
                 <button
                   className="btn btn--secondary btn--sm"
                   type="button"
-                  onClick={() => setOpenFieldKey((current) => (current === field.key ? null : field.key))}
+                  onClick={() => setOpenFieldKey(field.key)}
                 >
-                  {openFieldKey === field.key ? "Save" : "Edit"}
+                  {openFieldKey === field.key ? "Editing" : "Edit"}
                 </button>
                 <button
                   className="btn btn--secondary btn--sm"

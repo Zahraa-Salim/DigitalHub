@@ -68,6 +68,8 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
+      ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       UPDATE cohorts

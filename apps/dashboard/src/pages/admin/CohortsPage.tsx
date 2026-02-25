@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
@@ -464,6 +463,21 @@ export function CohortsPage() {
     };
   }, [showFiltersMobile]);
 
+  useEffect(() => {
+    if (!success && !error) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccess("");
+      setError("");
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [success, error]);
+
   const openCreate = () => {
     const firstProgramId = programs[0]?.id ? String(programs[0].id) : "";
     setFormMode("create");
@@ -759,15 +773,22 @@ export function CohortsPage() {
     setIsAssigningGeneralForm(true);
 
     try {
-      await api(`/forms/cohorts/${openFormPrompt.cohortId}`, {
-        method: "PUT",
-        body: JSON.stringify({ mode: "general" }),
+      await api(`/cohorts/${openFormPrompt.cohortId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          use_general_form: true,
+          application_form_id: null,
+        }),
       });
       setSuccess("General form assigned to cohort.");
       setOpenFormPrompt(null);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || "Failed to assign general form.");
+        if (err.code === "VALIDATION_ERROR" && err.message.toLowerCase().includes("invalid request data")) {
+          setError("Forms actions need the latest backend version. Restart the server and try again.");
+        } else {
+          setError(err.message || "Failed to assign general form.");
+        }
       } else {
         setError("Failed to assign general form.");
       }
@@ -785,19 +806,17 @@ export function CohortsPage() {
     setIsPreparingCustomForm(true);
 
     try {
-      // Seed the cohort custom form from the current general form before opening the editor.
-      await api(`/forms/cohorts/${cohortId}`, {
-        method: "PUT",
-        body: JSON.stringify({ mode: "custom" }),
-      });
-
+      // Quick preflight so CTA does not route users into a missing forms API.
+      await api("/forms/general");
       setOpenFormPrompt(null);
       navigate(`/admin/forms?cohort_id=${cohortId}&mode=custom`);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message || "Failed to prepare custom form.");
+      if (err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND") {
+        setError("Forms API is unavailable on the current backend process. Restart the server and try again.");
+      } else if (err instanceof ApiError) {
+        setError(err.message || "Failed to open form customization.");
       } else {
-        setError("Failed to prepare custom form.");
+        setError("Failed to open form customization.");
       }
     } finally {
       setIsPreparingCustomForm(false);
@@ -841,6 +860,21 @@ export function CohortsPage() {
       }
     >
       <div className="dh-page">
+        {(success || error) ? (
+          <div className="dh-toast-stack dh-toast-stack--top-right" aria-live="polite" aria-atomic="true">
+            {success ? (
+              <div className="dh-toast dh-toast--success">
+                <p className="dh-toast__message">{success}</p>
+              </div>
+            ) : null}
+            {error ? (
+              <div className="dh-toast dh-toast--error">
+                <p className="dh-toast__message">{error}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="stats-grid stats-grid--compact dh-stats">
           <StatsCard label="Total Cohorts" value={String(totalCohorts)} hint="Rows after current filters" />
           <StatsCard label="Open Cohorts" value={String(openCount)} hint="Accepting applications" />
@@ -921,18 +955,6 @@ export function CohortsPage() {
           </div>
         </div>
 
-        {success ? (
-          <Card>
-            <p className="alert alert--success dh-alert dh-alert--success">{success}</p>
-          </Card>
-        ) : null}
-
-        {error ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{error}</p>
-          </Card>
-        ) : null}
-
         {loading ? (
           <>
             <Card className="card--table desktop-only dh-table-wrap">
@@ -980,7 +1002,7 @@ export function CohortsPage() {
                   render: (row) => (
                     <div className="cohort-status-cell">
                       <select
-                        className="field__control cohort-status-cell__select"
+                        className={`field__control cohort-status-cell__select cohort-status-cell__select--${row.status}`}
                         value={row.status}
                         disabled={statusUpdatingId === row.id}
                         onChange={(event) => requestStatusChange(row, event.target.value as CohortStatus)}
@@ -991,7 +1013,6 @@ export function CohortsPage() {
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
-                      <Badge tone={row.status}>{row.status}</Badge>
                     </div>
                   ),
                 },
@@ -1037,7 +1058,7 @@ export function CohortsPage() {
                   </p>
                   <div className="cohort-status-cell cohort-status-cell--mobile">
                     <select
-                      className="field__control cohort-status-cell__select"
+                      className={`field__control cohort-status-cell__select cohort-status-cell__select--${row.status}`}
                       value={row.status}
                       disabled={statusUpdatingId === row.id}
                       onChange={(event) => requestStatusChange(row, event.target.value as CohortStatus)}
@@ -1048,7 +1069,6 @@ export function CohortsPage() {
                       <option value="completed">Completed</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
-                    <Badge tone={row.status}>{row.status}</Badge>
                   </div>
                   <div className="table-actions program-mobile-item__actions">
                     <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>

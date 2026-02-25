@@ -24,9 +24,19 @@ export const applicationCreateSchema = z
 export const idParamsSchema = z.object({
     id: z.coerce.number().int().positive(),
 }).strict();
+export const approveBodySchema = z
+    .object({
+    message: z.string().trim().min(1).optional(),
+    send_email: z.boolean().optional(),
+    send_phone: z.boolean().optional(),
+})
+    .strict();
 export const rejectBodySchema = z
     .object({
     reason: z.string().trim().min(1).optional(),
+    message: z.string().trim().min(1).optional(),
+    send_email: z.boolean().optional(),
+    send_phone: z.boolean().optional(),
 })
     .strict();
 

@@ -309,12 +309,14 @@ CREATE TABLE IF NOT EXISTS applications (
   applicant_id  BIGINT REFERENCES applicants(id) ON DELETE SET NULL,
   applicant_email_norm TEXT,
   applicant_phone_norm TEXT,
+  submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb,
 
   status       TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','approved','rejected','waitlisted')),
 
   reviewed_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
   reviewed_at  TIMESTAMPTZ,
+  review_message TEXT,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -388,6 +390,8 @@ ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 

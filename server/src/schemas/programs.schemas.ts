@@ -45,10 +45,12 @@ export const cohortCreateSchema = z
 })
     .strict();
 export const cohortPatchSchema = z
-    .object({
+  .object({
     program_id: z.number().int().positive().optional(),
     name: z.string().trim().min(1).optional(),
     status: cohortStatusSchema.optional(),
+    use_general_form: z.boolean().optional(),
+    application_form_id: z.number().int().positive().nullable().optional(),
     auto_announce: z.boolean().optional(),
     capacity: z.number().int().min(0).nullable().optional(),
     enrollment_open_at: z.string().datetime().nullable().optional(),

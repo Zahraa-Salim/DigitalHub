@@ -1613,6 +1613,18 @@ select.field__control {
   gap: 8px;
 }
 
+.application-mobile-item__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.application-mobile-item__head input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
 .application-mobile-item__meta {
   margin: 0;
 }
@@ -1621,13 +1633,111 @@ select.field__control {
   margin-top: 2px;
 }
 
-.application-mobile-item__actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.applications-bulk-card {
+  border-color: color-mix(in srgb, var(--border-strong) 82%, #97b1d8 18%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, #ffffff 8%), var(--surface-soft));
 }
 
-.application-mobile-item__actions .btn {
-  min-height: 40px;
+.applications-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.applications-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.applications-select-all input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.applications-bulk-actions__buttons {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.applications-bulk-actions__count {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.applications-groups-card {
+  border-color: color-mix(in srgb, var(--border-strong) 82%, #97b1d8 18%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, #ffffff 5%), var(--surface-soft));
+}
+
+.applications-groups-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+
+.applications-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.applications-group__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.applications-group__count {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.applications-group__preview {
+  margin: 0;
+}
+
+.application-row-actions .btn {
+  min-width: 84px;
+}
+
+.application-select-cell {
+  width: 52px;
+  text-align: center;
+}
+
+.application-select-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.application-mobile-item__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.applications-send-channels {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .announcement-mobile-item__meta,
@@ -1697,6 +1807,11 @@ select.field__control {
   flex-direction: column;
   gap: 8px;
   width: min(92vw, 420px);
+}
+
+.dh-toast-stack--top-right {
+  top: 16px;
+  bottom: auto;
 }
 
 .dh-toast {
@@ -1781,18 +1896,50 @@ select.field__control {
 .cohort-status-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 .cohort-status-cell__select {
-  min-height: 34px;
-  padding: 4px 30px 4px 10px;
-  font-size: 0.78rem;
-  min-width: 140px;
+  min-height: 30px;
+  padding: 3px 30px 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.cohort-status-cell__select--open {
+  color: #0f5132;
+  background: #d1f5e0;
+  border-color: #90dcb4;
+}
+
+.cohort-status-cell__select--coming_soon,
+.cohort-status-cell__select--running {
+  color: #7a4b15;
+  background: #fff3d8;
+  border-color: #efce88;
+}
+
+.cohort-status-cell__select--completed {
+  color: #1e3a8a;
+  background: #e0e7ff;
+  border-color: #b8c7ff;
+}
+
+.cohort-status-cell__select--cancelled {
+  color: #7f1d1d;
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 .cohort-status-cell--mobile {
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .forms-page__intro {
@@ -2145,6 +2292,59 @@ select.field__control {
   color: var(--text);
 }
 
+.applications-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 1;
+  animation: none;
+  z-index: 70;
+}
+
+.applications-modal-card--details {
+  max-width: min(1040px, 96vw);
+  max-height: 92vh;
+  padding: 18px;
+}
+
+.applications-details-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.applications-answers-list {
+  display: grid;
+  gap: 8px;
+}
+
+.applications-answers-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.applications-answers-item__key {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.applications-answers-item__value {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .card--table {
   padding: 0;
   overflow: hidden;
@@ -2426,12 +2626,37 @@ select.field__control {
     grid-template-columns: 1fr;
   }
 
+  .announcement-mobile-item__actions,
+  .event-mobile-item__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .applications-bulk-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .applications-bulk-actions__buttons {
+    width: 100%;
+  }
+
+  .applications-bulk-actions__buttons .btn {
+    flex: 1;
+  }
+
+  .applications-groups-grid {
+    grid-template-columns: 1fr;
+  }
+
   .application-mobile-item__actions {
     grid-template-columns: 1fr;
   }
 
-  .announcement-mobile-item__actions,
-  .event-mobile-item__actions {
+  .applications-send-channels {
+    grid-template-columns: 1fr;
+  }
+
+  .applications-details-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2479,6 +2704,10 @@ select.field__control {
 
   .dh-filters-mobile-bar {
     display: none;
+  }
+
+  .applications-groups-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

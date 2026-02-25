@@ -14,11 +14,20 @@ export async function getApplications(req, res) {
     sendList(res, result.data, result.pagination);
 }
 export async function approveApplication(req, res) {
-    const data = await approveApplicationService(Number(req.params.id), req.user.id);
+    const data = await approveApplicationService(Number(req.params.id), req.user.id, {
+        message: req.body.message,
+        send_email: req.body.send_email,
+        send_phone: req.body.send_phone,
+    });
     sendSuccess(res, data, "Application approved successfully.");
 }
 export async function rejectApplication(req, res) {
-    const data = await rejectApplicationService(Number(req.params.id), req.user.id, req.body.reason);
+    const data = await rejectApplicationService(Number(req.params.id), req.user.id, {
+        reason: req.body.reason,
+        message: req.body.message,
+        send_email: req.body.send_email,
+        send_phone: req.body.send_phone,
+    });
     sendSuccess(res, data, "Application rejected successfully.");
 }
 

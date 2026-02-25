@@ -369,6 +369,8 @@ export async function patchCohortService(id, adminId, payload) {
         "program_id",
         "name",
         "status",
+        "use_general_form",
+        "application_form_id",
         "allow_applications",
         "capacity",
         "enrollment_open_at",

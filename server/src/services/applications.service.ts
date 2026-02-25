@@ -18,12 +18,13 @@ export async function createApplicationService(payload) {
     const applicantPhoneNorm = normalizePhone(body.applicant.phone);
     const applicantEmail = applicantEmailNorm;
     const applicantPhone = body.applicant.phone?.trim() || null;
+    const submissionAnswers = body.answers ?? {};
     return withTransaction(async (client) => {
         const applicantResult = await createApplicant(body.applicant.full_name ?? null, applicantEmail, applicantPhone, client);
         const applicant = applicantResult.rows[0];
         let applicationResult;
         try {
-            applicationResult = await createApplication(body.cohort_id, applicant.id, applicantEmailNorm, applicantPhoneNorm, client);
+            applicationResult = await createApplication(body.cohort_id, applicant.id, applicantEmailNorm, applicantPhoneNorm, submissionAnswers, client);
         }
         catch (error) {
             if (isUniqueViolation(error)) {
@@ -36,7 +37,7 @@ export async function createApplicationService(payload) {
         }
         const application = applicationResult.rows[0];
         if (body.form_id) {
-            await createApplicationSubmission(application.id, body.form_id, body.answers ?? {}, client);
+            await createApplicationSubmission(application.id, body.form_id, submissionAnswers, client);
         }
         return application;
     });
@@ -66,7 +67,33 @@ export async function listApplicationsService(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function approveApplicationService(applicationId, reviewerId) {
+function normalizeReviewMessage(message) {
+    if (typeof message !== "string") {
+        return null;
+    }
+    const trimmed = message.trim();
+    return trimmed ? trimmed : null;
+}
+function normalizeReviewOptions(input) {
+    if (typeof input === "string") {
+        return {
+            reason: null,
+            message: normalizeReviewMessage(input),
+            send_email: false,
+            send_phone: false,
+        };
+    }
+    const value = typeof input === "object" && input !== null ? input : {};
+    return {
+        reason: typeof value.reason === "string" ? value.reason.trim() || null : null,
+        message: normalizeReviewMessage(value.message),
+        send_email: Boolean(value.send_email),
+        send_phone: Boolean(value.send_phone),
+    };
+}
+export async function approveApplicationService(applicationId, reviewerId, options) {
+    const input = normalizeReviewOptions(options);
+    const reviewMessage = input.message;
     return withTransaction(async (client) => {
         const applicationResult = await getApplicationForApproval(applicationId, client);
         if (!applicationResult.rowCount) {
@@ -78,6 +105,9 @@ export async function approveApplicationService(applicationId, reviewerId) {
         }
         if (!application.email) {
             throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required to approve application.");
+        }
+        if (input.send_phone && !application.phone) {
+            throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required when sending phone messages.");
         }
         if (application.capacity !== null) {
             const capacityResult = await countActiveEnrollmentsByCohort(application.cohort_id, client);
@@ -104,7 +134,7 @@ export async function approveApplicationService(applicationId, reviewerId) {
         await upsertStudentProfile(studentUserId, application.full_name ?? "Student", client);
         const enrollmentResult = await createEnrollment(studentUserId, application.cohort_id, applicationId, client);
         const enrollment = enrollmentResult.rows[0];
-        await markApplicationApproved(applicationId, reviewerId, client);
+        await markApplicationApproved(applicationId, reviewerId, reviewMessage, client);
         await logAdminAction({
             actorUserId: reviewerId,
             action: "approve application",
@@ -114,6 +144,7 @@ export async function approveApplicationService(applicationId, reviewerId) {
             metadata: {
                 cohort_id: application.cohort_id,
                 student_user_id: studentUserId,
+                review_message: reviewMessage,
             },
             title: "Application Approved",
             body: `Application #${applicationId} was approved.`,
@@ -131,31 +162,94 @@ export async function approveApplicationService(applicationId, reviewerId) {
             title: "Enrollment Created",
             body: `Enrollment #${enrollment.id} was created.`,
         }, client);
+        if (input.send_email || input.send_phone) {
+            await logAdminAction({
+                actorUserId: reviewerId,
+                action: "send application decision message",
+                entityType: "applications",
+                entityId: applicationId,
+                message: `Decision message queued for application ${applicationId}.`,
+                metadata: {
+                    decision: "approved",
+                    send_email: input.send_email,
+                    send_phone: input.send_phone,
+                    recipient_email: application.email ?? null,
+                    recipient_phone: application.phone ?? null,
+                    review_message: reviewMessage,
+                },
+                title: "Application Message Queued",
+                body: `Decision message was queued for application #${applicationId}.`,
+            }, client);
+        }
         return {
             application_id: applicationId,
             status: "approved",
             student_user_id: studentUserId,
             enrollment_id: enrollment.id,
             generated_password: generatedPassword,
+            review_message: reviewMessage,
+            send_email: input.send_email,
+            send_phone: input.send_phone,
         };
     });
 }
-export async function rejectApplicationService(applicationId, reviewerId, reason) {
-    const result = await rejectPendingApplication(applicationId, reviewerId);
-    if (!result.rowCount) {
-        throw new AppError(409, "APPLICATION_ALREADY_REVIEWED", "Pending application not found.");
-    }
-    await logAdminAction({
-        actorUserId: reviewerId,
-        action: "reject application",
-        entityType: "applications",
-        entityId: applicationId,
-        message: `Application ${applicationId} was rejected.`,
-        metadata: { reason: reason ?? null },
-        title: "Application Rejected",
-        body: `Application #${applicationId} was rejected.`,
+export async function rejectApplicationService(applicationId, reviewerId, options) {
+    const input = normalizeReviewOptions(options);
+    const reviewMessage = normalizeReviewMessage(input.message ?? input.reason);
+    return withTransaction(async (client) => {
+        const applicationResult = await getApplicationForApproval(applicationId, client);
+        if (!applicationResult.rowCount) {
+            throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
+        }
+        const application = applicationResult.rows[0];
+        if (application.status !== "pending") {
+            throw new AppError(409, "APPLICATION_ALREADY_REVIEWED", "Only pending applications can be rejected.");
+        }
+        if (input.send_email && !application.email) {
+            throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required when sending email messages.");
+        }
+        if (input.send_phone && !application.phone) {
+            throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required when sending phone messages.");
+        }
+        const result = await rejectPendingApplication(applicationId, reviewerId, reviewMessage, client);
+        if (!result.rowCount) {
+            throw new AppError(409, "APPLICATION_ALREADY_REVIEWED", "Pending application not found.");
+        }
+        await logAdminAction({
+            actorUserId: reviewerId,
+            action: "reject application",
+            entityType: "applications",
+            entityId: applicationId,
+            message: `Application ${applicationId} was rejected.`,
+            metadata: { reason: input.reason ?? null, review_message: reviewMessage },
+            title: "Application Rejected",
+            body: `Application #${applicationId} was rejected.`,
+        }, client);
+        if (input.send_email || input.send_phone) {
+            await logAdminAction({
+                actorUserId: reviewerId,
+                action: "send application decision message",
+                entityType: "applications",
+                entityId: applicationId,
+                message: `Decision message queued for application ${applicationId}.`,
+                metadata: {
+                    decision: "rejected",
+                    send_email: input.send_email,
+                    send_phone: input.send_phone,
+                    recipient_email: application.email ?? null,
+                    recipient_phone: application.phone ?? null,
+                    review_message: reviewMessage,
+                },
+                title: "Application Message Queued",
+                body: `Decision message was queued for application #${applicationId}.`,
+            }, client);
+        }
+        return {
+            ...result.rows[0],
+            send_email: input.send_email,
+            send_phone: input.send_phone,
+        };
     });
-    return result.rows[0];
 }
 function isUniqueViolation(error) {
     return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
