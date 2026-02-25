@@ -29,18 +29,24 @@ export async function createProject(input, db = pool) {
 }
 
 export async function countProjects(whereClause, params, db = pool) {
+  const scopedWhere = whereClause
+    ? `${whereClause} AND p.deleted_at IS NULL`
+    : "WHERE p.deleted_at IS NULL";
   return db.query(
     `
       SELECT COUNT(*)::int AS total
       FROM projects p
       LEFT JOIN student_profiles sp ON sp.user_id = p.student_user_id
-      ${whereClause}
+      ${scopedWhere}
     `,
     params,
   );
 }
 
 export async function listProjects(whereClause, sortBy, order, params, limit, offset, db = pool) {
+  const scopedWhere = whereClause
+    ? `${whereClause} AND p.deleted_at IS NULL`
+    : "WHERE p.deleted_at IS NULL";
   return db.query(
     `
       SELECT
@@ -60,7 +66,7 @@ export async function listProjects(whereClause, sortBy, order, params, limit, of
         sp.public_slug AS student_public_slug
       FROM projects p
       LEFT JOIN student_profiles sp ON sp.user_id = p.student_user_id
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY p.${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
@@ -75,6 +81,7 @@ export async function updateProject(id, setClause, values, db = pool) {
       UPDATE projects
       SET ${setClause}, updated_at = NOW()
       WHERE id = $${values.length + 1}
+        AND deleted_at IS NULL
       RETURNING *
     `,
     [...values, id],
@@ -84,8 +91,10 @@ export async function updateProject(id, setClause, values, db = pool) {
 export async function deleteProject(id, db = pool) {
   return db.query(
     `
-      DELETE FROM projects
+      UPDATE projects
+      SET deleted_at = NOW(), updated_at = NOW()
       WHERE id = $1
+        AND deleted_at IS NULL
       RETURNING id, student_user_id, cohort_id, title
     `,
     [id],
@@ -114,6 +123,7 @@ export async function getPublicProjectById(id, db = pool) {
       LEFT JOIN student_profiles sp ON sp.user_id = p.student_user_id
       WHERE p.id = $1
         AND p.is_public = TRUE
+        AND p.deleted_at IS NULL
       LIMIT 1
     `,
     [id],
@@ -139,6 +149,7 @@ export async function listPublicProjectsByStudentUserId(studentUserId, db = pool
       FROM projects p
       WHERE p.student_user_id = $1
         AND p.is_public = TRUE
+        AND p.deleted_at IS NULL
       ORDER BY p.sort_order ASC, p.created_at DESC
     `,
     [studentUserId],
@@ -151,6 +162,7 @@ export async function findCohortById(cohortId, db = pool) {
       SELECT 1
       FROM cohorts
       WHERE id = $1
+        AND deleted_at IS NULL
       LIMIT 1
     `,
     [cohortId],

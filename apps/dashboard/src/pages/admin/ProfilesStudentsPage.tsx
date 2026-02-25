@@ -85,7 +85,7 @@ export function ProfilesStudentsPage() {
               label: "Actions",
               render: () => (
                 <div className="table-actions">
-                  <button className="btn btn--secondary btn--sm" type="button" disabled title="API wiring next step">
+                  <button className="btn btn--secondary btn--sm btn--edit" type="button" disabled title="API wiring next step">
                     Edit
                   </button>
                   <button className="btn btn--primary btn--sm" type="button" disabled title="API wiring next step">

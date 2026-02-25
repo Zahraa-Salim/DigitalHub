@@ -132,6 +132,9 @@ async function request<T>(path: string, options: RequestInit = {}, requireAuth =
 
     if (response.status === 401) {
       clearAuth();
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
     }
 
     throw new ApiError(response.status, code, message, details);

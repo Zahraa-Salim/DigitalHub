@@ -40,7 +40,7 @@ export function CmsPagesPage() {
                 key: "actions",
                 label: "Actions",
                 render: (row) => (
-                  <button className="btn btn--secondary btn--sm" type="button" onClick={() => setSelectedId(row.id)}>
+                  <button className="btn btn--secondary btn--sm btn--edit" type="button" onClick={() => setSelectedId(row.id)}>
                     Edit
                   </button>
                 ),

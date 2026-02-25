@@ -23,13 +23,15 @@ export async function createAnnouncement(input, db = pool) {
     ]);
 }
 export async function countAnnouncements(whereClause, params, db = pool) {
-    return db.query(`SELECT COUNT(*)::int AS total FROM announcements ${whereClause}`, params);
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
+    return db.query(`SELECT COUNT(*)::int AS total FROM announcements ${scopedWhere}`, params);
 }
 export async function listAnnouncements(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
       SELECT *
       FROM announcements
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY ${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
@@ -40,11 +42,18 @@ export async function updateAnnouncement(id, setClause, values, db = pool) {
       UPDATE announcements
       SET ${setClause}
       WHERE id = $${values.length + 1}
+        AND deleted_at IS NULL
       RETURNING *
     `, [...values, id]);
 }
 export async function deleteAnnouncement(id, db = pool) {
-    return db.query("DELETE FROM announcements WHERE id = $1 RETURNING id", [id]);
+    return db.query(`
+      UPDATE announcements
+      SET deleted_at = NOW(), is_published = FALSE
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING id
+    `, [id]);
 }
 
 

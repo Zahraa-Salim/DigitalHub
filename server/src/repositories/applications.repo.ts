@@ -14,7 +14,10 @@ export async function createApplicant(fullName, email, phone, db = pool) {
 export async function createApplication(cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, db = pool) {
     return db.query(`
       INSERT INTO applications (cohort_id, applicant_id, applicant_email_norm, applicant_phone_norm, status, submitted_at)
-      VALUES ($1, $2, $3, $4, 'pending', NOW())
+      SELECT $1, $2, $3, $4, 'pending', NOW()
+      FROM cohorts c
+      WHERE c.id = $1
+        AND c.deleted_at IS NULL
       RETURNING *
     `, [cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm]);
 }
@@ -29,7 +32,7 @@ export async function countApplications(whereClause, params, db = pool) {
       SELECT COUNT(*)::int AS total
       FROM applications a
       LEFT JOIN applicants ap ON ap.id = a.applicant_id
-      JOIN cohorts c ON c.id = a.cohort_id
+      JOIN cohorts c ON c.id = a.cohort_id AND c.deleted_at IS NULL
       ${whereClause}
     `, params);
 }
@@ -49,7 +52,7 @@ export async function listApplications(whereClause, sortBy, order, params, limit
         ap.phone
       FROM applications a
       LEFT JOIN applicants ap ON ap.id = a.applicant_id
-      JOIN cohorts c ON c.id = a.cohort_id
+      JOIN cohorts c ON c.id = a.cohort_id AND c.deleted_at IS NULL
       ${whereClause}
       ORDER BY a.${sortBy} ${order}
       LIMIT $${params.length + 1}
@@ -68,7 +71,7 @@ export async function getApplicationForApproval(applicationId, db = pool) {
         c.capacity
       FROM applications a
       LEFT JOIN applicants ap ON ap.id = a.applicant_id
-      JOIN cohorts c ON c.id = a.cohort_id
+      JOIN cohorts c ON c.id = a.cohort_id AND c.deleted_at IS NULL
       WHERE a.id = $1
       FOR UPDATE
     `, [applicationId]);

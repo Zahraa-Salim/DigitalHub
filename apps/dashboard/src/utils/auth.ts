@@ -27,7 +27,13 @@ function normalizeUser(input: unknown): AuthUser {
       ? obj.name.trim()
       : "Admin";
 
-  const role = typeof obj.role === "string" && obj.role.trim() ? obj.role.trim() : "Admin";
+  const roleSource =
+    typeof obj.role === "string" && obj.role.trim()
+      ? obj.role.trim()
+      : typeof obj.admin_role === "string" && obj.admin_role.trim()
+        ? obj.admin_role.trim()
+        : "admin";
+  const role = roleSource.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
   const email = typeof obj.email === "string" ? obj.email : "";
   const id = typeof obj.id === "number" || typeof obj.id === "string" ? obj.id : null;
 

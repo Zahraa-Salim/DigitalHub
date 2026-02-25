@@ -23,13 +23,15 @@ export async function createEvent(input, db = pool) {
     ]);
 }
 export async function countEvents(whereClause, params, db = pool) {
-    return db.query(`SELECT COUNT(*)::int AS total FROM events ${whereClause}`, params);
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
+    return db.query(`SELECT COUNT(*)::int AS total FROM events ${scopedWhere}`, params);
 }
 export async function listEvents(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
       SELECT *
       FROM events
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY ${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
@@ -40,17 +42,25 @@ export async function updateEvent(id, setClause, values, db = pool) {
       UPDATE events
       SET ${setClause}, updated_at = NOW()
       WHERE id = $${values.length + 1}
+        AND deleted_at IS NULL
       RETURNING *
     `, [...values, id]);
 }
 export async function deleteEvent(id, db = pool) {
-    return db.query("DELETE FROM events WHERE id = $1 RETURNING id", [id]);
+    return db.query(`
+      UPDATE events
+      SET deleted_at = NOW(), updated_at = NOW(), is_published = FALSE
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING id
+    `, [id]);
 }
 export async function markEventDone(id, db = pool) {
     return db.query(`
       UPDATE events
       SET is_done = TRUE, done_at = NOW(), updated_at = NOW()
       WHERE id = $1
+        AND deleted_at IS NULL
       RETURNING *
     `, [id]);
 }
