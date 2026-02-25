@@ -31,6 +31,9 @@ export async function createApplicationService(payload) {
             }
             throw error;
         }
+        if (!applicationResult.rowCount) {
+            throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+        }
         const application = applicationResult.rows[0];
         if (body.form_id) {
             await createApplicationSubmission(application.id, body.form_id, body.answers ?? {}, client);

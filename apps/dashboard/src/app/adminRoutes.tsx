@@ -53,9 +53,7 @@ export const navConfig: NavItem[] = [
   {
     label: "Profiles",
     children: [
-      { label: "Students", path: "/admin/profiles/students" },
       { label: "Instructors", path: "/admin/profiles/instructors" },
-      { label: "Managers", path: "/admin/profiles/managers" },
     ],
   },
   { label: "Contact Inbox", path: "/admin/contact" },

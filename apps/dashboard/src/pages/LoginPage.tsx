@@ -2,9 +2,21 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { setToken, setUser } from "../utils/auth";
+import { ApiError, api } from "../utils/api";
 
 type LoginLocationState = {
   from?: string;
+};
+
+type LoginResponse = {
+  token: string;
+  expiresIn: string;
+  user: {
+    id: number;
+    email: string;
+    full_name: string;
+    admin_role: "admin" | "super_admin";
+  };
 };
 
 export function LoginPage() {
@@ -28,17 +40,28 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      setToken("mock_admin_token");
-      setUser({
-        id: 1,
-        email: email.trim().toLowerCase(),
-        full_name: "Digital Hub Admin",
-        role: "Admin",
-      });
+      const payload = await api<LoginResponse>(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            password,
+          }),
+        },
+        false,
+      );
+
+      setToken(payload.token);
+      setUser(payload.user);
 
       navigate(state?.from || "/admin", { replace: true });
-    } catch {
-      setError("Login failed. Please try again.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "Login failed. Please try again.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

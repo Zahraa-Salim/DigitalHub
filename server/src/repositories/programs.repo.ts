@@ -23,13 +23,15 @@ export async function createProgram(input, db = pool) {
     ]);
 }
 export async function countPrograms(whereClause, params, db = pool) {
-    return db.query(`SELECT COUNT(*)::int AS total FROM programs ${whereClause}`, params);
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
+    return db.query(`SELECT COUNT(*)::int AS total FROM programs ${scopedWhere}`, params);
 }
 export async function listPrograms(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
       SELECT id, slug, title, summary, description, requirements, default_capacity, is_published, created_by, created_at, updated_at
       FROM programs
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY ${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
@@ -40,11 +42,35 @@ export async function updateProgram(id, setClause, values, db = pool) {
       UPDATE programs
       SET ${setClause}, updated_at = NOW()
       WHERE id = $${values.length + 1}
+        AND deleted_at IS NULL
       RETURNING *
     `, [...values, id]);
 }
 export async function deleteProgram(id, db = pool) {
-    return db.query("DELETE FROM programs WHERE id = $1 RETURNING id, title", [id]);
+    return db.query(`
+      UPDATE programs
+      SET deleted_at = NOW(), updated_at = NOW(), is_published = FALSE
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING id, title
+    `, [id]);
+}
+export async function softDeleteCohortsByProgramId(programId, db = pool) {
+    return db.query(`
+      UPDATE cohorts
+      SET deleted_at = NOW(), updated_at = NOW(), allow_applications = FALSE
+      WHERE program_id = $1
+        AND deleted_at IS NULL
+    `, [programId]);
+}
+export async function findActiveProgramById(programId, db = pool) {
+    return db.query(`
+      SELECT id
+      FROM programs
+      WHERE id = $1
+        AND deleted_at IS NULL
+      LIMIT 1
+    `, [programId]);
 }
 export async function createCohort(input, db = pool) {
     return db.query(`
@@ -66,14 +92,20 @@ export async function createCohort(input, db = pool) {
     ]);
 }
 export async function countCohorts(whereClause, params, db = pool) {
+    const scopedWhere = whereClause
+        ? `${whereClause} AND c.deleted_at IS NULL AND p.deleted_at IS NULL`
+        : "WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL";
     return db.query(`
       SELECT COUNT(*)::int AS total
       FROM cohorts c
       JOIN programs p ON p.id = c.program_id
-      ${whereClause}
+      ${scopedWhere}
     `, params);
 }
 export async function listCohorts(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    const scopedWhere = whereClause
+        ? `${whereClause} AND c.deleted_at IS NULL AND p.deleted_at IS NULL`
+        : "WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL";
     return db.query(`
       SELECT
         c.id,
@@ -91,31 +123,44 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
         c.updated_at
       FROM cohorts c
       JOIN programs p ON p.id = c.program_id
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY c.${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
 export async function getCohortStatusById(id, db = pool) {
-    return db.query("SELECT status FROM cohorts WHERE id = $1", [id]);
+    return db.query(`
+      SELECT status
+      FROM cohorts
+      WHERE id = $1
+        AND deleted_at IS NULL
+    `, [id]);
 }
 export async function updateCohort(id, setClause, values, db = pool) {
     return db.query(`
       UPDATE cohorts
       SET ${setClause}, updated_at = NOW()
       WHERE id = $${values.length + 1}
+        AND deleted_at IS NULL
       RETURNING *
     `, [...values, id]);
 }
 export async function deleteCohort(id, db = pool) {
-    return db.query("DELETE FROM cohorts WHERE id = $1 RETURNING id, name", [id]);
+    return db.query(`
+      UPDATE cohorts
+      SET deleted_at = NOW(), updated_at = NOW(), allow_applications = FALSE
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING id, name
+    `, [id]);
 }
 export async function openCohort(id, db = pool) {
     return db.query(`
       UPDATE cohorts
       SET status = 'open', allow_applications = TRUE, enrollment_open_at = COALESCE(enrollment_open_at, NOW()), updated_at = NOW()
       WHERE id = $1
+        AND deleted_at IS NULL
       RETURNING *
     `, [id]);
 }
@@ -128,18 +173,22 @@ export async function closeCohort(id, db = pool) {
         enrollment_close_at = COALESCE(enrollment_close_at, NOW()),
         updated_at = NOW()
       WHERE id = $1
+        AND deleted_at IS NULL
       RETURNING *
     `, [id]);
 }
 export async function countCohortInstructors(whereClause, params, db = pool) {
+    const scopedWhere = whereClause ? `${whereClause} AND c.deleted_at IS NULL` : "WHERE c.deleted_at IS NULL";
     return db.query(`
       SELECT COUNT(*)::int AS total
       FROM cohort_instructors ci
+      JOIN cohorts c ON c.id = ci.cohort_id
       JOIN instructor_profiles ip ON ip.user_id = ci.instructor_user_id
-      ${whereClause}
+      ${scopedWhere}
     `, params);
 }
 export async function listCohortInstructors(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    const scopedWhere = whereClause ? `${whereClause} AND c.deleted_at IS NULL` : "WHERE c.deleted_at IS NULL";
     return db.query(`
       SELECT
         ci.cohort_id,
@@ -149,8 +198,9 @@ export async function listCohortInstructors(whereClause, sortBy, order, params, 
         ip.expertise,
         ip.avatar_url
       FROM cohort_instructors ci
+      JOIN cohorts c ON c.id = ci.cohort_id
       JOIN instructor_profiles ip ON ip.user_id = ci.instructor_user_id
-      ${whereClause}
+      ${scopedWhere}
       ORDER BY ${sortBy} ${order}
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
@@ -168,7 +218,13 @@ export async function findActiveInstructor(instructorUserId, db = pool) {
 export async function upsertCohortInstructor(cohortId, instructorUserId, cohortRole, db = pool) {
     return db.query(`
       INSERT INTO cohort_instructors (cohort_id, instructor_user_id, cohort_role)
-      VALUES ($1, $2, $3)
+      SELECT $1, $2, $3
+      WHERE EXISTS (
+        SELECT 1
+        FROM cohorts
+        WHERE id = $1
+          AND deleted_at IS NULL
+      )
       ON CONFLICT (cohort_id, instructor_user_id)
       DO UPDATE SET cohort_role = EXCLUDED.cohort_role
       RETURNING *

@@ -59,9 +59,19 @@ app.use(projectsRouter);
 app.use("/public", publicRouter);
 app.use(notFound);
 app.use(errorHandler);
+async function ensureSoftDeleteColumns() {
+    await pool.query(`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    `);
+}
 async function startServer() {
     try {
         await pool.query("SELECT 1");
+        await ensureSoftDeleteColumns();
         const port = Number(process.env.PORT || 5000);
         app.listen(port, () => {
             console.log(`Digital Hub server listening on http://localhost:${port}`);

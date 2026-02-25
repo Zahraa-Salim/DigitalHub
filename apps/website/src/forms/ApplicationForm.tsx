@@ -26,18 +26,23 @@ const ApplicationForm = ({ defaultProgram }: ApplicationFormProps) => {
     );
   }, []);
 
+  const courseByTitle = useMemo(() => {
+    const map = new Map<string, (typeof mockCourses)[number]>();
+    for (const course of mockCourses) {
+      if (!map.has(course.title)) {
+        map.set(course.title, course);
+      }
+    }
+    return map;
+  }, []);
+
   const initialProgram =
     defaultProgram && programOptions.includes(defaultProgram)
       ? defaultProgram
-      : programOptions[0] || "";
+      : "";
 
   const [selectedProgram, setSelectedProgram] = useState(initialProgram);
-  const [showProgramDetails, setShowProgramDetails] = useState(false);
-
-  const selectedCourse = useMemo(
-    () => mockCourses.find((course) => course.title === selectedProgram),
-    [selectedProgram]
-  );
+  const selectedCourse = selectedProgram ? courseByTitle.get(selectedProgram) : undefined;
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,56 +87,70 @@ const ApplicationForm = ({ defaultProgram }: ApplicationFormProps) => {
           </div>
         </div>
 
-          <div className="col-md-6">
-            <div className="form-grp">
-              <div className="application-form__select-wrap">
-                <select
-                  name="program"
-                  required
-                  value={selectedProgram}
-                  onChange={(e) => setSelectedProgram(e.target.value)}
-                  className="application-form__select"
-                >
-                  {programOptions.map((program) => (
-                    <option key={program} value={program}>
-                      {program}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="application-form__eye"
-                  onClick={() => setShowProgramDetails((prev) => !prev)}
-                  aria-label={
-                    showProgramDetails ? "Hide program details" : "Show program details"
-                  }
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5c5.25 0 9.55 3.94 10.65 7-1.1 3.06-5.4 7-10.65 7S2.45 15.06 1.35 12C2.45 8.94 6.75 5 12 5zm0 2C7.7 7 4.1 10 3.1 12c1 2 4.6 5 8.9 5s7.9-3 8.9-5c-1-2-4.6-5-8.9-5zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5zm0 1.6a.9.9 0 1 0 .9.9.9.9 0 0 0-.9-.9z" />
-                  </svg>
-                </button>
-              </div>
-              {showProgramDetails && selectedCourse && (
-                <div className="application-form__details">
-                  <div className="application-form__details-head">
-                    <span className="application-form__details-title">
-                      {selectedCourse.title}
-                    </span>
-                    <span className="application-form__details-chip">
-                      {selectedCourse.level}
-                    </span>
-                    <span className="application-form__details-chip">
-                      {selectedCourse.durationLabel}
-                    </span>
-                  </div>
-                  <p className="application-form__details-desc">
-                    {selectedCourse.shortDescription}
-                  </p>
-                </div>
-              )}
-            </div>
+        <div className="col-md-6">
+          <div className="form-grp">
+            <select
+              name="program"
+              required
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+              className="application-form__select"
+            >
+              <option value="" disabled>
+                Select program
+              </option>
+              {programOptions.map((program) => (
+                <option key={program} value={program}>
+                  {program}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+      </div>
+
+      {selectedCourse && (
+        <div className="application-form__course-info">
+          <h6>{selectedCourse.title}</h6>
+          <p>{selectedCourse.shortDescription}</p>
+          <ul className="list-wrap">
+            <li>
+              <strong>Category:</strong> {selectedCourse.category.name}
+            </li>
+            <li>
+              <strong>Level:</strong> {selectedCourse.level}
+            </li>
+            <li>
+              <strong>Duration:</strong> {selectedCourse.durationLabel}
+            </li>
+          </ul>
+        </div>
+      )}
+
+      <div className="row">
+        <div className="col-md-4">
+          <div className="form-grp">
+            <input name="nationality" type="text" placeholder="Nationality *" required />
+          </div>
+        </div>
+
+        <div className="col-md-4">
+          <div className="form-grp">
+            <input
+              name="countryOfResidence"
+              type="text"
+              placeholder="Country of Residence *"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="col-md-4">
+          <div className="form-grp">
+            <input name="dateOfBirth" type="date" required />
+          </div>
+        </div>
+      </div>
 
       <div className="form-grp">
         <input name="education" type="text" placeholder="Education level" />

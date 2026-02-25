@@ -10,27 +10,27 @@ export function Pagination({ page, totalPages, onChange }: PaginationProps) {
 
   return (
     <div className="pagination">
+      <button
+        className="btn btn--secondary pagination__nav-btn pagination__prev"
+        type="button"
+        disabled={prevDisabled}
+        onClick={() => onChange(page - 1)}
+      >
+        Previous
+      </button>
+
       <p className="pagination__text">
         Page {page} of {totalPages}
       </p>
-      <div className="table-actions">
-        <button
-          className="btn btn--secondary pagination__nav-btn"
-          type="button"
-          disabled={prevDisabled}
-          onClick={() => onChange(page - 1)}
-        >
-          Previous
-        </button>
-        <button
-          className="btn btn--secondary pagination__nav-btn"
-          type="button"
-          disabled={nextDisabled}
-          onClick={() => onChange(page + 1)}
-        >
-          Next
-        </button>
-      </div>
+
+      <button
+        className="btn btn--secondary pagination__nav-btn pagination__next"
+        type="button"
+        disabled={nextDisabled}
+        onClick={() => onChange(page + 1)}
+      >
+        Next
+      </button>
     </div>
   );
 }

@@ -405,7 +405,7 @@
   height: 56px;
   border: 1px solid #d9dce7;
   border-radius: 8px;
-  padding: 0 60px 0 16px;
+  padding: 0 16px;
   color: #1d2f50;
   background: #fff;
 }
@@ -415,76 +415,37 @@
   outline: none;
 }
 
-.application-form__select-wrap {
-  position: relative;
-}
-
-.application-form__eye {
-  position: absolute;
-  top: 50%;
-  right: 20px;
-  transform: translateY(-50%);
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid rgba(87, 81, 225, 0.2);
-  background: #f3f2ff;
-  color: #3c36b2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.application-form__eye svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
-.application-form__eye:hover,
-.application-form__eye:focus {
-  background: #e9e7ff;
-  border-color: rgba(87, 81, 225, 0.35);
-  color: #2d2899;
-}
-
-.application-form__details {
+.application-form__course-info {
   margin-top: 12px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(29, 47, 80, 0.12);
-  background: linear-gradient(140deg, #ffffff 0%, #f4f6ff 100%);
-  box-shadow: 0 10px 24px rgba(31, 45, 90, 0.08);
+  margin-bottom: 14px;
+  padding: 14px 14px 12px;
+  border: 1px solid #d9dce7;
+  border-radius: 10px;
+  background: #f7f9ff;
 }
 
-.application-form__details-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  margin-bottom: 6px;
-}
-
-.application-form__details-title {
-  font-weight: 600;
+.application-form__course-info h6 {
+  margin: 0 0 6px;
+  font-size: 17px;
   color: #1d2f50;
 }
 
-.application-form__details-chip {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #eef1ff;
-  border: 1px solid #d5dbff;
-  color: #3d44b6;
-  font-size: 12px;
-  font-weight: 600;
+.application-form__course-info p {
+  margin: 0 0 8px;
+  color: #4d5f78;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.application-form__details-desc {
+.application-form__course-info ul {
   margin: 0;
-  color: #4c5f7c;
-  line-height: 1.6;
+  display: grid;
+  gap: 4px;
+}
+
+.application-form__course-info li {
+  font-size: 14px;
+  color: #334764;
 }
 
 /* About us enhancements */
