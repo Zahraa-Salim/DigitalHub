@@ -331,8 +331,16 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
           <div className="sidebar-profile-row">
             <div className="sidebar-profile">
               <div className="sidebar-profile__info">
-                <p className="sidebar-profile__name">{displayName}</p>
-                <p className="sidebar-profile__email">{user.email || "admin@digitalhub.com"}</p>
+                <button
+                  className="sidebar-profile__name sidebar-profile__name-btn"
+                  type="button"
+                  onClick={() => {
+                    navigate("/admin/profile");
+                    onNavigate?.();
+                  }}
+                >
+                  {displayName}
+                </button>
                 <span className="sidebar-profile__role">{user.role}</span>
               </div>
             </div>

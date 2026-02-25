@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
 import { clearAuth, getUser } from "../utils/auth";
@@ -6,10 +6,9 @@ import { clearAuth, getUser } from "../utils/auth";
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [user, setUserState] = useState(() => getUser());
   const location = useLocation();
   const navigate = useNavigate();
-
-  const user = useMemo(() => getUser(), []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -18,6 +17,20 @@ export function AdminLayout() {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const refreshUser = () => {
+      setUserState(getUser());
+    };
+
+    window.addEventListener("storage", refreshUser);
+    window.addEventListener("dh-auth-updated", refreshUser as EventListener);
+
+    return () => {
+      window.removeEventListener("storage", refreshUser);
+      window.removeEventListener("dh-auth-updated", refreshUser as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!mobileOpen) {

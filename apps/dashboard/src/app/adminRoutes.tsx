@@ -59,7 +59,6 @@ export const navConfig: NavItem[] = [
   { label: "Contact Inbox", path: "/admin/contact" },
   { label: "Notifications", path: "/admin/notifications" },
   { label: "Activity Logs", path: "/admin/logs" },
-  { label: "My Profile", path: "/admin/profile" },
 ];
 
 const titleEntries = navConfig.flatMap((item) => {
@@ -71,6 +70,7 @@ const titleEntries = navConfig.flatMap((item) => {
 });
 
 const titleByPath = new Map<string, string>(titleEntries);
+titleByPath.set("/admin/profile", "My Profile");
 
 export function getAdminRouteTitle(pathname: string): string {
   if (pathname === "/admin") {

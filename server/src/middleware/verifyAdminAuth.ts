@@ -31,9 +31,14 @@ export async function verifyAdminAuth(req, _res, next) {
             throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.");
         }
         const userResult = await pool.query(`
-        SELECT id, is_admin, is_active
-        FROM users
-        WHERE id = $1
+        SELECT
+          u.id,
+          u.is_admin,
+          u.is_active,
+          COALESCE(ap.admin_role, 'admin') AS admin_role
+        FROM users u
+        LEFT JOIN admin_profiles ap ON ap.user_id = u.id
+        WHERE u.id = $1
       `, [payload.userId]);
         if (!userResult.rowCount) {
             throw new AppError(401, "USER_NOT_FOUND", "User not found.");
@@ -48,6 +53,7 @@ export async function verifyAdminAuth(req, _res, next) {
         req.user = {
             id: user.id,
             isAdmin: true,
+            role: user.admin_role === "super_admin" ? "super_admin" : "admin",
         };
         next();
     }

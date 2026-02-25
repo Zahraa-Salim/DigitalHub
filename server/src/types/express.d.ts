@@ -11,6 +11,7 @@ declare global {
       user?: {
         id: number;
         isAdmin: boolean;
+        role: "admin" | "super_admin";
       };
     }
   }

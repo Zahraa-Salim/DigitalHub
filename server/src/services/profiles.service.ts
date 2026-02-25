@@ -8,6 +8,21 @@ import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 import { countProfiles, listProfiles, updateProfile, updateProfileVisibility, } from "../repositories/profiles.repo.js";
+function ensureAdminProfilePermission(tableName, actorUserId, actorRole, targetUserId, payload) {
+    if (tableName !== "admin_profiles") {
+        return;
+    }
+    const isSuperAdmin = actorRole === "super_admin";
+    const isSelfUpdate = actorUserId === targetUserId;
+    if (!isSuperAdmin && !isSelfUpdate) {
+        throw new AppError(403, "FORBIDDEN", "Admin users can edit only their own account.");
+    }
+    if (!isSuperAdmin && payload) {
+        if ("admin_role" in payload || "sort_order" in payload) {
+            throw new AppError(403, "FORBIDDEN", "Only super admin can update admin role or sort order.");
+        }
+    }
+}
 export async function listProfilesService(tableName, sortColumns, query) {
     const list = parseListQuery(query, sortColumns, "created_at");
     const params = [];
@@ -33,7 +48,8 @@ export async function listProfilesService(tableName, sortColumns, query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchProfileService(tableName, allowedUpdates, userId, adminId, payload) {
+export async function patchProfileService(tableName, allowedUpdates, userId, adminId, actorRole, payload) {
+    ensureAdminProfilePermission(tableName, adminId, actorRole, userId, payload);
     const { setClause, values } = buildUpdateQuery(payload, allowedUpdates, 1);
     const result = await updateProfile(tableName, userId, setClause, values);
     if (!result.rowCount) {
@@ -49,7 +65,8 @@ export async function patchProfileService(tableName, allowedUpdates, userId, adm
     });
     return result.rows[0];
 }
-export async function patchProfileVisibilityService(tableName, userId, adminId, isPublic) {
+export async function patchProfileVisibilityService(tableName, userId, adminId, actorRole, isPublic) {
+    ensureAdminProfilePermission(tableName, adminId, actorRole, userId);
     const result = await updateProfileVisibility(tableName, userId, isPublic);
     if (!result.rowCount) {
         throw new AppError(404, "USER_NOT_FOUND", "Profile not found.");

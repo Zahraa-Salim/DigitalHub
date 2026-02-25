@@ -4,10 +4,11 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { Router } from "express";
-import { login } from "../controllers/auth.controller.js";
+import { getAdmins, getMe, login, patchAdmin, patchMe } from "../controllers/auth.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";
+import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { loginBodySchema } from "../schemas/auth.schemas.js";
+import { adminUserIdParamsSchema, loginBodySchema, superAdminUpdateAdminBodySchema, updateMeBodySchema } from "../schemas/auth.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const authRouter = Router();
 authRouter.post("/login", rateLimit({
@@ -15,6 +16,10 @@ authRouter.post("/login", rateLimit({
     windowSec: 600,
     max: 10,
 }), validateRequest({ body: loginBodySchema }), asyncHandler(login));
+authRouter.get("/me", verifyAdminAuth, asyncHandler(getMe));
+authRouter.patch("/me", verifyAdminAuth, validateRequest({ body: updateMeBodySchema }), asyncHandler(patchMe));
+authRouter.get("/admins", verifyAdminAuth, asyncHandler(getAdmins));
+authRouter.patch("/admins/:userId", verifyAdminAuth, validateRequest({ params: adminUserIdParamsSchema, body: superAdminUpdateAdminBodySchema }), asyncHandler(patchAdmin));
 export { authRouter };
 
 

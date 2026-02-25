@@ -13,13 +13,13 @@ function createListHandler(tableName, sortColumns) {
 }
 function createPatchHandler(tableName, allowedUpdates) {
     return async (req, res) => {
-        const data = await patchProfileService(tableName, allowedUpdates, Number(req.params.userId), req.user.id, req.body);
+        const data = await patchProfileService(tableName, allowedUpdates, Number(req.params.userId), req.user.id, req.user.role, req.body);
         sendSuccess(res, data, "Profile updated successfully.");
     };
 }
 function createVisibilityHandler(tableName) {
     return async (req, res) => {
-        const data = await patchProfileVisibilityService(tableName, Number(req.params.userId), req.user.id, req.body.is_public);
+        const data = await patchProfileVisibilityService(tableName, Number(req.params.userId), req.user.id, req.user.role, req.body.is_public);
         sendSuccess(res, data, "Profile visibility updated successfully.");
     };
 }
