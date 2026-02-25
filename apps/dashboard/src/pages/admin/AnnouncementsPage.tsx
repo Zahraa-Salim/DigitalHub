@@ -598,7 +598,6 @@ export function AnnouncementsPage() {
         <div className="modal-overlay" role="presentation" onClick={closeForm}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={closeForm}>X</button>
               <h3 className="modal-title">{formMode === "create" ? "Add Announcement" : "Edit Announcement"}</h3>
             </header>
             <div className="form-stack">
@@ -624,7 +623,6 @@ export function AnnouncementsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setDeleteTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setDeleteTarget(null)}>X</button>
               <h3 className="modal-title">Delete Announcement</h3>
             </header>
             <p className="post-details__line">Delete <strong>{deleteTarget.title}</strong>? This uses soft delete on the server.</p>

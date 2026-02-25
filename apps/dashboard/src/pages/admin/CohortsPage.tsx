@@ -889,7 +889,6 @@ export function CohortsPage() {
         <div className="modal-overlay" role="presentation" onClick={closeForm}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={closeForm}>X</button>
               <h3 className="modal-title">{formTitle}</h3>
             </header>
 
@@ -1103,7 +1102,6 @@ export function CohortsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setDeleteTarget(null)}>X</button>
               <h3 className="modal-title">Delete Cohort</h3>
             </header>
 

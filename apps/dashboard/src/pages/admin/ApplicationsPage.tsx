@@ -731,7 +731,6 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setApproveTarget(null)}>X</button>
               <h3 className="modal-title">Approve Application</h3>
             </header>
             <p className="post-details__line">
@@ -759,7 +758,6 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setRejectTarget(null)}>X</button>
               <h3 className="modal-title">Reject Application</h3>
             </header>
             <p className="post-details__line">

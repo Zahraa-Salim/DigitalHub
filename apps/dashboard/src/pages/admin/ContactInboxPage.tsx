@@ -576,7 +576,6 @@ export function ContactInboxPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setReplyTarget(null)}>
           <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setReplyTarget(null)}>X</button>
               <h3 className="modal-title">Reply to {replyTarget.name}</h3>
             </header>
             <label className="field">

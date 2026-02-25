@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { navConfig } from "../app/adminRoutes";
 import { cn } from "../utils/cn";
 import type { AuthUser } from "../utils/auth";
+import { apiList } from "../utils/api";
 
 type SidebarProps = {
   user: AuthUser;
@@ -157,9 +158,12 @@ function toInitialOpen(pathname: string): Record<string, boolean> {
 
 export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggleTheme }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     toInitialOpen(location.pathname),
   );
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [footerCollapsed, setFooterCollapsed] = useState(false);
 
   const displayName = user.full_name || "Admin";
 
@@ -175,6 +179,35 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
       }
     });
   }, [location.pathname]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadUnreadCount = async () => {
+      try {
+        const result = await apiList<unknown>(
+          "/notifications?is_read=false&page=1&limit=1&sortBy=created_at&order=desc",
+        );
+        if (active) {
+          setUnreadCount(result.pagination.total);
+        }
+      } catch {
+        if (active) {
+          setUnreadCount(0);
+        }
+      }
+    };
+
+    void loadUnreadCount();
+    const interval = window.setInterval(() => {
+      void loadUnreadCount();
+    }, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const activeGroup = useMemo(() => {
     const active: Record<string, boolean> = {};
@@ -281,34 +314,74 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
         })}
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="sidebar-profile-row">
-          <div className="sidebar-profile">
-            <span className="sidebar-profile__icon" aria-hidden>
-              {displayName.charAt(0).toUpperCase()}
-            </span>
-            <div className="sidebar-profile__info">
-              <p className="sidebar-profile__name">{displayName}</p>
-              <p className="sidebar-profile__email">{user.email || "admin@digitalhub.com"}</p>
-              <span className="sidebar-profile__role">{user.role}</span>
+      <div className={cn("sidebar-footer", footerCollapsed && "sidebar-footer--collapsed")}>
+        <button
+          className={cn("sidebar-footer__toggle", footerCollapsed && "sidebar-footer__toggle--collapsed")}
+          type="button"
+          onClick={() => setFooterCollapsed((current) => !current)}
+          aria-expanded={!footerCollapsed}
+          aria-label={footerCollapsed ? "Show account card" : "Hide account card"}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        <div className="sidebar-footer__card">
+          <div className="sidebar-profile-row">
+            <div className="sidebar-profile">
+              <div className="sidebar-profile__info">
+                <p className="sidebar-profile__name">{displayName}</p>
+                <p className="sidebar-profile__email">{user.email || "admin@digitalhub.com"}</p>
+                <span className="sidebar-profile__role">{user.role}</span>
+              </div>
+            </div>
+
+            <div className="sidebar-profile-actions">
+              <button
+                className="icon-btn"
+                type="button"
+                aria-label="Notifications"
+                onClick={() => {
+                  navigate("/admin/notifications");
+                  onNavigate?.();
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <path d="M6 9a6 6 0 0 1 12 0v5l2 2H4l2-2z" />
+                  <path d="M10 18a2 2 0 0 0 4 0" />
+                </svg>
+                {unreadCount > 0 ? (
+                  <span className="icon-btn__badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                ) : null}
+              </button>
+
+              <button
+                className={cn("theme-toggle", isDark && "theme-toggle--dark")}
+                onClick={onToggleTheme}
+                type="button"
+                aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                <span className="theme-toggle__icon" aria-hidden>
+                  {isDark ? (
+                    <svg viewBox="0 0 24 24">
+                      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                    </svg>
+                  )}
+                </span>
+              </button>
             </div>
           </div>
-          <button
-            className={cn("theme-toggle", isDark && "theme-toggle--dark")}
-            onClick={onToggleTheme}
-            type="button"
-            aria-label="Toggle theme"
-          >
-            <span className="theme-toggle__icon" aria-hidden>
-              {isDark ? "Moon" : "Sun"}
-            </span>
-            <span className="theme-toggle__knob" />
+
+          <button className="btn btn--secondary btn--full" type="button" onClick={onLogout} aria-label="Logout">
+            Logout
           </button>
         </div>
-
-        <button className="btn btn--secondary btn--full" type="button" onClick={onLogout} aria-label="Logout">
-          Logout
-        </button>
       </div>
     </div>
   );

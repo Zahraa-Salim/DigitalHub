@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getAdminRouteTitle } from "./adminRoutes";
 import { Sidebar } from "../components/Sidebar";
-import { Topbar } from "../components/Topbar";
 import { clearAuth, getUser } from "../utils/auth";
-import { cn } from "../utils/cn";
 
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -49,11 +45,11 @@ export function AdminLayout() {
     <div className="dashboard-root">
       <div className="dashboard-shell">
         <aside
-          className={cn("sidebar-desktop", isSidebarCollapsed && "sidebar-desktop--collapsed")}
+          className="sidebar-desktop"
           aria-label="Sidebar"
         >
           <Sidebar
-            collapsed={isSidebarCollapsed}
+            collapsed={false}
             user={user}
             onLogout={handleLogout}
             onToggleTheme={() => setIsDark((current) => !current)}
@@ -83,15 +79,19 @@ export function AdminLayout() {
         ) : null}
 
         <main className="content-area">
-          <Topbar
-            title={getAdminRouteTitle(location.pathname)}
-            user={user}
-            onToggleMenu={() => setMobileOpen((current) => !current)}
-            onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
-            sidebarCollapsed={isSidebarCollapsed}
-            onLogout={handleLogout}
-          />
-          <Outlet />
+          <button
+            className="mobile-menu-btn mobile-only content-area__mobile-trigger"
+            type="button"
+            onClick={() => setMobileOpen((current) => !current)}
+            aria-label="Open navigation menu"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <div key={location.pathname} className="content-route-transition">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
