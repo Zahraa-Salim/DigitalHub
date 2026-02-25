@@ -1,6 +1,3 @@
-// File: src/layouts/footers/FooterOne.tsx
-// Purpose: Shared layout container used across pages and sections.
-// If you change this file: Changing structure or wrapper logic can affect navigation, shared UI placement, and consistency across routes.
 "use client";
 
 import Social from "@/components/common/Social";
@@ -14,7 +11,6 @@ interface StyleType {
 }
 
 interface SocialItem {
-  id: string;
   name: string;
   url: string;
 }
@@ -32,7 +28,17 @@ interface FooterData {
   };
 }
 
-/* ================= DEFAULT DATA ================= */
+type PublicHomeResponse = {
+  success?: boolean;
+  data?: {
+    site_settings?: {
+      social_links?: Record<string, unknown> | Array<{ name?: string; url?: string }>;
+    };
+  };
+};
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const DEFAULT_DATA: FooterData = {
   getInTouch: {
     title: "Get In Touch",
@@ -45,48 +51,59 @@ const DEFAULT_DATA: FooterData = {
     copyright: "2026",
   },
 };
-/* ================================================= */
+
+function normalizeSocialLinks(
+  raw: Record<string, unknown> | Array<{ name?: string; url?: string }> | undefined
+): SocialItem[] {
+  if (!raw) return [];
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => ({ name: String(item?.name || ""), url: String(item?.url || "") }))
+      .filter((item) => item.name && item.url);
+  }
+
+  return Object.entries(raw)
+    .map(([name, url]) => ({ name, url: String(url ?? "") }))
+    .filter((item) => item.url);
+}
 
 const FooterOne = ({ style, style_2 }: StyleType) => {
   const [data, setData] = useState<FooterData>(DEFAULT_DATA);
-  const [loaded, setLoaded] = useState(false); // ✅ FIX
 
   useEffect(() => {
-    fetch("http://localhost:3000/footer", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((res) => {
-        if (res) setData(res);
+    fetch(`${API_BASE}/public/home`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: PublicHomeResponse | null) => {
+        const socials = normalizeSocialLinks(payload?.data?.site_settings?.social_links);
+        setData((prev) => ({
+          ...prev,
+          getInTouch: {
+            ...prev.getInTouch,
+            socials: socials.length ? socials : prev.getInTouch.socials,
+          },
+        }));
       })
-      .catch(() => {})
-      .finally(() => setLoaded(true)); // ✅ FIX
+      .catch(() => {
+        // Keep defaults on API failure.
+      });
   }, []);
-
-  // ⛔ Prevent default flash on refresh
-  if (!loaded) return null;
 
   return (
     <footer
-      className={`footer__area ${
-        style_2 ? "footer__area-five" : style ? "footer__area-two" : ""
-      }`}
+      className={`footer__area ${style_2 ? "footer__area-five" : style ? "footer__area-two" : ""}`}
     >
       <div className={`footer__top ${style_2 ? "footer__top-three" : ""}`}>
         <div className="container">
           <div className="row">
-            {/* LEFT PART */}
             <FooterCommon />
 
-            {/* GET IN TOUCH */}
             <div className="col-xl-3 col-lg-4 col-md-6">
               <div className="footer__widget">
-                <h4 className="footer__widget-title">
-                  {data.getInTouch.title}
-                </h4>
+                <h4 className="footer__widget-title">{data.getInTouch.title}</h4>
 
                 <div className="footer__contact-content">
-                  <p style={{ whiteSpace: "pre-line" }}>
-                    {data.getInTouch.text}
-                  </p>
+                  <p style={{ whiteSpace: "pre-line" }}>{data.getInTouch.text}</p>
 
                   <ul className="list-wrap footer__social">
                     <Social socials={data.getInTouch.socials} />
@@ -107,15 +124,12 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
         )}
       </div>
 
-      {/* BOTTOM */}
       <div className={`footer__bottom ${style_2 ? "footer__bottom-four" : ""}`}>
         <div className="container">
           <div className="row align-items-center">
             <div className="col-md-7">
               <div className="copy-right-text">
-                <p>
-                  © {data.legal.copyright} The Digital Hub. All rights reserved.
-                </p>
+                <p>&copy; {data.legal.copyright} The Digital Hub. All rights reserved.</p>
               </div>
             </div>
 
@@ -139,5 +153,3 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
 };
 
 export default FooterOne;
-
-

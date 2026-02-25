@@ -1,6 +1,3 @@
-// File: src/components/inner-pages/about-us/About.tsx
-// Purpose: UI component responsible for rendering part of the interface (inner-pages/about-us/About.tsx).
-// If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 "use client";
 
 import Image from "@/components/common/Image";
@@ -10,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import aboutHeroImage from "@/assets/img/others/inner_about_img.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 type PublicListResponse<T> = {
   success?: boolean;
@@ -19,23 +16,16 @@ type PublicListResponse<T> = {
 
 type ProgramItem = {
   id: number;
-  title: string;
-  updated_at?: string;
 };
 
 type CohortItem = {
   id: number;
   status: "planned" | "coming_soon" | "open" | "running" | "completed" | "cancelled";
   allow_applications: boolean;
-  updated_at?: string;
 };
 
 type PersonItem = {
   user_id: number;
-  full_name: string;
-  bio?: string | null;
-  expertise?: string | null;
-  job_title?: string | null;
 };
 
 type AboutStats = {
@@ -85,9 +75,7 @@ const About = () => {
         ]);
 
         const openCohorts = cohorts.filter(
-          (cohort) =>
-            cohort.allow_applications &&
-            (cohort.status === "open" || cohort.status === "running")
+          (cohort) => cohort.allow_applications && (cohort.status === "open" || cohort.status === "running")
         ).length;
 
         setStats({
@@ -185,5 +173,3 @@ const About = () => {
 };
 
 export default About;
-
-
