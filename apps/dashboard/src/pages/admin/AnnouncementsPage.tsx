@@ -506,8 +506,8 @@ export function AnnouncementsPage() {
                   label: "Actions",
                   render: (row) => (
                     <div className="table-actions dh-table-actions">
-                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>View</button>
-                      <button className="btn btn--primary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>Edit</button>
+                      <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
+                      <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                       <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
                     </div>
                   ),
@@ -536,8 +536,8 @@ export function AnnouncementsPage() {
                   <p className="info-text announcement-mobile-item__meta"><strong>Published:</strong> {row.is_published ? "Yes" : "No"}</p>
                   <p className="info-text announcement-mobile-item__meta"><strong>Publish At:</strong> {row.publish_at ? formatDateTime(row.publish_at) : "N/A"}</p>
                   <div className="table-actions program-mobile-item__actions announcement-mobile-item__actions">
-                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>View</button>
-                    <button className="btn btn--primary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>Edit</button>
+                    <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
+                    <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                     <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
                   </div>
                 </article>

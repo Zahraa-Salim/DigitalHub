@@ -397,7 +397,7 @@ export function EventsPage() {
         <div className="dh-filters">
           <div className="dh-filters-desktop-panel">
             <FilterBar
-              className="dh-form-grid dh-form-grid--events"
+              className="dh-form-grid dh-form-grid--events dh-form-grid--plain"
               searchValue={search}
               onSearchChange={setSearch}
               searchPlaceholder="Search title, description, or location"
@@ -434,8 +434,8 @@ export function EventsPage() {
                   label: "Actions",
                   render: (row) => (
                     <div className="table-actions dh-table-actions">
-                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>View</button>
-                      <button className="btn btn--primary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>Edit</button>
+                      <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
+                      <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                       <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
                       <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Mark Done</button>
                     </div>
@@ -458,8 +458,8 @@ export function EventsPage() {
                   <p className="info-text event-mobile-item__meta"><strong>Ends:</strong> {row.ends_at ? formatDateTime(row.ends_at) : "N/A"}</p>
                   <p className="info-text event-mobile-item__meta"><strong>Location:</strong> {row.location || "N/A"}</p>
                   <div className="table-actions program-mobile-item__actions event-mobile-item__actions">
-                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>View</button>
-                    <button className="btn btn--primary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>Edit</button>
+                    <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
+                    <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                     <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
                     <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Done</button>
                   </div>
@@ -554,7 +554,7 @@ export function EventsPage() {
           <div id="events-filters-mobile-panel" className={`dh-filter-sheet ${isFilterDragging ? "dh-filter-sheet--dragging" : ""}`} role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()} style={{ transform: `translateY(${filterSheetOffset}px)` }}>
             <div className="dh-filter-sheet__drag" onPointerDown={handleFilterDragStart}><span className="dh-filter-sheet__grabber" aria-hidden /><p className="dh-filter-sheet__title">Filters</p></div>
             <FilterBar
-              className="dh-form-grid dh-form-grid--mobile"
+              className="dh-form-grid dh-form-grid--mobile dh-form-grid--plain"
               searchValue={search}
               onSearchChange={setSearch}
               searchPlaceholder="Search title, description, or location"

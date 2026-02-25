@@ -503,7 +503,7 @@ export function ProgramsPage() {
                   label: "Actions",
                   render: (row) => (
                     <div className="table-actions dh-table-actions">
-                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>
+                      <button className="btn btn--secondary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>
                         Edit
                       </button>
                       <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>
@@ -526,7 +526,7 @@ export function ProgramsPage() {
                     {row.title}
                   </button>
                   <div className="table-actions program-mobile-item__actions">
-                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => openEdit(row)}>
+                    <button className="btn btn--secondary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>
                       Edit
                     </button>
                     <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>

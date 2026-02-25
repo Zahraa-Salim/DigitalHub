@@ -1083,6 +1083,18 @@ html.dark .dh-filters-toggle::before {
   background: linear-gradient(180deg, var(--surface), var(--surface-soft));
 }
 
+.card.filters-grid.dh-form-grid--plain {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.card.filters-grid.dh-form-grid--plain:hover {
+  border: 0;
+  box-shadow: none;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1282,6 +1294,35 @@ select.field__control {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.table-actions .btn--view {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.table-actions .btn--view:hover {
+  background: #bfdbfe;
+}
+
+.table-actions .btn--edit,
+.card--table .btn--edit {
+  background: #dff7e7;
+  color: #0f5132;
+}
+
+.table-actions .btn--edit:hover,
+.card--table .btn--edit:hover {
+  background: #c9f0d8;
+}
+
+.table-actions .btn--danger {
+  background: #fde2e4;
+  color: #842029;
+}
+
+.table-actions .btn--danger:hover {
+  background: #f9cfd3;
 }
 
 .program-description-cell {
@@ -1737,9 +1778,19 @@ select.field__control {
   color: #0f2445;
 }
 
+.program-mobile-item__actions .btn--view {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.program-mobile-item__actions .btn--edit {
+  background: #dff7e7;
+  color: #0f5132;
+}
+
 .program-mobile-item__actions .btn--danger {
-  background: #bd6f2d;
-  color: #ffffff;
+  background: #fde2e4;
+  color: #842029;
 }
 
 .application-mobile-item {

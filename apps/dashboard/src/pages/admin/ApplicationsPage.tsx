@@ -388,7 +388,7 @@ export function ApplicationsPage() {
 
     return (
       <div className="table-actions dh-table-actions">
-        <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>
+        <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>
           View
         </button>
         <button
@@ -604,7 +604,7 @@ export function ApplicationsPage() {
                     <Badge tone={row.status}>{row.status}</Badge>
                   </div>
                   <div className="table-actions program-mobile-item__actions application-mobile-item__actions">
-                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setSelected(row)}>
+                    <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>
                       View
                     </button>
                     <button
