@@ -415,6 +415,39 @@
   outline: none;
 }
 
+.application-form__course-info {
+  margin-top: 12px;
+  margin-bottom: 14px;
+  padding: 14px 14px 12px;
+  border: 1px solid #d9dce7;
+  border-radius: 10px;
+  background: #f7f9ff;
+}
+
+.application-form__course-info h6 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: #1d2f50;
+}
+
+.application-form__course-info p {
+  margin: 0 0 8px;
+  color: #4d5f78;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.application-form__course-info ul {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.application-form__course-info li {
+  font-size: 14px;
+  color: #334764;
+}
+
 /* About us enhancements */
 .dh-about-legend__facts {
   display: grid;
