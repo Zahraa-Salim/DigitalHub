@@ -678,6 +678,22 @@ html.dark .sidebar-brand {
   gap: 8px;
 }
 
+.topbar__profile-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.topbar__profile-link:hover .topbar__user-name {
+  text-decoration: underline;
+}
+
 .topbar__avatar {
   width: 34px;
   height: 34px;
@@ -1720,6 +1736,10 @@ select.field__control {
   justify-content: center;
   font-size: 1.35rem;
   font-weight: 700;
+}
+
+.profile-avatar--image {
+  object-fit: cover;
 }
 
 .profile-side {

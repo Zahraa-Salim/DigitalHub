@@ -63,5 +63,20 @@ export async function getPublicStudentBySlug(publicSlug, db = pool) {
       LIMIT 1
     `, [publicSlug]);
 }
+export async function listPublicAdmins(db = pool) {
+    return db.query(`
+      SELECT
+        full_name,
+        avatar_url,
+        bio,
+        job_title,
+        linkedin_url,
+        github_url,
+        portfolio_url
+      FROM admin_profiles
+      WHERE is_public = TRUE
+      ORDER BY sort_order ASC
+    `);
+}
 
 

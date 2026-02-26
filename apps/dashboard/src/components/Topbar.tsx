@@ -62,7 +62,9 @@ export function Topbar({
           onClick={onToggleMenu}
           aria-label="Open navigation menu"
         >
-          ☰
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
         </button>
         <button
           className="icon-btn topbar__collapse"
@@ -70,7 +72,7 @@ export function Topbar({
           onClick={onToggleSidebar}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <span aria-hidden>{sidebarCollapsed ? "»" : "«"}</span>
+          <span aria-hidden>{sidebarCollapsed ? ">>" : "<<"}</span>
         </button>
         <div>
           <h1 className="topbar__title">{title}</h1>
@@ -80,18 +82,28 @@ export function Topbar({
 
       <div className="topbar__actions">
         <button className="icon-btn" type="button" aria-label="Notifications" onClick={() => navigate("/admin/notifications")}>
-          <span aria-hidden>🔔</span>
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M6 9a6 6 0 0 1 12 0v5l2 2H4l2-2z" />
+            <path d="M10 18a2 2 0 0 0 4 0" />
+          </svg>
           {unreadCount > 0 ? <span className="icon-btn__badge">{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
         </button>
 
         <div className="topbar__user">
-          <span className="topbar__avatar" aria-hidden>
-            {displayName.charAt(0).toUpperCase()}
-          </span>
-          <div className="topbar__user-info">
-            <p className="topbar__user-name">{displayName}</p>
-            <p className="topbar__user-role">{user.role}</p>
-          </div>
+          <button
+            className="topbar__profile-link"
+            type="button"
+            onClick={() => navigate("/admin/profile")}
+            aria-label="Open my profile"
+          >
+            <span className="topbar__avatar" aria-hidden>
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+            <div className="topbar__user-info">
+              <p className="topbar__user-name">{displayName}</p>
+              <p className="topbar__user-role">{user.role_label}</p>
+            </div>
+          </button>
           <button className="btn btn--ghost topbar__logout" type="button" onClick={onLogout}>
             Logout
           </button>
