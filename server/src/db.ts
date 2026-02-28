@@ -1,11 +1,8 @@
-import pkg from "pg";
-const { Pool } = pkg;
+// File Summary: server/src/db.ts
+// Layer: root
+// Purpose: Re-exports database helpers so existing imports stay stable.
+// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// @ts-nocheck
+export { pool, withTransaction } from "./db/index.js";
 
-export const pool = new Pool({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT || 5432),
-  database: process.env.PGDATABASE,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  ssl: { rejectUnauthorized: false },
-});
+
