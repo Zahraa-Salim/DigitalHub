@@ -42,7 +42,13 @@ export function errorHandler(error, _req, res, _next) {
       sendError(res, 400, "VALIDATION_ERROR", "Invalid value format.");
       return;
     }
+    if (dbCode === "23514") {
+      sendError(res, 400, "VALIDATION_ERROR", "Value violates a check constraint.");
+      return;
+    }
   }
+    // Log unexpected errors for easier operational debugging.
+    console.error("Unhandled error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "Internal server error");
 }
 

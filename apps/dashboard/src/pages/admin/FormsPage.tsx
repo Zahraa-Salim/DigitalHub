@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
 import { ApiError, api, apiList } from "../../utils/api";
+import "./FormsPage.css";
 
 const FIELD_TYPES = ["text", "textarea", "email", "phone", "select", "checkbox", "date", "file"] as const;
 type FieldType = (typeof FIELD_TYPES)[number];
@@ -68,6 +69,8 @@ type CohortFormResponse = {
   suggested_custom_form: FormConfig;
   resolved_form: FormConfig;
 };
+
+type FormsTab = "general" | "cohort";
 
 const RECOMMENDED_FIELD_TEMPLATES: FieldTemplate[] = [
   {
@@ -308,87 +311,16 @@ function toStatusBadgeTone(status: string):
   return "default";
 }
 
-function parseOptionsText(value: string): string[] {
-  const raw = value.trim();
-  if (!raw) {
-    return [];
-  }
-
-  if ((raw.startsWith("[") && raw.endsWith("]")) || (raw.startsWith("{") && raw.endsWith("}"))) {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        return parsed.map((item) => String(item).trim()).filter(Boolean);
-      }
-      if (parsed && typeof parsed === "object") {
-        return Object.values(parsed as Record<string, unknown>).map((item) => String(item).trim()).filter(Boolean);
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  }
-
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function renderFieldPreview(field: FieldDraft, index: number) {
-  const label = field.label.trim() || `Field #${index + 1}`;
-  const placeholder = field.placeholder.trim() || `Enter ${label.toLowerCase()}`;
-  const options = parseOptionsText(field.optionsText);
-
-  if (field.type === "textarea") {
-    return <textarea className="textarea-control forms-editor__preview-control" rows={3} placeholder={placeholder} disabled />;
-  }
-
-  if (field.type === "select") {
-    return (
-      <select className="field__control forms-editor__preview-control" disabled>
-        <option value="">{placeholder || "Select an option"}</option>
-        {options.map((option, optionIndex) => (
-          <option key={`${label}-option-${optionIndex}`} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  if (field.type === "checkbox") {
-    if (!options.length) {
-      return <p className="info-text info-text--small">Add options to preview checkbox choices.</p>;
-    }
-
-    return (
-      <div className="forms-editor__preview-checkboxes">
-        {options.map((option, optionIndex) => (
-          <label key={`${label}-checkbox-${optionIndex}`} className="forms-editor__preview-checkbox-item">
-            <input type="checkbox" disabled />
-            <span>{option}</span>
-          </label>
-        ))}
-      </div>
-    );
-  }
-
-  if (field.type === "file") {
-    return <input className="field__control forms-editor__preview-control" type="file" disabled />;
-  }
-
-  if (field.type === "date") {
-    return <input className="field__control forms-editor__preview-control" type="date" disabled />;
-  }
-
+function GripIcon() {
   return (
-    <input
-      className="field__control forms-editor__preview-control"
-      type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
-      placeholder={placeholder}
-      disabled
-    />
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.2" />
+      <circle cx="15" cy="6" r="1.2" />
+      <circle cx="9" cy="12" r="1.2" />
+      <circle cx="15" cy="12" r="1.2" />
+      <circle cx="9" cy="18" r="1.2" />
+      <circle cx="15" cy="18" r="1.2" />
+    </svg>
   );
 }
 
@@ -467,6 +399,9 @@ export function FormsPage() {
   const [searchParams] = useSearchParams();
   const queryCohortId = searchParams.get("cohort_id");
   const queryMode = searchParams.get("mode");
+  const [activeTab, setActiveTab] = useState<FormsTab>(
+    queryMode === "custom" || Boolean(queryCohortId) ? "cohort" : "general",
+  );
 
   const [loadingGeneral, setLoadingGeneral] = useState(true);
   const [loadingCohorts, setLoadingCohorts] = useState(true);
@@ -488,6 +423,16 @@ export function FormsPage() {
   const [customForm, setCustomForm] = useState<FormConfig | null>(null);
   const [customFieldsDraft, setCustomFieldsDraft] = useState<FieldDraft[]>([]);
   const [openCustomFieldKey, setOpenCustomFieldKey] = useState<string | null>(null);
+  const [generalMetaDirty, setGeneralMetaDirty] = useState(false);
+  const [customMetaDirty, setCustomMetaDirty] = useState(false);
+  const generalEditorRef = useRef<HTMLDivElement | null>(null);
+  const customEditorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (queryMode === "custom" || queryCohortId) {
+      setActiveTab("cohort");
+    }
+  }, [queryCohortId, queryMode]);
 
   useEffect(() => {
     let active = true;
@@ -508,6 +453,7 @@ export function FormsPage() {
             : createRecommendedFieldDrafts(),
         );
         setOpenGeneralFieldKey(null);
+        setGeneralMetaDirty(false);
         setError("");
       } catch (err) {
         if (!active) {
@@ -581,6 +527,7 @@ export function FormsPage() {
       setCustomForm(null);
       setCustomFieldsDraft([]);
       setOpenCustomFieldKey(null);
+      setCustomMetaDirty(false);
       return;
     }
 
@@ -602,6 +549,7 @@ export function FormsPage() {
         setCustomForm(normalizedCustom);
         setCustomFieldsDraft(normalizedCustom.fields.map((field, index) => toFieldDraft(field, index)));
         setOpenCustomFieldKey(null);
+        setCustomMetaDirty(false);
         setError("");
       } catch (err) {
         if (!active) {
@@ -652,17 +600,37 @@ export function FormsPage() {
     });
   };
 
+  const moveFieldDraft = (
+    drafts: FieldDraft[],
+    key: string,
+    direction: -1 | 1,
+  ): FieldDraft[] => {
+    const from = drafts.findIndex((field) => field.key === key);
+    if (from < 0) {
+      return drafts;
+    }
+    const to = from + direction;
+    if (to < 0 || to >= drafts.length) {
+      return drafts;
+    }
+    const clone = [...drafts];
+    const [item] = clone.splice(from, 1);
+    clone.splice(to, 0, item);
+    return clone;
+  };
+
   const applyRecommendedDefaults = () => {
     setError("");
-    setSuccess("Recommended default fields loaded. Click Save General Form to apply.");
-    setGeneralFieldsDraft(createRecommendedFieldDrafts());
+    const nextDrafts = createRecommendedFieldDrafts();
+    setGeneralFieldsDraft(nextDrafts);
     setOpenGeneralFieldKey(null);
+    void saveGeneralFields(nextDrafts, true);
   };
 
   const addFieldDraft = (
     setDrafts: Dispatch<SetStateAction<FieldDraft[]>>,
     setOpenFieldKey: Dispatch<SetStateAction<string | null>>,
-  ) => {
+  ): string => {
     const createdKey = createDraftKey("new");
     setDrafts((current) => [
       ...current,
@@ -672,6 +640,7 @@ export function FormsPage() {
       },
     ]);
     setOpenFieldKey(createdKey);
+    return createdKey;
   };
 
   const renderFieldEditor = (
@@ -680,175 +649,239 @@ export function FormsPage() {
     setDrafts: Dispatch<SetStateAction<FieldDraft[]>>,
     openFieldKey: string | null,
     setOpenFieldKey: Dispatch<SetStateAction<string | null>>,
+    saveDrafts: (nextDrafts: FieldDraft[], showSuccess?: boolean) => Promise<boolean>,
+    isSaving: boolean,
+    editorRef: React.RefObject<HTMLDivElement | null>,
   ) => (
-    <div className="form-stack forms-editor">
+    <div className="form-stack forms-editor" ref={editorRef}>
       <div className="forms-editor__head">
         <p className="section-title">{title}</p>
-        <p className="info-text info-text--small">
-          Tip: if Name is empty, it will be auto-generated from Label.
-        </p>
+        <div className="forms-editor__head-actions">
+          <p className="info-text info-text--small">
+            Tip: if Name is empty, it will be auto-generated from Label.
+          </p>
+          <button
+            className="btn btn--primary btn--sm"
+            type="button"
+            onClick={() => {
+              const createdKey = addFieldDraft(setDrafts, setOpenFieldKey);
+              window.setTimeout(() => {
+                const element = document.getElementById(`forms-field-${createdKey}`);
+                element?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 0);
+            }}
+          >
+            Add Field
+          </button>
+        </div>
       </div>
       {drafts.map((field, index) => (
-        <Card key={field.key} className="forms-editor__field-card">
-          <div className="form-stack forms-editor__field-stack">
-            <div className="forms-editor__field-head">
-              <div className="forms-editor__field-title-wrap">
-                <p className="section-title">Field #{index + 1}</p>
-                <div className="forms-editor__field-badges">
-                  <Badge tone="default">{field.type}</Badge>
-                  {field.required ? <Badge tone="pending">required</Badge> : <Badge tone="draft">optional</Badge>}
-                </div>
-              </div>
-              <div className="forms-editor__field-actions">
-                <button
-                  className="btn btn--secondary btn--sm"
-                  type="button"
-                  onClick={() => setOpenFieldKey(field.key)}
-                >
-                  {openFieldKey === field.key ? "Editing" : "Edit"}
-                </button>
-                <button
-                  className="btn btn--secondary btn--sm"
-                  type="button"
-                  onClick={() => {
-                    removeFieldDraft(setDrafts, field.key);
-                    setOpenFieldKey((current) => (current === field.key ? null : current));
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-
-            <div className="forms-editor__preview">
-              <p className="forms-editor__preview-label">
-                {field.label.trim() || "Field label"}
-                {field.required ? <span className="forms-editor__preview-required"> *</span> : null}
-              </p>
-              {renderFieldPreview(field, index)}
-            </div>
-
-            {openFieldKey === field.key ? (
-              <>
-                <div className="forms-editor__field-grid">
-                  <label className="field">
-                    <span className="field__label">Label</span>
-                    <input
-                      className="field__control"
-                      type="text"
-                      value={field.label}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { label: event.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    <span className="field__label">Name</span>
-                    <input
-                      className="field__control"
-                      type="text"
-                      value={field.name}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { name: event.target.value })}
-                      placeholder="example: full_name (auto-generated if blank)"
-                    />
-                  </label>
-                  <label className="field">
-                    <span className="field__label">Type</span>
-                    <select
-                      className="field__control"
-                      value={field.type}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { type: event.target.value as FieldType })}
-                    >
-                      {FIELD_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field__label">Placeholder</span>
-                    <input
-                      className="field__control"
-                      type="text"
-                      value={field.placeholder}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { placeholder: event.target.value })}
-                    />
-                  </label>
-                  <label className="field forms-editor__compact-field">
-                    <span className="field__label">Min Length</span>
-                    <input
-                      className="field__control"
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={field.minLength}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { minLength: event.target.value })}
-                    />
-                  </label>
-                  <label className="field forms-editor__compact-field">
-                    <span className="field__label">Max Length</span>
-                    <input
-                      className="field__control"
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={field.maxLength}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { maxLength: event.target.value })}
-                    />
-                  </label>
-                  <label className="field cohort-form-switch forms-editor__switch-field">
-                    <span className="field__label">Required</span>
-                    <input
-                      className="cohort-form-switch__checkbox"
-                      type="checkbox"
-                      checked={field.required}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { required: event.target.checked })}
-                    />
-                  </label>
-                </div>
-                {field.type === "select" || field.type === "checkbox" ? (
-                  <label className="field forms-editor__options-field">
-                    <span className="field__label">Options</span>
-                    <input
-                      className="field__control"
-                      type="text"
-                      value={field.optionsText}
-                      onChange={(event) => updateFieldDraft(setDrafts, field.key, { optionsText: event.target.value })}
-                      placeholder="Comma-separated or JSON"
-                    />
-                  </label>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </Card>
-      ))}
-      <div className="forms-editor__actions">
-        <button
-          className="btn btn--secondary"
-          type="button"
-          onClick={() => addFieldDraft(setDrafts, setOpenFieldKey)}
+        <div
+          key={field.key}
+          id={`forms-field-${field.key}`}
+          className={openFieldKey === field.key ? "forms-field-card forms-field-card--editing" : "forms-field-card"}
         >
-          Add Field
-        </button>
-      </div>
+          <div className="forms-field-card__header">
+            <div className="forms-field-card__left">
+              <span className="forms-field-card__grip" aria-hidden="true">
+                <GripIcon />
+              </span>
+              <div className="forms-field-card__summary">
+                <div className="forms-field-card__title-row">
+                  <p className="forms-field-card__title">{field.label.trim() || `Field #${index + 1}`}</p>
+                  {field.required ? <span className="forms-field-card__required">Required</span> : null}
+                </div>
+                <div className="forms-field-card__meta">
+                  <span className="forms-field-card__chip">{field.type.toUpperCase()}</span>
+                  <span className="forms-field-card__chip forms-field-card__chip--name">
+                    name: {toSafeFieldName(field.name || field.label) || `field_${index + 1}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="forms-field-card__actions">
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={async () => {
+                  const nextDrafts = moveFieldDraft(drafts, field.key, -1);
+                  setDrafts(nextDrafts);
+                  await saveDrafts(nextDrafts, false);
+                }}
+                disabled={index === 0 || isSaving}
+                aria-label={`Move field ${index + 1} up`}
+              >
+                ↑
+              </button>
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={async () => {
+                  const nextDrafts = moveFieldDraft(drafts, field.key, 1);
+                  setDrafts(nextDrafts);
+                  await saveDrafts(nextDrafts, false);
+                }}
+                disabled={index === drafts.length - 1 || isSaving}
+                aria-label={`Move field ${index + 1} down`}
+              >
+                ↓
+              </button>
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={async () => {
+                  if (openFieldKey === field.key) {
+                    const ok = await saveDrafts(drafts, true);
+                    if (ok) {
+                      setOpenFieldKey(null);
+                    }
+                    return;
+                  }
+                  setOpenFieldKey(field.key);
+                }}
+                disabled={isSaving}
+              >
+                {openFieldKey === field.key ? "Save" : "Edit"}
+              </button>
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={async () => {
+                  const confirmed = window.confirm(`Delete field "${field.label.trim() || `Field #${index + 1}`}"?`);
+                  if (!confirmed) {
+                    return;
+                  }
+                  removeFieldDraft(setDrafts, field.key);
+                  const nextDrafts = drafts.filter((item) => item.key !== field.key);
+                  await saveDrafts(nextDrafts, true);
+                  setOpenFieldKey((current) => (current === field.key ? null : current));
+                }}
+                disabled={isSaving}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+
+          {openFieldKey === field.key ? (
+            <div className="forms-field-card__edit">
+              <div className="forms-editor__field-grid">
+                <label className="field">
+                  <span className="field__label">Label</span>
+                  <input
+                    className="field__control"
+                    type="text"
+                    value={field.label}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { label: event.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Name</span>
+                  <input
+                    className="field__control"
+                    type="text"
+                    value={field.name}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { name: event.target.value })}
+                    placeholder="example: full_name (auto-generated if blank)"
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Type</span>
+                  <select
+                    className="field__control"
+                    value={field.type}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { type: event.target.value as FieldType })}
+                  >
+                    {FIELD_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field__label">Placeholder</span>
+                  <input
+                    className="field__control"
+                    type="text"
+                    value={field.placeholder}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { placeholder: event.target.value })}
+                  />
+                </label>
+                <label className="field forms-editor__compact-field">
+                  <span className="field__label">Min Length</span>
+                  <input
+                    className="field__control"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={field.minLength}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { minLength: event.target.value })}
+                  />
+                </label>
+                <label className="field forms-editor__compact-field">
+                  <span className="field__label">Max Length</span>
+                  <input
+                    className="field__control"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={field.maxLength}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { maxLength: event.target.value })}
+                  />
+                </label>
+                <label className="field cohort-form-switch forms-editor__switch-field">
+                  <span className="field__label">Required</span>
+                  <input
+                    className="cohort-form-switch__checkbox"
+                    type="checkbox"
+                    checked={field.required}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { required: event.target.checked })}
+                  />
+                </label>
+              </div>
+              {field.type === "select" || field.type === "checkbox" ? (
+                <label className="field forms-editor__options-field">
+                  <span className="field__label">Options</span>
+                  <input
+                    className="field__control"
+                    type="text"
+                    value={field.optionsText}
+                    onChange={(event) => updateFieldDraft(setDrafts, field.key, { optionsText: event.target.value })}
+                    placeholder="Comma-separated or JSON"
+                  />
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 
-  const saveGeneralForm = async () => {
-    if (!generalForm) {
-      return;
+  const saveGeneralForm = async (
+    draftOverride?: FieldDraft[],
+    formOverride?: FormConfig,
+    showSuccess = true,
+  ): Promise<boolean> => {
+    const formSource = formOverride ?? generalForm;
+    const fieldSource = draftOverride ?? generalFieldsDraft;
+    if (!formSource) {
+      return false;
     }
 
     setSavingGeneral(true);
     setError("");
-    setSuccess("");
+    if (showSuccess) {
+      setSuccess("");
+    }
 
     try {
       const payload = {
-        title: generalForm.title.trim() || "General Application Form",
-        description: generalForm.description.trim() || "Default application form used across cohorts.",
-        is_active: generalForm.is_active,
-        fields: buildFieldsPayload(generalFieldsDraft),
+        title: formSource.title.trim() || "General Application Form",
+        description: formSource.description.trim() || "Default application form used across cohorts.",
+        is_active: formSource.is_active,
+        fields: buildFieldsPayload(fieldSource),
       };
 
       const saved = await api<FormConfig>("/forms/general", {
@@ -859,33 +892,48 @@ export function FormsPage() {
       const normalized = toFormConfig(saved);
       setGeneralForm(normalized);
       setGeneralFieldsDraft(normalized.fields.map((field, index) => toFieldDraft(field, index)));
-      setOpenGeneralFieldKey(null);
-      setSuccess("General form saved successfully.");
+      setGeneralMetaDirty(false);
+      if (showSuccess) {
+        setSuccess("General form saved.");
+      }
+      return true;
     } catch (err) {
       setError(toFriendlyFormsError(err, "Failed to save general form."));
+      return false;
     } finally {
       setSavingGeneral(false);
     }
   };
 
-  const saveCohortForm = async () => {
+  const saveCohortForm = async (
+    modeOverride?: "general" | "custom",
+    customFormOverride?: FormConfig | null,
+    customDraftsOverride?: FieldDraft[],
+    showSuccess = true,
+  ): Promise<boolean> => {
     if (!selectedCohortId) {
       setError("Please select a cohort first.");
-      return;
+      return false;
     }
+
+    const nextMode = modeOverride ?? cohortMode;
+    const nextCustomForm = customFormOverride ?? customForm;
+    const nextCustomDrafts = customDraftsOverride ?? customFieldsDraft;
 
     setSavingCohort(true);
     setError("");
-    setSuccess("");
+    if (showSuccess) {
+      setSuccess("");
+    }
 
     try {
-      if (cohortMode === "general") {
+      if (nextMode === "general") {
         await api<CohortFormResponse>(`/forms/cohorts/${selectedCohortId}`, {
           method: "PUT",
           body: JSON.stringify({ mode: "general" }),
         });
       } else {
-        const source = customForm ?? cohortDetail?.suggested_custom_form;
+        const source = nextCustomForm ?? cohortDetail?.suggested_custom_form;
         if (!source) {
           throw new Error("No custom form data available for this cohort.");
         }
@@ -898,7 +946,7 @@ export function FormsPage() {
               title: source.title.trim() || `${cohortDetail?.cohort.name || "Cohort"} Application Form`,
               description: source.description.trim() || "Custom cohort application form.",
               is_active: source.is_active,
-              fields: buildFieldsPayload(customFieldsDraft),
+              fields: buildFieldsPayload(nextCustomDrafts),
             },
           }),
         });
@@ -909,14 +957,56 @@ export function FormsPage() {
       const refreshedCustom = toFormConfig(refreshed.custom_form ?? refreshed.suggested_custom_form);
       setCustomForm(refreshedCustom);
       setCustomFieldsDraft(refreshedCustom.fields.map((field, index) => toFieldDraft(field, index)));
-      setOpenCustomFieldKey(null);
-      setSuccess("Cohort form configuration saved successfully.");
+      setCustomMetaDirty(false);
+      if (showSuccess) {
+        setSuccess("Cohort form saved.");
+      }
+      return true;
     } catch (err) {
       setError(toFriendlyFormsError(err, "Failed to save cohort form configuration."));
+      return false;
     } finally {
       setSavingCohort(false);
     }
   };
+
+  const saveGeneralFields = async (nextDrafts: FieldDraft[], showSuccess = true): Promise<boolean> => {
+    const snapshot = generalForm;
+    if (!snapshot) {
+      return false;
+    }
+    return saveGeneralForm(nextDrafts, snapshot, showSuccess);
+  };
+
+  const saveCustomFields = async (nextDrafts: FieldDraft[], showSuccess = true): Promise<boolean> => {
+    const snapshot = customForm;
+    if (!snapshot) {
+      return false;
+    }
+    return saveCohortForm("custom", snapshot, nextDrafts, showSuccess);
+  };
+
+  useEffect(() => {
+    if (!generalMetaDirty || !generalForm || loadingGeneral) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void saveGeneralForm(undefined, undefined, false);
+      setGeneralMetaDirty(false);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [generalMetaDirty, generalForm, generalFieldsDraft, loadingGeneral]);
+
+  useEffect(() => {
+    if (!customMetaDirty || !customForm || loadingCohortForm || cohortMode !== "custom" || !selectedCohortId) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void saveCohortForm("custom", undefined, undefined, false);
+      setCustomMetaDirty(false);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [customMetaDirty, customForm, customFieldsDraft, loadingCohortForm, cohortMode, selectedCohortId]);
 
   const resetCustomFromGeneral = () => {
     if (!cohortDetail) {
@@ -932,14 +1022,36 @@ export function FormsPage() {
     });
 
     setCustomForm(base);
-    setCustomFieldsDraft(base.fields.map((field, index) => toFieldDraft(field, index)));
+    const nextDrafts = base.fields.map((field, index) => toFieldDraft(field, index));
+    setCustomFieldsDraft(nextDrafts);
     setOpenCustomFieldKey(null);
-    setSuccess("Custom form reset from the current general form.");
+    void saveCohortForm("custom", base, nextDrafts, true);
   };
 
   return (
     <PageShell title="Application Forms" subtitle="Manage the general application form and customize forms for specific cohorts.">
-      <div className="dh-page forms-page">
+      <div className="dh-page forms-page forms-page--tabs">
+        <div className="forms-tabs" role="tablist" aria-label="Applications form tabs">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "general"}
+            className={activeTab === "general" ? "forms-tab forms-tab--active" : "forms-tab"}
+            onClick={() => setActiveTab("general")}
+          >
+            General Form
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "cohort"}
+            className={activeTab === "cohort" ? "forms-tab forms-tab--active" : "forms-tab"}
+            onClick={() => setActiveTab("cohort")}
+          >
+            Cohort Override
+          </button>
+        </div>
+
         {error ? (
           <Card>
             <p className="alert alert--error">{error}</p>
@@ -951,21 +1063,7 @@ export function FormsPage() {
           </Card>
         ) : null}
 
-        <Card className="forms-page__intro">
-          <div className="forms-page__intro-grid">
-            <div>
-              <p className="section-title">How this works</p>
-              <p className="info-text">Use one default form for all cohorts, or override with a cohort-specific custom form.</p>
-            </div>
-            <div className="forms-page__intro-points">
-              <p className="info-text info-text--small">Field Names must be unique inside each form.</p>
-              <p className="info-text info-text--small">Custom forms can be reset from the general form at any time.</p>
-              <p className="info-text info-text--small">Changes apply immediately to new applications.</p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="forms-page__grid">
+        {activeTab === "general" ? (
           <Card className="forms-page__panel">
             <div className="form-stack">
               <div className="forms-page__panel-head">
@@ -978,14 +1076,6 @@ export function FormsPage() {
                     disabled={loadingGeneral}
                   >
                     Use Recommended Defaults
-                  </button>
-                  <button
-                    className="btn btn--primary btn--sm"
-                    type="button"
-                    onClick={saveGeneralForm}
-                    disabled={savingGeneral || loadingGeneral || !generalForm}
-                  >
-                    {savingGeneral ? "Saving..." : "Save General Form"}
                   </button>
                 </div>
               </div>
@@ -1000,7 +1090,10 @@ export function FormsPage() {
                       className="field__control"
                       type="text"
                       value={generalForm.title}
-                      onChange={(event) => setGeneralForm((current) => (current ? { ...current, title: event.target.value } : current))}
+                      onChange={(event) => {
+                        setGeneralForm((current) => (current ? { ...current, title: event.target.value } : current));
+                        setGeneralMetaDirty(true);
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -1008,9 +1101,10 @@ export function FormsPage() {
                     <textarea
                       className="textarea-control"
                       value={generalForm.description}
-                      onChange={(event) =>
-                        setGeneralForm((current) => (current ? { ...current, description: event.target.value } : current))
-                      }
+                      onChange={(event) => {
+                        setGeneralForm((current) => (current ? { ...current, description: event.target.value } : current));
+                        setGeneralMetaDirty(true);
+                      }}
                     />
                   </label>
                   <label className="field cohort-form-switch">
@@ -1019,9 +1113,10 @@ export function FormsPage() {
                       className="cohort-form-switch__checkbox"
                       type="checkbox"
                       checked={generalForm.is_active}
-                      onChange={(event) =>
-                        setGeneralForm((current) => (current ? { ...current, is_active: event.target.checked } : current))
-                      }
+                      onChange={(event) => {
+                        setGeneralForm((current) => (current ? { ...current, is_active: event.target.checked } : current));
+                        setGeneralMetaDirty(true);
+                      }}
                     />
                   </label>
 
@@ -1031,19 +1126,20 @@ export function FormsPage() {
                     setGeneralFieldsDraft,
                     openGeneralFieldKey,
                     setOpenGeneralFieldKey,
+                    saveGeneralFields,
+                    savingGeneral,
+                    generalEditorRef,
                   )}
                 </>
               )}
             </div>
           </Card>
-
+        ) : (
           <Card className="forms-page__panel">
             <div className="form-stack">
               <div className="forms-page__panel-head">
                 <p className="section-title">Cohort Form Override</p>
-                <button className="btn btn--primary btn--sm" type="button" onClick={saveCohortForm} disabled={savingCohort || !selectedCohortId}>
-                  {savingCohort ? "Saving..." : "Save Cohort Form"}
-                </button>
+                {savingCohort ? <span className="info-text info-text--small">Saving...</span> : null}
               </div>
 
               {loadingCohorts ? (
@@ -1088,7 +1184,10 @@ export function FormsPage() {
                             className="cohort-form-switch__checkbox"
                             type="radio"
                             checked={cohortMode === "general"}
-                            onChange={() => setCohortMode("general")}
+                            onChange={() => {
+                              setCohortMode("general");
+                              void saveCohortForm("general", undefined, undefined, true);
+                            }}
                           />
                         </label>
                         <label className="field cohort-form-switch">
@@ -1097,7 +1196,10 @@ export function FormsPage() {
                             className="cohort-form-switch__checkbox"
                             type="radio"
                             checked={cohortMode === "custom"}
-                            onChange={() => setCohortMode("custom")}
+                            onChange={() => {
+                              setCohortMode("custom");
+                              void saveCohortForm("custom", undefined, undefined, true);
+                            }}
                           />
                         </label>
                       </div>
@@ -1115,9 +1217,10 @@ export function FormsPage() {
                               className="field__control"
                               type="text"
                               value={customForm.title}
-                              onChange={(event) =>
-                                setCustomForm((current) => (current ? { ...current, title: event.target.value } : current))
-                              }
+                              onChange={(event) => {
+                                setCustomForm((current) => (current ? { ...current, title: event.target.value } : current));
+                                setCustomMetaDirty(true);
+                              }}
                             />
                           </label>
                           <label className="field">
@@ -1125,9 +1228,10 @@ export function FormsPage() {
                             <textarea
                               className="textarea-control"
                               value={customForm.description}
-                              onChange={(event) =>
-                                setCustomForm((current) => (current ? { ...current, description: event.target.value } : current))
-                              }
+                              onChange={(event) => {
+                                setCustomForm((current) => (current ? { ...current, description: event.target.value } : current));
+                                setCustomMetaDirty(true);
+                              }}
                             />
                           </label>
                           <label className="field cohort-form-switch">
@@ -1136,9 +1240,10 @@ export function FormsPage() {
                               className="cohort-form-switch__checkbox"
                               type="checkbox"
                               checked={customForm.is_active}
-                              onChange={(event) =>
-                                setCustomForm((current) => (current ? { ...current, is_active: event.target.checked } : current))
-                              }
+                              onChange={(event) => {
+                                setCustomForm((current) => (current ? { ...current, is_active: event.target.checked } : current));
+                                setCustomMetaDirty(true);
+                              }}
                             />
                           </label>
                           {renderFieldEditor(
@@ -1147,6 +1252,9 @@ export function FormsPage() {
                             setCustomFieldsDraft,
                             openCustomFieldKey,
                             setOpenCustomFieldKey,
+                            saveCustomFields,
+                            savingCohort,
+                            customEditorRef,
                           )}
                         </>
                       ) : null}
@@ -1156,7 +1264,7 @@ export function FormsPage() {
               )}
             </div>
           </Card>
-        </div>
+        )}
       </div>
     </PageShell>
   );

@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { GlobalMessageHub } from "../components/GlobalMessageHub";
+import { GlobalMessagingProvider } from "../components/GlobalMessagingContext";
 import { Sidebar } from "../components/Sidebar";
-import { Topbar } from "../components/Topbar";
-import { getAdminRouteTitle } from "./adminRoutes";
 import { clearAuth, getUser } from "../utils/auth";
 
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [user, setUserState] = useState(() => getUser());
   const location = useLocation();
   const navigate = useNavigate();
-  const pageTitle = getAdminRouteTitle(location.pathname);
+  const showGlobalMessageHub =
+    location.pathname.startsWith("/admin/admissions") ||
+    location.pathname.startsWith("/admin/general-apply");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -62,11 +63,11 @@ export function AdminLayout() {
     <div className="dashboard-root">
       <div className="dashboard-shell">
         <aside
-          className={sidebarCollapsed ? "sidebar-desktop sidebar-desktop--collapsed" : "sidebar-desktop"}
+          className="sidebar-desktop"
           aria-label="Sidebar"
         >
           <Sidebar
-            collapsed={sidebarCollapsed}
+            collapsed={false}
             user={user}
             onLogout={handleLogout}
             onToggleTheme={() => setIsDark((current) => !current)}
@@ -96,17 +97,22 @@ export function AdminLayout() {
         ) : null}
 
         <main className="content-area">
-          <Topbar
-            title={pageTitle}
-            user={user}
-            onToggleMenu={() => setMobileOpen((current) => !current)}
-            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-            sidebarCollapsed={sidebarCollapsed}
-            onLogout={handleLogout}
-          />
-          <div key={location.pathname} className="content-route-transition">
-            <Outlet />
-          </div>
+          <button
+            className="mobile-menu-btn mobile-only content-area__mobile-trigger"
+            type="button"
+            onClick={() => setMobileOpen((current) => !current)}
+            aria-label="Open navigation menu"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <GlobalMessagingProvider>
+            <div key={location.pathname} className="content-route-transition">
+              <Outlet />
+            </div>
+            {showGlobalMessageHub ? <GlobalMessageHub /> : null}
+          </GlobalMessagingProvider>
         </main>
       </div>
     </div>

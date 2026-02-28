@@ -4,38 +4,18 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
-import fs from "fs/promises";
 import jwt from "jsonwebtoken";
-import path from "path";
 import { pool } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
+import { buildPagination, parseListQuery } from "../utils/pagination.js";
+import { buildSearchClause } from "../utils/sql.js";
 import { buildUpdateQuery } from "../utils/sql.js";
-import { createAdminUser, deleteAdminUser, findActiveAdminByEmail, findAdminProfileByUserId, findUserByEmailOrPhone, getUserPasswordHash, listAdminProfiles, updateLastLogin, updateUserAccount, updateUserPasswordHash, upsertAdminProfile, } from "../repositories/auth.repo.js";
-const AVATAR_EXT_BY_MIME = {
-    "image/jpeg": "jpg",
-    "image/jpg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-};
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-function toAdminProfileResponse(row) {
-    return {
-        id: row.id,
-        email: row.email ?? null,
-        phone: row.phone ?? null,
-        is_active: Boolean(row.is_active),
-        full_name: row.full_name ?? "Admin",
-        admin_role: row.admin_role === "super_admin" ? "super_admin" : "admin",
-        avatar_url: row.avatar_url ?? null,
-        bio: row.bio ?? null,
-        job_title: row.job_title ?? null,
-        linkedin_url: row.linkedin_url ?? null,
-        github_url: row.github_url ?? null,
-        portfolio_url: row.portfolio_url ?? null,
-    };
-}
+import { sendDigitalHubEmail } from "../utils/mailer.js";
+import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
+import { findActiveAdminByEmail, findAdminProfileByUserId, getUserPasswordHash, listAdminProfiles, updateLastLogin, updateUserAccount, updateUserPasswordHash, upsertAdminProfile, } from "../repositories/auth.repo.js";
+import { countUsersForMessaging, listUsersForMessaging } from "../repositories/auth.repo.js";
+import { findUsersForMessagingByIds } from "../repositories/auth.repo.js";
 export async function loginAdmin(input) {
     const userResult = await findActiveAdminByEmail(input.email.toLowerCase());
     if (!userResult.rowCount) {
@@ -84,7 +64,7 @@ export async function getMyAdminProfile(userId) {
     if (!result.rowCount) {
         throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
     }
-    return toAdminProfileResponse(result.rows[0]);
+    return result.rows[0];
 }
 export async function updateMyAdminProfile(userId, payload) {
     const client = await pool.connect();
@@ -96,15 +76,41 @@ export async function updateMyAdminProfile(userId, payload) {
         }
         const existing = existingResult.rows[0];
         const normalizedPayload = {
-            full_name: payload.full_name,
+            ...payload,
+            phone: payload.phone === "" ? null : payload.phone,
             avatar_url: payload.avatar_url === "" ? null : payload.avatar_url,
             linkedin_url: payload.linkedin_url === "" ? null : payload.linkedin_url,
             github_url: payload.github_url === "" ? null : payload.github_url,
             portfolio_url: payload.portfolio_url === "" ? null : payload.portfolio_url,
             bio: payload.bio === "" ? null : payload.bio,
             job_title: payload.job_title === "" ? null : payload.job_title,
-            phone: payload.phone === "" ? null : payload.phone,
         };
+        const wantsPasswordChange =
+            typeof normalizedPayload.current_password === "string" &&
+                typeof normalizedPayload.new_password === "string";
+        if (wantsPasswordChange) {
+            const passwordResult = await getUserPasswordHash(userId, client);
+            if (!passwordResult.rowCount) {
+                throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
+            }
+            const validCurrentPassword = await bcrypt.compare(normalizedPayload.current_password, passwordResult.rows[0].password_hash);
+            if (!validCurrentPassword) {
+                throw new AppError(400, "PASSWORD_INVALID", "Current password is incorrect.");
+            }
+            const newPasswordHash = await bcrypt.hash(normalizedPayload.new_password, 10);
+            await updateUserPasswordHash(userId, newPasswordHash, client);
+        }
+        const userUpdates = {};
+        if (normalizedPayload.email !== undefined) {
+            userUpdates.email = normalizedPayload.email;
+        }
+        if (normalizedPayload.phone !== undefined) {
+            userUpdates.phone = normalizedPayload.phone;
+        }
+        if (Object.keys(userUpdates).length > 0) {
+            const { setClause, values } = buildUpdateQuery(userUpdates, ["email", "phone"], 1);
+            await updateUserAccount(userId, setClause, values, client);
+        }
         const profileUpdates = {
             full_name: normalizedPayload.full_name ?? existing.full_name ?? "Admin",
             avatar_url: normalizedPayload.avatar_url !== undefined ? normalizedPayload.avatar_url : (existing.avatar_url ?? null),
@@ -118,15 +124,6 @@ export async function updateMyAdminProfile(userId, payload) {
             sort_order: existing.sort_order ?? 0,
         };
         await upsertAdminProfile(userId, profileUpdates, client);
-        
-        // Update phone on users table if provided
-        if (normalizedPayload.phone !== undefined) {
-            await client.query(
-                "UPDATE users SET phone = $1, updated_at = NOW() WHERE id = $2",
-                [normalizedPayload.phone, userId]
-            );
-        }
-        
         const refreshedResult = await findAdminProfileByUserId(userId, client);
         await logAdminAction({
             actorUserId: userId,
@@ -135,11 +132,12 @@ export async function updateMyAdminProfile(userId, payload) {
             entityId: userId,
             message: `Admin user ${userId} updated their profile.`,
             metadata: {
-                updated_fields: Object.keys(normalizedPayload).filter(k => normalizedPayload[k] !== undefined),
+                updated_fields: Object.keys(normalizedPayload).filter((field) => field !== "current_password" && field !== "new_password"),
+                password_changed: wantsPasswordChange,
             },
         }, client);
         await client.query("COMMIT");
-        return toAdminProfileResponse(refreshedResult.rows[0]);
+        return refreshedResult.rows[0];
     }
     catch (error) {
         await client.query("ROLLBACK");
@@ -150,94 +148,15 @@ export async function updateMyAdminProfile(userId, payload) {
     }
 }
 export async function listAllAdmins(actorRole) {
-    if (actorRole !== "super_admin") {
+    if (actorRole !== "admin" && actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
     }
     const result = await listAdminProfiles();
-    return result.rows.map(toAdminProfileResponse);
-}
-export async function getAdminProfileBySuperAdmin(actorRole, targetUserId) {
-    if (actorRole !== "super_admin") {
-        throw new AppError(403, "FORBIDDEN", "Only super admin can access admin management data.");
-    }
-    const result = await findAdminProfileByUserId(targetUserId);
-    if (!result.rowCount) {
-        throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
-    }
-    return toAdminProfileResponse(result.rows[0]);
-}
-export async function createAdminBySuperAdmin(actorUserId, actorRole, payload) {
-    if (actorRole !== "super_admin") {
-        throw new AppError(403, "FORBIDDEN", "Only super admin can create admin accounts.");
-    }
-    const normalizedPayload = {
-        ...payload,
-        email: payload.email === "" ? null : payload.email?.toLowerCase(),
-        phone: payload.phone === "" ? null : payload.phone,
-        avatar_url: payload.avatar_url === "" ? null : payload.avatar_url,
-        linkedin_url: payload.linkedin_url === "" ? null : payload.linkedin_url,
-        github_url: payload.github_url === "" ? null : payload.github_url,
-        portfolio_url: payload.portfolio_url === "" ? null : payload.portfolio_url,
-        bio: payload.bio === "" ? null : payload.bio,
-        job_title: payload.job_title === "" ? null : payload.job_title,
-    };
-    const client = await pool.connect();
-    try {
-        await client.query("BEGIN");
-        const duplicateResult = await findUserByEmailOrPhone(normalizedPayload.email, normalizedPayload.phone, client);
-        if (duplicateResult.rowCount) {
-            throw new AppError(409, "USER_EXISTS", "An account with this email or phone already exists.");
-        }
-        const passwordHash = await bcrypt.hash(normalizedPayload.password, 10);
-        const userInsertResult = await createAdminUser({
-            email: normalizedPayload.email,
-            phone: normalizedPayload.phone,
-            password_hash: passwordHash,
-            is_active: normalizedPayload.is_active ?? true,
-        }, client);
-        const createdUserId = userInsertResult.rows[0].id;
-        await upsertAdminProfile(createdUserId, {
-            full_name: normalizedPayload.full_name,
-            avatar_url: normalizedPayload.avatar_url ?? null,
-            bio: normalizedPayload.bio ?? null,
-            job_title: normalizedPayload.job_title ?? null,
-            linkedin_url: normalizedPayload.linkedin_url ?? null,
-            github_url: normalizedPayload.github_url ?? null,
-            portfolio_url: normalizedPayload.portfolio_url ?? null,
-            admin_role: normalizedPayload.admin_role ?? "admin",
-            is_public: true,
-            sort_order: 0,
-        }, client);
-        const refreshed = await findAdminProfileByUserId(createdUserId, client);
-        await logAdminAction({
-            actorUserId,
-            action: "create admin account",
-            entityType: "admin_profiles",
-            entityId: createdUserId,
-            message: `Super admin ${actorUserId} created admin account ${createdUserId}.`,
-            metadata: {
-                email: normalizedPayload.email,
-                phone: normalizedPayload.phone,
-                admin_role: normalizedPayload.admin_role ?? "admin",
-            },
-        }, client);
-        await client.query("COMMIT");
-        return toAdminProfileResponse(refreshed.rows[0]);
-    }
-    catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    }
-    finally {
-        client.release();
-    }
+    return result.rows;
 }
 export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUserId, payload) {
     if (actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "Only super admin can edit other admin accounts.");
-    }
-    if (actorUserId === targetUserId && payload.admin_role && payload.admin_role !== "super_admin") {
-        throw new AppError(400, "INVALID_OPERATION", "Super admin cannot demote themselves.");
     }
     const client = await pool.connect();
     try {
@@ -249,7 +168,6 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
         const existing = existingResult.rows[0];
         const normalizedPayload = {
             ...payload,
-            email: payload.email === "" ? null : payload.email?.toLowerCase(),
             phone: payload.phone === "" ? null : payload.phone,
             avatar_url: payload.avatar_url === "" ? null : payload.avatar_url,
             linkedin_url: payload.linkedin_url === "" ? null : payload.linkedin_url,
@@ -261,13 +179,6 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
         if (typeof normalizedPayload.new_password === "string") {
             const newPasswordHash = await bcrypt.hash(normalizedPayload.new_password, 10);
             await updateUserPasswordHash(targetUserId, newPasswordHash, client);
-        }
-        if (normalizedPayload.email || normalizedPayload.phone) {
-            const duplicateResult = await findUserByEmailOrPhone(normalizedPayload.email, normalizedPayload.phone, client);
-            const duplicate = duplicateResult.rows[0];
-            if (duplicate && Number(duplicate.id) !== targetUserId) {
-                throw new AppError(409, "USER_EXISTS", "An account with this email or phone already exists.");
-            }
         }
         const userUpdates = {};
         if (normalizedPayload.email !== undefined) {
@@ -309,7 +220,7 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
             },
         }, client);
         await client.query("COMMIT");
-        return toAdminProfileResponse(refreshedResult.rows[0]);
+        return refreshedResult.rows[0];
     }
     catch (error) {
         await client.query("ROLLBACK");
@@ -319,66 +230,130 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
         client.release();
     }
 }
-export async function deleteAdminBySuperAdmin(actorUserId, actorRole, targetUserId) {
-    if (actorRole !== "super_admin") {
-        throw new AppError(403, "FORBIDDEN", "Only super admin can delete admin accounts.");
+
+const USER_SORT_COLUMN_MAP = {
+    full_name: "COALESCE(NULLIF(ap.full_name, ''), NULLIF(ip.full_name, ''), NULLIF(sp.full_name, ''), NULLIF(split_part(COALESCE(u.email, ''), '@', 1), ''), 'User')",
+    email: "COALESCE(u.email, '')",
+    created_at: "u.created_at",
+};
+
+export async function listUsersForMessagingService(actorRole, query) {
+    if (actorRole !== "admin" && actorRole !== "super_admin") {
+        throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
     }
-    if (actorUserId === targetUserId) {
-        throw new AppError(400, "INVALID_OPERATION", "Super admin cannot delete their own account.");
+
+    const list = parseListQuery(query, ["full_name", "email", "created_at"], "full_name");
+    const sortColumn = USER_SORT_COLUMN_MAP[list.sortBy];
+    const params = [];
+    const where = ["u.is_active = TRUE"];
+
+    if (list.search) {
+        params.push(`%${list.search}%`);
+        where.push(buildSearchClause([
+            "COALESCE(u.email, '')",
+            "COALESCE(u.phone, '')",
+            "COALESCE(ap.full_name, '')",
+            "COALESCE(ip.full_name, '')",
+            "COALESCE(sp.full_name, '')",
+        ], params.length));
     }
-    const client = await pool.connect();
-    try {
-        await client.query("BEGIN");
-        const existingResult = await findAdminProfileByUserId(targetUserId, client);
-        if (!existingResult.rowCount) {
-            throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
+
+    const whereClause = `WHERE ${where.join(" AND ")}`;
+    const countResult = await countUsersForMessaging(whereClause, params);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const dataResult = await listUsersForMessaging(whereClause, sortColumn, list.order, params, list.limit, list.offset);
+
+    return {
+        data: dataResult.rows,
+        pagination: buildPagination(list.page, list.limit, total),
+    };
+}
+
+export async function sendMessagingUsersService(actorUserId, actorRole, payload) {
+    if (actorRole !== "admin" && actorRole !== "super_admin") {
+        throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
+    }
+
+    const uniqueIds = [...new Set((payload.user_ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!uniqueIds.length) {
+        throw new AppError(400, "VALIDATION_ERROR", "At least one recipient user is required.");
+    }
+
+    const usersResult = await findUsersForMessagingByIds(uniqueIds);
+    const users = usersResult.rows;
+    if (!users.length) {
+        throw new AppError(404, "USERS_NOT_FOUND", "No active users found for the selected recipients.");
+    }
+
+    const body = String(payload.body || "").trim();
+    const subject = payload.channel === "email"
+        ? String(payload.subject || "").trim() || "Digital Hub Message"
+        : "";
+
+    let sentCount = 0;
+    let skippedCount = 0;
+    const skippedUsers = [];
+
+    for (const user of users) {
+        if (payload.channel === "email") {
+            const toValue = String(user.email || "").trim();
+            if (!toValue) {
+                skippedCount += 1;
+                skippedUsers.push({
+                    id: user.id,
+                    reason: "missing_email",
+                });
+                continue;
+            }
+            await sendDigitalHubEmail({
+                to: toValue,
+                subject,
+                body,
+            });
+            sentCount += 1;
+            continue;
         }
-        await deleteAdminUser(targetUserId, client);
-        await logAdminAction({
-            actorUserId,
-            action: "delete admin account",
-            entityType: "admin_profiles",
-            entityId: targetUserId,
-            message: `Super admin ${actorUserId} deleted admin account ${targetUserId}.`,
-        }, client);
-        await client.query("COMMIT");
-        return { deleted: true };
+
+        const phone = String(user.phone || "").trim();
+        if (!phone) {
+            skippedCount += 1;
+            skippedUsers.push({
+                id: user.id,
+                reason: "missing_phone",
+            });
+            continue;
+        }
+        await sendDigitalHubWhatsApp({
+            to: phone,
+            body,
+        });
+        sentCount += 1;
     }
-    catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    }
-    finally {
-        client.release();
-    }
-}
-export async function uploadMyAdminAvatar(userId, payload) {
-    const existingResult = await findAdminProfileByUserId(userId);
-    if (!existingResult.rowCount) {
-        throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
-    }
-    const fileBuffer = Buffer.from(payload.data_base64, "base64");
-    if (!fileBuffer.length) {
-        throw new AppError(400, "INVALID_IMAGE", "Avatar file is empty.");
-    }
-    if (fileBuffer.length > MAX_AVATAR_BYTES) {
-        throw new AppError(400, "IMAGE_TOO_LARGE", "Avatar must be 2MB or smaller.");
-    }
-    const extension = AVATAR_EXT_BY_MIME[payload.mime_type];
-    if (!extension) {
-        throw new AppError(400, "INVALID_IMAGE_TYPE", "Only JPG, PNG, and WEBP avatars are supported.");
-    }
-    const safeFileName = payload.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-    const uniqueId = crypto.randomUUID();
-    const fileName = `${userId}-${Date.now()}-${uniqueId}-${safeFileName}.${extension}`;
-    const relativePath = path.posix.join("avatars", fileName);
-    const uploadsRoot = path.resolve(process.cwd(), "uploads");
-    const targetDir = path.join(uploadsRoot, "avatars");
-    await fs.mkdir(targetDir, { recursive: true });
-    await fs.writeFile(path.join(targetDir, fileName), fileBuffer);
-    const avatarUrl = `/${path.posix.join("uploads", relativePath)}`;
-    await updateMyAdminProfile(userId, { avatar_url: avatarUrl });
-    return { avatar_url: avatarUrl };
+
+    await logAdminAction({
+        actorUserId,
+        action: "send messaging users",
+        entityType: "users",
+        entityId: null,
+        message: `User broadcast sent via ${payload.channel}.`,
+        metadata: {
+            channel: payload.channel,
+            requested_user_ids: uniqueIds,
+            sent_count: sentCount,
+            skipped_count: skippedCount,
+            skipped_users: skippedUsers,
+        },
+        title: "User Message Sent",
+        body: `${sentCount} ${payload.channel.toUpperCase()} message(s) sent${skippedCount ? `, ${skippedCount} skipped.` : "."}`,
+    });
+
+    return {
+        channel: payload.channel,
+        requested_count: uniqueIds.length,
+        sent_count: sentCount,
+        skipped_count: skippedCount,
+        skipped_users: skippedUsers,
+    };
 }
 
 

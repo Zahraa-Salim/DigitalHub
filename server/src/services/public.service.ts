@@ -3,11 +3,25 @@
 // Purpose: Contains business logic, orchestration, and transaction-level behavior.
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
+import { withTransaction } from "../db/index.js";
+import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { cacheGetJson, cacheSetJson } from "../utils/cache.js";
-import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicAdmins, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { logAdminAction } from "../utils/logAdminAction.js";
+import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import {
+    createApplicantForPublicApply,
+    findApplicantByEmailNorm,
+    findApplicantByPhoneNorm,
+    getGeneralApplyForm,
+    getPublishedProgramById,
+    listEnabledFormFieldsByFormId,
+    programApplicationsTableExists,
+    upsertProgramApplication,
+    upsertProgramApplicationByPhone,
+} from "../repositories/public.repo.js";
 import { listPublicProjectsByStudentUserId } from "../repositories/projects.repository.js";
 async function listPublicResource(query, config) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
@@ -169,9 +183,138 @@ export async function getPublicHomeService() {
     await cacheSetJson(cacheKey, data, 60);
     return data;
 }
-export async function listPublicAdminsService() {
-    const result = await listPublicAdmins();
-    return result.rows;
+function normalizeEmail(value) {
+    if (typeof value !== "string")
+        return null;
+    const trimmed = value.trim().toLowerCase();
+    return trimmed || null;
+}
+function normalizePhone(value) {
+    if (typeof value !== "string")
+        return null;
+    const digits = value.replace(/\D/g, "");
+    return digits || null;
+}
+function isMissingRequiredAnswer(value) {
+    if (value === undefined || value === null)
+        return true;
+    if (typeof value === "string")
+        return value.trim() === "";
+    if (Array.isArray(value))
+        return value.length === 0;
+    return false;
+}
+function pickAnswer(answers, keys) {
+    for (const key of keys) {
+        if (answers[key] !== undefined && answers[key] !== null) {
+            return answers[key];
+        }
+    }
+    return null;
+}
+export async function submitPublicApplyService(payload) {
+    return withTransaction(async (client) => {
+        const tableReady = await programApplicationsTableExists(client);
+        if (!tableReady) {
+            throw new AppError(500, "INTERNAL_ERROR", "program_applications table is missing. Run the required migration before using public apply.");
+        }
+        const programResult = await getPublishedProgramById(payload.program_id, client);
+        if (!programResult.rowCount) {
+            throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+        }
+        const formResult = await getGeneralApplyForm(client);
+        if (!formResult.rowCount) {
+            throw new AppError(404, "FORM_NOT_FOUND", "General apply form is not configured.");
+        }
+        const form = formResult.rows[0];
+        const answers = payload.answers ?? {};
+        const fieldsResult = await listEnabledFormFieldsByFormId(form.id, client);
+        const requiredFields = fieldsResult.rows.filter((field) => field.required);
+        const fieldErrors = {};
+        for (const field of requiredFields) {
+            if (isMissingRequiredAnswer(answers[field.name])) {
+                fieldErrors[field.name] = `${field.label || field.name} is required`;
+            }
+        }
+        if (Object.keys(fieldErrors).length) {
+            throw new AppError(400, "VALIDATION_ERROR", "Invalid request data", { fieldErrors });
+        }
+        const fullNameRaw = pickAnswer(answers, ["full_name", "name"]);
+        const emailRaw = pickAnswer(answers, ["email", "applicant_email"]);
+        const phoneRaw = pickAnswer(answers, ["phone", "applicant_phone"]);
+        const fullName = typeof fullNameRaw === "string" ? fullNameRaw.trim() : null;
+        const email = typeof emailRaw === "string" ? emailRaw.trim() : null;
+        const phone = typeof phoneRaw === "string" ? phoneRaw.trim() : null;
+        const emailNorm = normalizeEmail(email);
+        const phoneNorm = normalizePhone(phone);
+        if (!emailNorm && !phoneNorm) {
+            throw new AppError(400, "VALIDATION_ERROR", "At least one of email or phone is required.");
+        }
+        let applicantResult = emailNorm
+            ? await findApplicantByEmailNorm(emailNorm, client)
+            : await findApplicantByPhoneNorm(phoneNorm, client);
+        if (!applicantResult.rowCount && phoneNorm) {
+            applicantResult = await findApplicantByPhoneNorm(phoneNorm, client);
+        }
+        if (!applicantResult.rowCount) {
+            applicantResult = await createApplicantForPublicApply(fullName, emailNorm, phone, client);
+        }
+        const applicant = applicantResult.rows[0];
+        let applicationResult;
+        try {
+            if (emailNorm) {
+                applicationResult = await upsertProgramApplication({
+                    program_id: payload.program_id,
+                    applicant_id: applicant.id,
+                    applicant_email_norm: emailNorm,
+                    applicant_phone_norm: phoneNorm,
+                    submission_answers: answers,
+                }, client);
+            }
+            else {
+                applicationResult = await upsertProgramApplicationByPhone({
+                    program_id: payload.program_id,
+                    applicant_id: applicant.id,
+                    applicant_email_norm: emailNorm,
+                    applicant_phone_norm: phoneNorm,
+                    submission_answers: answers,
+                }, client);
+            }
+        }
+        catch (error) {
+            if (error?.code === "23505" && phoneNorm) {
+                applicationResult = await upsertProgramApplicationByPhone({
+                    program_id: payload.program_id,
+                    applicant_id: applicant.id,
+                    applicant_email_norm: emailNorm,
+                    applicant_phone_norm: phoneNorm,
+                    submission_answers: answers,
+                }, client);
+            }
+            else {
+                throw error;
+            }
+        }
+        const row = applicationResult.rows[0];
+        await logAdminAction({
+            actorUserId: null,
+            action: ADMIN_ACTIONS.GENERAL_APPLY_SUBMITTED,
+            entityType: "program_applications",
+            entityId: Number(row.id),
+            message: `Public general apply submitted for program ${payload.program_id}.`,
+            metadata: {
+                program_id: payload.program_id,
+                applicant_id: applicant.id ?? null,
+                form_id: form.id,
+            },
+            title: "New General Apply Submission",
+            body: `A new program application was submitted for '${programResult.rows[0].title}'.`,
+        }, client);
+        return {
+            id: Number(row.id),
+            status: row.stage ?? "applied",
+        };
+    });
 }
 
 

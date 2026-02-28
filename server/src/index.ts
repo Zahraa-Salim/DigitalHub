@@ -6,12 +6,11 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import path from "path";
 import { pool } from "./db/index.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { validatePagination } from "./middleware/validatePagination.js";
 import { announcementsRouter } from "./routes/announcements.routes.js";
-import { adminsRouter } from "./routes/admins.routes.js";
+import { adminFormsRouter } from "./routes/adminForms.routes.js";
 import { applicationsRouter } from "./routes/applications.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { cmsRouter } from "./routes/cms.routes.js";
@@ -19,48 +18,25 @@ import { contactRouter } from "./routes/contact.routes.js";
 import { eventsRouter } from "./routes/events.routes.js";
 import { formsRouter } from "./routes/forms.routes.js";
 import { logsRouter } from "./routes/logs.routes.js";
+import { messageTemplatesRouter } from "./routes/messageTemplates.routes.js";
 import { notificationsRouter } from "./routes/notifications.routes.js";
+import { overviewRouter } from "./routes/overview.routes.js";
 import { profilesRouter } from "./routes/profiles.routes.js";
 import { projectsRouter } from "./routes/projects.routes.js";
+import { programApplicationsRouter } from "./routes/programApplications.routes.js";
 import { programsRouter } from "./routes/programs.routes.js";
 import { publicRouter } from "./routes/public.routes.js";
 import { sendSuccess } from "./utils/httpResponse.js";
 dotenv.config();
 const app = express();
-const configuredOrigins = process.env.CORS_ORIGIN
+const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
     : true;
-const isDevEnvironment = process.env.NODE_ENV !== "production";
-const localhostOriginRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
 app.use(cors({
-    origin(origin, callback) {
-        if (!origin) {
-            callback(null, true);
-            return;
-        }
-        if (isDevEnvironment) {
-            callback(null, true);
-            return;
-        }
-        if (configuredOrigins === true) {
-            callback(null, true);
-            return;
-        }
-        if (configuredOrigins.includes(origin)) {
-            callback(null, true);
-            return;
-        }
-        if (localhostOriginRegex.test(origin)) {
-            callback(null, true);
-            return;
-        }
-        callback(new Error("Not allowed by CORS"));
-    },
+    origin: allowedOrigins,
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
 }));
-app.use(express.json({ limit: "20mb" }));
-app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+app.use(express.json());
 app.use(validatePagination);
 app.get("/", (_req, res) => {
     sendSuccess(res, { status: "ok" }, "Digital Hub API is running.");
@@ -75,20 +51,24 @@ app.get("/health", async (_req, res, next) => {
     }
 });
 app.use("/auth", authRouter);
-app.use("/api/admins", adminsRouter);
 app.use("/cms", cmsRouter);
 app.use(programsRouter);
 app.use("/profiles", profilesRouter);
 app.use("/applications", applicationsRouter);
+app.use("/program-applications", programApplicationsRouter);
+app.use("/admin/program-applications", programApplicationsRouter);
+app.use("/admin", adminFormsRouter);
 app.use("/announcements", announcementsRouter);
 app.use("/events", eventsRouter);
 app.use("/forms", formsRouter);
+app.use("/admin/forms", formsRouter);
+app.use("/admin/overview", overviewRouter);
+app.use("/message-templates", messageTemplatesRouter);
 app.use("/contact", contactRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/logs", logsRouter);
 app.use(projectsRouter);
 app.use("/public", publicRouter);
-app.use("/api/public", publicRouter);
 app.use(notFound);
 app.use(errorHandler);
 async function ensureSoftDeleteColumns() {
@@ -100,13 +80,113 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
       ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
+      ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage TEXT;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+      -- Drop legacy/unknown applications check constraints before data normalization.
+      DO $$
+      DECLARE
+        c RECORD;
+      BEGIN
+        FOR c IN
+          SELECT conname
+          FROM pg_constraint
+          WHERE conrelid = 'applications'::regclass
+            AND contype = 'c'
+            AND (
+              pg_get_constraintdef(oid) ILIKE '%status%'
+              OR pg_get_constraintdef(oid) ILIKE '%stage%'
+            )
+        LOOP
+          EXECUTE format('ALTER TABLE applications DROP CONSTRAINT %I', c.conname);
+        END LOOP;
+      END $$;
+
+      -- Ensure modern applications status enum values.
+      UPDATE applications
+      SET status = CASE
+        WHEN status = 'pending' THEN 'applied'
+        WHEN status = 'waitlisted' THEN 'reviewing'
+        WHEN status = 'approved' THEN 'accepted'
+        ELSE status
+      END;
+
+      -- Keep stage in sync when it already carries legacy pipeline labels,
+      -- and backfill stage when missing.
+      UPDATE applications
+      SET stage = CASE
+        WHEN stage = 'submitted' THEN 'applied'
+        WHEN stage = 'reviewed' THEN 'reviewing'
+        WHEN stage = 'shortlisted' THEN 'reviewing'
+        WHEN stage = 'interview_scheduled' THEN 'invited_to_interview'
+        WHEN stage = 'interview_completed' THEN 'interview_confirmed'
+        WHEN stage = 'user_created' THEN 'participation_confirmed'
+        WHEN stage IS NULL OR stage = '' THEN CASE
+          WHEN status = 'applied' THEN 'applied'
+          WHEN status = 'reviewing' THEN 'reviewing'
+          WHEN status = 'invited_to_interview' THEN 'invited_to_interview'
+          WHEN status = 'interview_confirmed' THEN 'interview_confirmed'
+          WHEN status = 'accepted' THEN 'accepted'
+          WHEN status = 'rejected' THEN 'rejected'
+          WHEN status = 'participation_confirmed' THEN 'participation_confirmed'
+          ELSE 'applied'
+        END
+        ELSE stage
+      END;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'applications_status_check'
+            AND conrelid = 'applications'::regclass
+        ) THEN
+          ALTER TABLE applications
+            ADD CONSTRAINT applications_status_check
+            CHECK (
+              status IN (
+                'applied',
+                'reviewing',
+                'invited_to_interview',
+                'interview_confirmed',
+                'accepted',
+                'rejected',
+                'participation_confirmed'
+              )
+            );
+        END IF;
+      END $$;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'applications_stage_check'
+            AND conrelid = 'applications'::regclass
+        ) THEN
+          ALTER TABLE applications
+            ADD CONSTRAINT applications_stage_check
+            CHECK (
+              stage IN (
+                'applied',
+                'reviewing',
+                'invited_to_interview',
+                'interview_confirmed',
+                'accepted',
+                'rejected',
+                'participation_confirmed'
+              )
+            );
+        END IF;
+      END $$;
+
       UPDATE cohorts
       SET status = 'coming_soon', updated_at = NOW()
       WHERE status = 'planned'
         AND deleted_at IS NULL;
-      ALTER TABLE admin_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     `);
 }
 async function startServer() {
@@ -124,5 +204,3 @@ async function startServer() {
     }
 }
 startServer();
-
-

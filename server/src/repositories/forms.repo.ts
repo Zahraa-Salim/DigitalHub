@@ -40,6 +40,34 @@ export async function findFormByKey(key, db = pool) {
   );
 }
 
+export async function listForms(scope = "all", db = pool) {
+  let whereClause = "";
+  const params = [];
+  if (scope === "general") {
+    whereClause = "WHERE f.key NOT LIKE 'cohort_application_cohort_%'";
+  } else if (scope === "cohort") {
+    whereClause = "WHERE f.key LIKE 'cohort_application_cohort_%'";
+  }
+
+  return db.query(
+    `
+      SELECT
+        f.id,
+        f.key,
+        f.title,
+        f.description,
+        f.is_active,
+        f.created_by,
+        f.updated_at,
+        (SELECT COUNT(*)::int FROM form_fields ff WHERE ff.form_id = f.id) AS field_count
+      FROM forms f
+      ${whereClause}
+      ORDER BY f.updated_at DESC, f.id DESC
+    `,
+    params,
+  );
+}
+
 export async function getFormById(id, db = pool) {
   return db.query(
     `
@@ -49,6 +77,18 @@ export async function getFormById(id, db = pool) {
       LIMIT 1
     `,
     [id],
+  );
+}
+
+export async function renameFormKey(formId, nextKey, db = pool) {
+  return db.query(
+    `
+      UPDATE forms
+      SET key = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, key, title, description, is_active, created_by, updated_at
+    `,
+    [formId, nextKey],
   );
 }
 
@@ -73,6 +113,30 @@ export async function listFormFields(formId, db = pool) {
       ORDER BY sort_order ASC, id ASC
     `,
     [formId],
+  );
+}
+
+export async function getFormFieldById(fieldId, db = pool) {
+  return db.query(
+    `
+      SELECT
+        id,
+        form_id,
+        name,
+        label,
+        type,
+        required,
+        options,
+        placeholder,
+        min_length,
+        max_length,
+        sort_order,
+        is_enabled
+      FROM form_fields
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [fieldId],
   );
 }
 
@@ -133,6 +197,94 @@ export async function replaceFormFields(formId, fields, db = pool) {
   }
 
   return listFormFields(formId, db);
+}
+
+export async function createFormField(formId, field, db = pool) {
+  return db.query(
+    `
+      INSERT INTO form_fields
+        (form_id, name, label, type, required, options, placeholder, min_length, max_length, sort_order, is_enabled)
+      VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          COALESCE(
+            $10,
+            (
+              SELECT COALESCE(MAX(ff.sort_order), -1) + 1
+              FROM form_fields ff
+              WHERE ff.form_id = $1
+            )
+          ),
+          $11
+        )
+      RETURNING
+        id, form_id, name, label, type, required, options, placeholder, min_length, max_length, sort_order, is_enabled
+    `,
+    [
+      formId,
+      field.name,
+      field.label,
+      field.type,
+      field.required ?? false,
+      toJsonbParam(field.options),
+      field.placeholder ?? null,
+      field.min_length ?? null,
+      field.max_length ?? null,
+      field.sort_order ?? null,
+      field.is_enabled ?? true,
+    ],
+  );
+}
+
+export async function updateFormField(fieldId, setClause, values, db = pool) {
+  return db.query(
+    `
+      UPDATE form_fields
+      SET ${setClause}
+      WHERE id = $${values.length + 1}
+      RETURNING
+        id, form_id, name, label, type, required, options, placeholder, min_length, max_length, sort_order, is_enabled
+    `,
+    [...values, fieldId],
+  );
+}
+
+export async function deleteFormField(fieldId, db = pool) {
+  return db.query(
+    `
+      DELETE FROM form_fields
+      WHERE id = $1
+      RETURNING id, form_id
+    `,
+    [fieldId],
+  );
+}
+
+export async function reorderFormFields(formId, orderedFieldIds, db = pool) {
+  return db.query(
+    `
+      UPDATE form_fields ff
+      SET sort_order = src.sort_order
+      FROM (
+        SELECT
+          x.id::bigint AS id,
+          x.ord::int - 1 AS sort_order
+        FROM UNNEST($2::bigint[]) WITH ORDINALITY AS x(id, ord)
+      ) src
+      WHERE ff.id = src.id
+        AND ff.form_id = $1
+      RETURNING ff.id, ff.form_id, ff.sort_order
+    `,
+    [formId, orderedFieldIds],
+  );
 }
 
 export async function getCohortFormConfigById(cohortId, db = pool) {
@@ -198,4 +350,16 @@ export async function normalizeLegacyPlannedStatuses(db = pool) {
       WHERE status = 'planned'
         AND deleted_at IS NULL
     `);
+}
+
+export async function listPublishedProgramOptions(db = pool) {
+  return db.query(
+    `
+      SELECT id, title
+      FROM programs
+      WHERE deleted_at IS NULL
+        AND is_published = TRUE
+      ORDER BY title ASC, id ASC
+    `,
+  );
 }

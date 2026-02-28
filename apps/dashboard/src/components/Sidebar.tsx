@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { getNavConfig } from "../app/adminRoutes";
+import { navConfig } from "../app/adminRoutes";
 import { cn } from "../utils/cn";
 import type { AuthUser } from "../utils/auth";
 import { apiList } from "../utils/api";
@@ -32,6 +32,9 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
         </>,
       );
     case "/admin/applications":
+    case "/admin/admissions":
+    case "/admin/general-apply":
+    case "/admin/message-templates":
       return icon(
         <>
           <rect x="5" y="3" width="14" height="18" rx="2" />
@@ -140,8 +143,10 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
     case "/admin/admins":
       return icon(
         <>
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <path d="M8 8h8M8 12h8M8 16h5" />
+          <circle cx="8" cy="9" r="2.5" />
+          <circle cx="16" cy="9" r="2.5" />
+          <path d="M3.5 18a4.5 4.5 0 0 1 9 0" />
+          <path d="M11.5 18a4.5 4.5 0 0 1 9 0" />
         </>,
       );
     default:
@@ -149,9 +154,8 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
   }
 }
 
-function toInitialOpen(pathname: string, role: AuthUser["admin_role"]): Record<string, boolean> {
+function toInitialOpen(pathname: string): Record<string, boolean> {
   const initial: Record<string, boolean> = {};
-  const navConfig = getNavConfig(role);
 
   navConfig.forEach((item) => {
     if (!item.children) {
@@ -165,16 +169,16 @@ function toInitialOpen(pathname: string, role: AuthUser["admin_role"]): Record<s
 }
 
 export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggleTheme }: SidebarProps) {
-  const navConfig = useMemo(() => getNavConfig(user.admin_role), [user.admin_role]);
   const location = useLocation();
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    toInitialOpen(location.pathname, user.admin_role),
+    toInitialOpen(location.pathname),
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const [footerCollapsed, setFooterCollapsed] = useState(false);
 
   const displayName = user.full_name || "Admin";
+  const isSuperAdmin = user.role.trim().toLowerCase() === "super admin";
 
   useEffect(() => {
     navConfig.forEach((item) => {
@@ -232,6 +236,24 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
     return active;
   }, [location.pathname]);
 
+  const visibleNavConfig = useMemo(
+    () =>
+      navConfig
+        .filter((item) => !item.requiresSuperAdmin || isSuperAdmin)
+        .map((item) => {
+          if (!item.children) {
+            return item;
+          }
+
+          return {
+            ...item,
+            children: item.children.filter((child) => !child.requiresSuperAdmin || isSuperAdmin),
+          };
+        })
+        .filter((item) => !item.children || item.children.length > 0),
+    [isSuperAdmin],
+  );
+
   return (
     <div className="sidebar-card">
       <div className="sidebar-brand">
@@ -240,7 +262,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
       </div>
 
       <nav className="sidebar-nav" aria-label="Sidebar Navigation">
-        {navConfig.map((item) => {
+        {visibleNavConfig.map((item) => {
           if (item.path) {
             return (
               <NavLink
@@ -350,7 +372,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
                 >
                   {displayName}
                 </button>
-                <span className="sidebar-profile__role">{user.role_label}</span>
+                <span className="sidebar-profile__role">{user.role}</span>
               </div>
             </div>
 

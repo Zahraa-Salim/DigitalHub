@@ -4,7 +4,8 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendSuccess } from "../utils/httpResponse.js";
-import { createAdminBySuperAdmin, deleteAdminBySuperAdmin, getAdminProfileBySuperAdmin, getMyAdminProfile, listAllAdmins, loginAdmin, updateAdminBySuperAdmin, updateMyAdminProfile, uploadMyAdminAvatar } from "../services/auth.service.js";
+import { sendList } from "../utils/httpResponse.js";
+import { getMyAdminProfile, listAllAdmins, listUsersForMessagingService, loginAdmin, sendMessagingUsersService, updateAdminBySuperAdmin, updateMyAdminProfile } from "../services/auth.service.js";
 export async function login(req, res) {
     const payload = req.body;
     const data = await loginAdmin(payload);
@@ -22,25 +23,19 @@ export async function getAdmins(req, res) {
     const data = await listAllAdmins(req.user.role);
     sendSuccess(res, data, "Admins loaded successfully.");
 }
-export async function createAdmin(req, res) {
-    const data = await createAdminBySuperAdmin(req.user.id, req.user.role, req.body);
-    sendSuccess(res, data, "Admin created successfully.");
-}
-export async function getAdminById(req, res) {
-    const data = await getAdminProfileBySuperAdmin(req.user.role, Number(req.params.userId));
-    sendSuccess(res, data, "Admin loaded successfully.");
-}
 export async function patchAdmin(req, res) {
     const data = await updateAdminBySuperAdmin(req.user.id, req.user.role, Number(req.params.userId), req.body);
     sendSuccess(res, data, "Admin updated successfully.");
 }
-export async function deleteAdmin(req, res) {
-    const data = await deleteAdminBySuperAdmin(req.user.id, req.user.role, Number(req.params.userId));
-    sendSuccess(res, data, "Admin deleted successfully.");
+
+export async function getUsers(req, res) {
+    const result = await listUsersForMessagingService(req.user.role, req.query);
+    sendList(res, result.data, result.pagination);
 }
-export async function uploadMyAvatar(req, res) {
-    const data = await uploadMyAdminAvatar(req.user.id, req.body);
-    sendSuccess(res, data, "Avatar uploaded successfully.");
+
+export async function postUsersMessage(req, res) {
+    const data = await sendMessagingUsersService(req.user.id, req.user.role, req.body);
+    sendSuccess(res, data, "Messages sent.");
 }
 
 

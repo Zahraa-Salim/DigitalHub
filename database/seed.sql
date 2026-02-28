@@ -252,6 +252,8 @@ ON CONFLICT (key) DO UPDATE SET
 INSERT INTO forms (key, title, description, is_active, created_by)
 VALUES
   ('cohort_application', 'Cohort Application', 'Apply to join a cohort.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
+  ('general_apply', 'General Apply Form', 'Public program-level application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
+  ('program_application', 'Program Application Form', 'Admin-managed program application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
   ('contact', 'Contact Form', 'Send a question, feedback, or a visit request.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com'))
 ON CONFLICT (key) DO UPDATE SET
   title=EXCLUDED.title,
@@ -266,7 +268,42 @@ VALUES
   ((SELECT id FROM forms WHERE key='cohort_application'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
   ((SELECT id FROM forms WHERE key='cohort_application'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
   ((SELECT id FROM forms WHERE key='cohort_application'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 4, TRUE)
+  ((SELECT id FROM forms WHERE key='cohort_application'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='cohort_application'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
+ON CONFLICT (form_id, name) DO UPDATE SET
+  label=EXCLUDED.label,
+  type=EXCLUDED.type,
+  required=EXCLUDED.required,
+  options=EXCLUDED.options,
+  placeholder=EXCLUDED.placeholder,
+  sort_order=EXCLUDED.sort_order,
+  is_enabled=EXCLUDED.is_enabled;
+
+-- Public general apply fields
+INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
+VALUES
+  ((SELECT id FROM forms WHERE key='general_apply'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
+ON CONFLICT (form_id, name) DO UPDATE SET
+  label=EXCLUDED.label,
+  type=EXCLUDED.type,
+  required=EXCLUDED.required,
+  options=EXCLUDED.options,
+  placeholder=EXCLUDED.placeholder,
+  sort_order=EXCLUDED.sort_order,
+  is_enabled=EXCLUDED.is_enabled;
+
+-- Admin program application form fields
+INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
+VALUES
+  ((SELECT id FROM forms WHERE key='program_application'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
 ON CONFLICT (form_id, name) DO UPDATE SET
   label=EXCLUDED.label,
   type=EXCLUDED.type,
@@ -325,6 +362,153 @@ ON CONFLICT (slug) DO UPDATE SET
   is_published=EXCLUDED.is_published,
   updated_at=NOW();
 
+-- Keep the "Program" select options synced from real programs.
+-- value = program id (string), label = program title
+UPDATE form_fields ff
+SET options = COALESCE(src.options, '[]'::jsonb)
+FROM (
+  SELECT jsonb_agg(
+           jsonb_build_object('label', p.title, 'value', p.id::text)
+           ORDER BY p.title
+         ) AS options
+  FROM programs p
+  WHERE p.deleted_at IS NULL
+    AND p.is_published = TRUE
+) src
+WHERE ff.form_id = (SELECT id FROM forms WHERE key = 'cohort_application' LIMIT 1)
+  AND ff.name = 'program_id';
+
+UPDATE form_fields ff
+SET options = COALESCE(src.options, '[]'::jsonb)
+FROM (
+  SELECT jsonb_agg(
+           jsonb_build_object('label', p.title, 'value', p.id::text)
+           ORDER BY p.title
+         ) AS options
+  FROM programs p
+  WHERE p.deleted_at IS NULL
+    AND p.is_published = TRUE
+) src
+WHERE ff.form_id IN (
+    SELECT id
+    FROM forms
+    WHERE key IN ('general_apply', 'program_application')
+  )
+  AND ff.name = 'program_id';
+
+-- =========================================================
+-- 8A) MESSAGE TEMPLATES
+-- =========================================================
+INSERT INTO message_templates (key, label, description, channel, subject, body, is_active, sort_order, created_by, updated_by)
+VALUES
+  (
+    'general_update',
+    'General Update',
+    'Generic update for applicants/users.',
+    'all',
+    'General Update',
+    'Hello {name},\n\nWe have a quick update for you.\n\nBest regards,\nDigital Hub Team',
+    TRUE,
+    10,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'reminder',
+    'Reminder',
+    'Reminder message for pending actions.',
+    'all',
+    'Reminder',
+    'Hello {name},\n\nThis is a reminder about your pending action.\n\nBest regards,\nDigital Hub Team',
+    TRUE,
+    20,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'follow_up',
+    'Follow Up',
+    'Follow-up message after a previous contact.',
+    'all',
+    'Follow Up',
+    'Hello {name},\n\nFollowing up on our previous message.\n\nBest regards,\nDigital Hub Team',
+    TRUE,
+    30,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'interview_scheduling',
+    'Interview Scheduling',
+    'Template for interview scheduling messages.',
+    'all',
+    'Interview Invitation',
+    E'Dear {name},\n\nYour interview has been scheduled on {scheduled_at}.\nDuration: {duration_minutes} minutes\nLocation Type: {location_type}\nLocation Details: {location_details}\nApplication ID: {application_id}\nConfirm Token: {confirm_token}\nConfirm here: {confirm_url}\nReschedule here: {reschedule_url}\n\nBest regards,\nAdmissions Team',
+    TRUE,
+    40,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'interview_confirmation',
+    'Interview Confirmation',
+    'Template when interview is confirmed.',
+    'all',
+    'Interview Confirmed',
+    E'Dear {name},\n\nYour interview is confirmed for {scheduled_at}.\nWe look forward to speaking with you.\n\nBest regards,\nAdmissions Team',
+    TRUE,
+    50,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'decision_accepted',
+    'Acceptance Letter',
+    'Template for accepted decisions.',
+    'all',
+    'Application Accepted',
+    E'Dear {name},\n\nCongratulations. You have been accepted into our program.\nIf you are sure you want to join, please confirm here:\n{participation_confirm_url}\n\nWarm regards,\nAdmissions Team',
+    TRUE,
+    60,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'decision_rejected',
+    'Rejection Notice',
+    'Template for rejected decisions.',
+    'all',
+    'Application Update',
+    E'Dear {name},\n\nThank you for applying. After careful review, we are unable to offer a place at this time.\n\nBest regards,\nAdmissions Team',
+    TRUE,
+    70,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ),
+  (
+    'account_credentials',
+    'Account Credentials',
+    'Sent automatically when admin creates a user from an application.',
+    'all',
+    'Your Digital Hub Account',
+    E'Dear {name},\n\nYour student account has been created.\nEmail: {email}\nTemporary Password: {generated_password}\nSign in here: {sign_in_url}\n\nPlease sign in and change your password.\n\nBest regards,\nDigital Hub Team',
+    TRUE,
+    80,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  )
+ON CONFLICT (key) DO UPDATE SET
+  label = EXCLUDED.label,
+  description = EXCLUDED.description,
+  channel = EXCLUDED.channel,
+  subject = EXCLUDED.subject,
+  body = EXCLUDED.body,
+  is_active = EXCLUDED.is_active,
+  sort_order = EXCLUDED.sort_order,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = NOW();
+
+
 -- Cohorts (real runs)
 INSERT INTO cohorts (
   program_id, name, status, allow_applications, capacity,
@@ -355,6 +539,12 @@ VALUES
   )
 ON CONFLICT DO NOTHING;
 
+UPDATE cohorts
+SET
+  use_general_form = TRUE,
+  application_form_id = (SELECT id FROM forms WHERE key = 'cohort_application' LIMIT 1)
+WHERE name IN ('Full Stack — Spring 2026', 'UI/UX — Coming Soon');
+
 -- Assign instructor to the open cohort
 INSERT INTO cohort_instructors (cohort_id, instructor_user_id, cohort_role)
 VALUES (
@@ -373,15 +563,38 @@ INSERT INTO applicants (full_name, email, phone)
 VALUES ('Zahraa Salim', 'student@digitalhub.com', NULL)
 ON CONFLICT DO NOTHING;
 
--- Application (pending)
-INSERT INTO applications (cohort_id, applicant_id, status, submitted_at)
+-- Application (applied)
+INSERT INTO applications (
+  cohort_id,
+  applicant_id,
+  applicant_email_norm,
+  applicant_phone_norm,
+  submission_answers,
+  stage,
+  status,
+  submitted_at
+)
 VALUES (
   (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026'),
   (SELECT id FROM applicants WHERE email='student@digitalhub.com' ORDER BY id DESC LIMIT 1),
-  'pending',
+  lower('student@digitalhub.com'),
+  NULL,
+  jsonb_build_object(
+    'full_name', 'Zahraa Salim',
+    'email', 'student@digitalhub.com',
+    'program_id', (SELECT id::text FROM programs WHERE slug='full-stack'),
+    'why_join', 'I want to become job-ready by building real projects and improving my portfolio.'
+  ),
+  'applied',
+  'applied',
   NOW()
 )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT NULL DO UPDATE SET
+  applicant_id = EXCLUDED.applicant_id,
+  submission_answers = EXCLUDED.submission_answers,
+  stage = EXCLUDED.stage,
+  status = EXCLUDED.status,
+  submitted_at = EXCLUDED.submitted_at;
 
 -- Submission answers for application (JSON)
 INSERT INTO application_submissions (application_id, form_id, answers)
@@ -394,6 +607,7 @@ VALUES (
   jsonb_build_object(
     'full_name', 'Zahraa Salim',
     'email', 'student@digitalhub.com',
+    'program_id', (SELECT id::text FROM programs WHERE slug='full-stack'),
     'why_join', 'I want to become job-ready by building real projects and improving my portfolio.'
   )
 )
@@ -402,7 +616,9 @@ ON CONFLICT DO NOTHING;
 -- OPTIONAL: create an approved enrollment demo (comment out if you want to test approval flow via API)
 -- Mark application approved + create enrollment
 UPDATE applications
-SET status='approved',
+SET status='participation_confirmed',
+    stage='participation_confirmed',
+    participation_confirmed_at=NOW(),
     reviewed_by=(SELECT id FROM users WHERE email='admin@digitalhub.com'),
     reviewed_at=NOW()
 WHERE id = (
@@ -430,15 +646,15 @@ ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
 -- More applicants for the open Full Stack cohort with mixed outcomes.
 WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
   VALUES
-    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
-    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
-    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
-    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'accepted',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'accepted',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'applied',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'reviewing', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
     ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
-    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
-    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
-    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
-    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'applied',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'accepted',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'reviewing',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'applied',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
     ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
 ),
 target_cohort AS (
@@ -464,15 +680,15 @@ WHERE NOT EXISTS (
 
 WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
   VALUES
-    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
-    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
-    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
-    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'accepted',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'accepted',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'applied',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'reviewing', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
     ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
-    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
-    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
-    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
-    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'applied',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'accepted',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'reviewing',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'applied',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
     ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
 ),
 target_cohort AS (
@@ -497,6 +713,7 @@ INSERT INTO applications (
   applicant_id,
   applicant_email_norm,
   applicant_phone_norm,
+  stage,
   status,
   reviewed_by,
   reviewed_at,
@@ -507,13 +724,19 @@ SELECT
   am.applicant_id,
   lower(ea.email) AS applicant_email_norm,
   regexp_replace(COALESCE(ea.phone, ''), '\D', '', 'g') AS applicant_phone_norm,
+  CASE
+    WHEN ea.status = 'accepted' THEN 'accepted'
+    WHEN ea.status = 'rejected' THEN 'rejected'
+    WHEN ea.status = 'reviewing' THEN 'reviewing'
+    ELSE 'applied'
+  END AS stage,
   ea.status::text,
   CASE
-    WHEN ea.status IN ('approved', 'rejected', 'waitlisted') THEN aa.id
+    WHEN ea.status IN ('accepted', 'rejected', 'reviewing') THEN aa.id
     ELSE NULL
   END AS reviewed_by,
   CASE
-    WHEN ea.status IN ('approved', 'rejected', 'waitlisted') THEN NOW() - (ea.reviewed_days || ' days')::interval
+    WHEN ea.status IN ('accepted', 'rejected', 'reviewing') THEN NOW() - (ea.reviewed_days || ' days')::interval
     ELSE NULL
   END AS reviewed_at,
   NOW() - (ea.submitted_days || ' days')::interval AS submitted_at
@@ -524,6 +747,7 @@ JOIN applicant_map am ON am.email_norm = lower(ea.email)
 ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT NULL DO UPDATE SET
   applicant_id = EXCLUDED.applicant_id,
   applicant_phone_norm = EXCLUDED.applicant_phone_norm,
+  stage = EXCLUDED.stage,
   status = EXCLUDED.status,
   reviewed_by = EXCLUDED.reviewed_by,
   reviewed_at = EXCLUDED.reviewed_at,
@@ -531,15 +755,15 @@ ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT 
 
 WITH extra_applicants(full_name, email, phone, status, submitted_days, reviewed_days, why_join) AS (
   VALUES
-    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'approved',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
-    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'approved',   17, 14, 'I learn best by building projects with feedback from instructors.'),
-    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'pending',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
-    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'waitlisted', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
+    ('Omar Nasser',  'omar.nasser@example.com',  '+961-70-000-111', 'accepted',   21, 18, 'I want structured mentoring to transition into full-stack development.'),
+    ('Leila Farah',  'leila.farah@example.com',  '+961-70-000-112', 'accepted',   17, 14, 'I learn best by building projects with feedback from instructors.'),
+    ('Karim Haddad', 'karim.haddad@example.com', '+961-70-000-113', 'applied',     9, NULL, 'I want to improve my backend fundamentals and deployment skills.'),
+    ('Nour Saad',    'nour.saad@example.com',    '+961-70-000-114', 'reviewing', 12,  6, 'I can commit full-time and I am motivated to become job-ready quickly.'),
     ('Maya Khoury',  'maya.khoury@example.com',  '+961-70-000-115', 'rejected',   15,  8, 'I am exploring software and want to validate if this path fits me.'),
-    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'pending',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
-    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'approved',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
-    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'waitlisted',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
-    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'pending',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
+    ('Hadi Mansour', 'hadi.mansour@example.com', '+961-70-000-116', 'applied',     5, NULL, 'I want to strengthen problem solving and API design for real products.'),
+    ('Rana Tarek',   'rana.tarek@example.com',   '+961-70-000-117', 'accepted',   11,  7, 'I want to build a strong portfolio to apply for junior developer roles.'),
+    ('Samer Jaber',  'samer.jaber@example.com',  '+961-70-000-118', 'reviewing',  7,  4, 'I am committed to daily practice and teamwork-based learning.'),
+    ('Dima Ali',     'dima.ali@example.com',     '+961-70-000-119', 'applied',     3, NULL, 'I want guided learning and code reviews to improve quickly.'),
     ('Jad Rami',     'jad.rami@example.com',     '+961-70-000-120', 'rejected',   10,  6, 'I am interested but currently cannot commit to the weekly schedule.')
 ),
 target_cohort AS (
@@ -562,6 +786,7 @@ SELECT
     'full_name', ea.full_name,
     'email', ea.email,
     'phone', ea.phone,
+    'program_id', (SELECT id::text FROM programs WHERE slug='full-stack'),
     'why_join', ea.why_join
   )
 FROM extra_applicants ea
@@ -650,13 +875,380 @@ SELECT
 FROM users u
 JOIN applications ap
   ON ap.applicant_email_norm = lower(u.email)
-WHERE ap.status = 'approved'
+WHERE ap.status = 'accepted'
   AND ap.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
   AND lower(u.email) IN ('omar.nasser@example.com', 'leila.farah@example.com', 'rana.tarek@example.com')
 ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
   application_id = EXCLUDED.application_id,
   status = EXCLUDED.status,
   enrolled_at = EXCLUDED.enrolled_at;
+
+UPDATE applications a
+SET
+  stage = 'participation_confirmed',
+  status = 'participation_confirmed',
+  participation_confirmed_at = COALESCE(a.participation_confirmed_at, NOW())
+WHERE EXISTS (
+  SELECT 1
+  FROM enrollments e
+  WHERE e.application_id = a.id
+    AND e.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
+);
+
+-- =========================================================
+-- 9C) INTERVIEWS + MESSAGE DRAFTS
+-- =========================================================
+-- Seed interview records for active pipeline rows.
+INSERT INTO interviews (
+  application_id,
+  scheduled_at,
+  duration_minutes,
+  location_type,
+  location_details,
+  status,
+  confirm_token,
+  created_by
+)
+SELECT
+  a.id,
+  NOW() + INTERVAL '3 days',
+  30,
+  'online',
+  'Google Meet',
+  CASE
+    WHEN a.status = 'interview_confirmed' THEN 'confirmed'
+    WHEN a.status = 'invited_to_interview' THEN 'pending_confirmation'
+    ELSE 'pending_confirmation'
+  END,
+  md5('intv-' || a.id::text || '-seed'),
+  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+FROM applications a
+WHERE a.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
+  AND a.status IN ('invited_to_interview', 'interview_confirmed')
+ON CONFLICT (application_id) DO UPDATE SET
+  scheduled_at = EXCLUDED.scheduled_at,
+  duration_minutes = EXCLUDED.duration_minutes,
+  location_type = EXCLUDED.location_type,
+  location_details = EXCLUDED.location_details,
+  status = EXCLUDED.status,
+  confirm_token = EXCLUDED.confirm_token,
+  created_by = EXCLUDED.created_by,
+  updated_at = NOW();
+
+-- Seed message drafts for interview/decision communications.
+INSERT INTO application_messages (
+  application_id,
+  channel,
+  to_value,
+  subject,
+  body,
+  template_key,
+  status,
+  created_by
+)
+SELECT
+  a.id,
+  'email',
+  COALESCE(ap.email, a.applicant_email_norm),
+  CASE
+    WHEN a.status IN ('invited_to_interview', 'interview_confirmed') THEN 'Interview Invitation'
+    WHEN a.status = 'rejected' THEN 'Application Update'
+    ELSE 'Application Status Update'
+  END,
+  CASE
+    WHEN a.status IN ('invited_to_interview', 'interview_confirmed') THEN 'Your interview schedule is available. Please confirm using your link.'
+    WHEN a.status = 'rejected' THEN 'Thank you for applying. We are unable to proceed at this time.'
+    ELSE 'Your application status has been updated.'
+  END,
+  CASE
+    WHEN a.status IN ('invited_to_interview', 'interview_confirmed') THEN 'interview_invitation'
+    WHEN a.status = 'rejected' THEN 'decision_rejected'
+    ELSE 'status_update'
+  END,
+  'draft',
+  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+FROM applications a
+LEFT JOIN applicants ap ON ap.id = a.applicant_id
+WHERE a.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
+  AND a.status IN ('invited_to_interview', 'interview_confirmed', 'rejected')
+  AND COALESCE(ap.email, a.applicant_email_norm) IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM application_messages m
+    WHERE m.application_id = a.id
+      AND m.template_key = CASE
+        WHEN a.status IN ('invited_to_interview', 'interview_confirmed') THEN 'interview_invitation'
+        WHEN a.status = 'rejected' THEN 'decision_rejected'
+        ELSE 'status_update'
+      END
+  );
+
+-- Add a second cohort application set so cohort switching shows data.
+WITH ux_applicants(full_name, email, phone, status, stage, submitted_days, why_join) AS (
+  VALUES
+    ('Maya Azar', 'maya.azar@example.com', '+961-71-000-221', 'applied', 'applied', 6, 'I want to strengthen UI system thinking and product collaboration.'),
+    ('Tarek Younes', 'tarek.younes@example.com', '+961-71-000-222', 'accepted', 'accepted', 12, 'I want to build portfolio-ready UX case studies with mentorship.'),
+    ('Sara Khalil', 'sara.khalil@example.com', '+961-71-000-223', 'rejected', 'rejected', 10, 'I want to learn research and prototyping fundamentals quickly.')
+),
+ux_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'UI/UX — Coming Soon'
+  LIMIT 1
+),
+admin_actor AS (
+  SELECT id
+  FROM users
+  WHERE email = 'admin@digitalhub.com'
+  LIMIT 1
+)
+INSERT INTO applicants (full_name, email, phone)
+SELECT ua.full_name, ua.email, ua.phone
+FROM ux_applicants ua
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM applicants a
+  WHERE lower(a.email) = lower(ua.email)
+);
+
+WITH ux_applicants(full_name, email, phone, status, stage, submitted_days, why_join) AS (
+  VALUES
+    ('Maya Azar', 'maya.azar@example.com', '+961-71-000-221', 'applied', 'applied', 6, 'I want to strengthen UI system thinking and product collaboration.'),
+    ('Tarek Younes', 'tarek.younes@example.com', '+961-71-000-222', 'accepted', 'accepted', 12, 'I want to build portfolio-ready UX case studies with mentorship.'),
+    ('Sara Khalil', 'sara.khalil@example.com', '+961-71-000-223', 'rejected', 'rejected', 10, 'I want to learn research and prototyping fundamentals quickly.')
+),
+ux_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'UI/UX — Coming Soon'
+  LIMIT 1
+),
+admin_actor AS (
+  SELECT id
+  FROM users
+  WHERE email = 'admin@digitalhub.com'
+  LIMIT 1
+),
+applicant_map AS (
+  SELECT lower(email) AS email_norm, MAX(id) AS applicant_id
+  FROM applicants
+  GROUP BY lower(email)
+)
+INSERT INTO applications (
+  cohort_id,
+  applicant_id,
+  applicant_email_norm,
+  applicant_phone_norm,
+  submission_answers,
+  stage,
+  status,
+  reviewed_by,
+  reviewed_at,
+  submitted_at
+)
+SELECT
+  uc.id,
+  am.applicant_id,
+  lower(ua.email) AS applicant_email_norm,
+  regexp_replace(COALESCE(ua.phone, ''), '\D', '', 'g') AS applicant_phone_norm,
+  jsonb_build_object(
+    'full_name', ua.full_name,
+    'email', ua.email,
+    'phone', ua.phone,
+    'program_id', (SELECT id::text FROM programs WHERE slug='ui-ux'),
+    'why_join', ua.why_join
+  ) AS submission_answers,
+  ua.stage::text,
+  ua.status::text,
+  CASE WHEN ua.status IN ('accepted', 'rejected') THEN aa.id ELSE NULL END AS reviewed_by,
+  CASE WHEN ua.status IN ('accepted', 'rejected') THEN NOW() - INTERVAL '3 days' ELSE NULL END AS reviewed_at,
+  NOW() - (ua.submitted_days || ' days')::interval AS submitted_at
+FROM ux_applicants ua
+JOIN ux_cohort uc ON TRUE
+JOIN admin_actor aa ON TRUE
+JOIN applicant_map am ON am.email_norm = lower(ua.email)
+ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT NULL DO UPDATE SET
+  applicant_id = EXCLUDED.applicant_id,
+  applicant_phone_norm = EXCLUDED.applicant_phone_norm,
+  submission_answers = EXCLUDED.submission_answers,
+  stage = EXCLUDED.stage,
+  status = EXCLUDED.status,
+  reviewed_by = EXCLUDED.reviewed_by,
+  reviewed_at = EXCLUDED.reviewed_at,
+  submitted_at = EXCLUDED.submitted_at;
+
+WITH ux_applicants(full_name, email, phone, status, stage, submitted_days, why_join) AS (
+  VALUES
+    ('Maya Azar', 'maya.azar@example.com', '+961-71-000-221', 'applied', 'applied', 6, 'I want to strengthen UI system thinking and product collaboration.'),
+    ('Tarek Younes', 'tarek.younes@example.com', '+961-71-000-222', 'accepted', 'accepted', 12, 'I want to build portfolio-ready UX case studies with mentorship.'),
+    ('Sara Khalil', 'sara.khalil@example.com', '+961-71-000-223', 'rejected', 'rejected', 10, 'I want to learn research and prototyping fundamentals quickly.')
+),
+ux_cohort AS (
+  SELECT id
+  FROM cohorts
+  WHERE name = 'UI/UX — Coming Soon'
+  LIMIT 1
+),
+target_form AS (
+  SELECT id
+  FROM forms
+  WHERE key = 'cohort_application'
+  LIMIT 1
+)
+INSERT INTO application_submissions (application_id, form_id, answers)
+SELECT
+  ap.id,
+  tf.id,
+  jsonb_build_object(
+    'full_name', ua.full_name,
+    'email', ua.email,
+    'phone', ua.phone,
+    'program_id', (SELECT id::text FROM programs WHERE slug='ui-ux'),
+    'why_join', ua.why_join
+  )
+FROM ux_applicants ua
+JOIN ux_cohort uc ON TRUE
+JOIN target_form tf ON TRUE
+JOIN applications ap
+  ON ap.cohort_id = uc.id
+ AND ap.applicant_email_norm = lower(ua.email)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM application_submissions sub
+  WHERE sub.application_id = ap.id
+);
+
+-- =========================================================
+-- 9D) PROGRAM APPLICATIONS (GENERAL APPLY PIPELINE)
+-- =========================================================
+WITH general_apply_rows(full_name, email, phone, program_slug, stage, submitted_days, why_join) AS (
+  VALUES
+    ('Lina Younes', 'lina.younes@example.com', '+961-03-555-222', 'full-stack', 'invited_to_interview', 8, 'I want to become job-ready by shipping real projects.'),
+    ('Nadim Saleh', 'nadim.saleh@example.com', '+961-03-555-333', 'full-stack', 'reviewing', 5, 'I want mentorship and code review to improve quickly.'),
+    ('Rola Najjar', 'rola.najjar@example.com', '+961-03-555-444', 'ui-ux', 'applied', 2, 'I want to improve research and prototyping skills.')
+)
+INSERT INTO applicants (full_name, email, phone)
+SELECT gar.full_name, gar.email, gar.phone
+FROM general_apply_rows gar
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM applicants a
+  WHERE lower(a.email) = lower(gar.email)
+);
+
+WITH general_apply_rows(full_name, email, phone, program_slug, stage, submitted_days, why_join) AS (
+  VALUES
+    ('Lina Younes', 'lina.younes@example.com', '+961-03-555-222', 'full-stack', 'invited_to_interview', 8, 'I want to become job-ready by shipping real projects.'),
+    ('Nadim Saleh', 'nadim.saleh@example.com', '+961-03-555-333', 'full-stack', 'reviewing', 5, 'I want mentorship and code review to improve quickly.'),
+    ('Rola Najjar', 'rola.najjar@example.com', '+961-03-555-444', 'ui-ux', 'applied', 2, 'I want to improve research and prototyping skills.')
+),
+applicant_map AS (
+  SELECT lower(email) AS email_norm, MAX(id) AS applicant_id
+  FROM applicants
+  GROUP BY lower(email)
+)
+INSERT INTO program_applications (
+  program_id,
+  cohort_id,
+  applicant_id,
+  applicant_email_norm,
+  applicant_phone_norm,
+  submission_answers,
+  stage,
+  reviewed_by,
+  reviewed_at,
+  review_message,
+  created_at,
+  updated_at
+)
+SELECT
+  p.id AS program_id,
+  CASE WHEN gar.program_slug = 'full-stack'
+       THEN (SELECT id FROM cohorts WHERE name = 'Full Stack — Spring 2026' LIMIT 1)
+       ELSE NULL
+  END AS cohort_id,
+  am.applicant_id,
+  lower(gar.email) AS applicant_email_norm,
+  regexp_replace(COALESCE(gar.phone, ''), '\D', '', 'g') AS applicant_phone_norm,
+  jsonb_build_object(
+    'full_name', gar.full_name,
+    'email', gar.email,
+    'phone', gar.phone,
+    'program_id', p.id::text,
+    'why_join', gar.why_join
+  ) AS submission_answers,
+  gar.stage::text,
+  CASE WHEN gar.stage IN ('reviewing', 'invited_to_interview', 'interview_confirmed', 'accepted', 'rejected', 'participation_confirmed')
+       THEN (SELECT id FROM users WHERE email='admin@digitalhub.com')
+       ELSE NULL
+  END AS reviewed_by,
+  CASE WHEN gar.stage IN ('reviewing', 'invited_to_interview', 'interview_confirmed', 'accepted', 'rejected', 'participation_confirmed')
+       THEN NOW() - INTERVAL '1 day'
+       ELSE NULL
+  END AS reviewed_at,
+  CASE WHEN gar.stage = 'invited_to_interview' THEN 'Interview invite drafted'
+       WHEN gar.stage = 'reviewing' THEN 'Under review'
+       ELSE NULL
+  END AS review_message,
+  NOW() - (gar.submitted_days || ' days')::interval AS created_at,
+  NOW() - (gar.submitted_days || ' days')::interval AS updated_at
+FROM general_apply_rows gar
+JOIN programs p ON p.slug = gar.program_slug
+JOIN applicant_map am ON am.email_norm = lower(gar.email)
+ON CONFLICT (program_id, applicant_email_norm) WHERE applicant_email_norm IS NOT NULL DO UPDATE SET
+  cohort_id = EXCLUDED.cohort_id,
+  applicant_id = EXCLUDED.applicant_id,
+  applicant_phone_norm = EXCLUDED.applicant_phone_norm,
+  submission_answers = EXCLUDED.submission_answers,
+  stage = EXCLUDED.stage,
+  reviewed_by = EXCLUDED.reviewed_by,
+  reviewed_at = EXCLUDED.reviewed_at,
+  review_message = EXCLUDED.review_message,
+  updated_at = NOW();
+
+-- Program-application interview rows (for token confirm/reschedule flows).
+UPDATE interviews i
+SET
+  scheduled_at = NOW() + INTERVAL '2 days',
+  duration_minutes = 30,
+  location_type = 'online',
+  location_details = 'Google Meet',
+  status = CASE WHEN pa.stage = 'interview_confirmed' THEN 'confirmed' ELSE 'pending_confirmation' END,
+  confirm_token = md5('program-intv-' || pa.id::text || '-seed'),
+  created_by = (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  updated_at = NOW()
+FROM program_applications pa
+WHERE i.program_application_id = pa.id
+  AND pa.applicant_email_norm = lower('lina.younes@example.com');
+
+INSERT INTO interviews (
+  application_id,
+  program_application_id,
+  scheduled_at,
+  duration_minutes,
+  location_type,
+  location_details,
+  status,
+  confirm_token,
+  created_by
+)
+SELECT
+  NULL,
+  pa.id,
+  NOW() + INTERVAL '2 days',
+  30,
+  'online',
+  'Google Meet',
+  CASE WHEN pa.stage = 'interview_confirmed' THEN 'confirmed' ELSE 'pending_confirmation' END,
+  md5('program-intv-' || pa.id::text || '-seed'),
+  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+FROM program_applications pa
+WHERE pa.applicant_email_norm = lower('lina.younes@example.com')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM interviews i
+    WHERE i.program_application_id = pa.id
+  );
 
 -- =========================================================
 -- 10) ANNOUNCEMENTS (website)
@@ -794,9 +1386,6 @@ WHERE l.action='SEED_DATA_INSERTED'
 ORDER BY l.created_at DESC
 LIMIT 1;
 
-COMMIT;
-
-
 INSERT INTO projects (
   student_user_id, title, description, image_url, github_url, live_url, is_public, sort_order
 )
@@ -812,11 +1401,14 @@ VALUES (
 )
 ON CONFLICT (student_user_id, github_url) DO NOTHING;
 
+COMMIT;
+
 
 -- Done.
 -- Login demo credentials (if using SQL-created bcrypt):
---   admin@digitalhub.com / NewStrongPass123!
+--   admin@digitalhub.com / ChangeMe123!
 --   instructor@digitalhub.com / ChangeMe123!
 --   student@digitalhub.com / ChangeMe123!
 --
 -- IMPORTANT: Change passwords immediately in production.
+

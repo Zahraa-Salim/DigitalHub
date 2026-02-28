@@ -1059,7 +1059,7 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setApproveTarget(null)}>X</button>
+              <button className="modal-close" type="button" onClick={() => setReviewModal(null)}>X</button>
               <h3 className="modal-title">Approve Application</h3>
             </header>
             <p className="post-details__line">

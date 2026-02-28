@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { getPublicHomeService, getPublicStudentDetailService, getPublicThemeService, listPublicAdminsService, listPublicAnnouncementsService, listPublicCohortsService, listPublicEventsService, listPublicInstructorsService, listPublicManagersService, listPublicProgramsService, listPublicStudentsService, } from "../services/public.service.js";
+import { getPublicHomeService, getPublicStudentDetailService, getPublicThemeService, listPublicAnnouncementsService, listPublicCohortsService, listPublicEventsService, listPublicInstructorsService, listPublicManagersService, listPublicProgramsService, listPublicStudentsService, submitPublicApplyService, } from "../services/public.service.js";
 export async function getPublicPrograms(req, res) {
     const result = await listPublicProgramsService(req.query);
     sendList(res, result.data, result.pagination);
@@ -37,10 +37,6 @@ export async function getPublicStudentBySlug(req, res) {
     const data = await getPublicStudentDetailService(String(req.params.public_slug));
     sendSuccess(res, data);
 }
-export async function getPublicAdmins(_req, res) {
-    const data = await listPublicAdminsService();
-    sendSuccess(res, data);
-}
 export async function getPublicTheme(_req, res) {
     const data = await getPublicThemeService();
     sendSuccess(res, data);
@@ -48,6 +44,10 @@ export async function getPublicTheme(_req, res) {
 export async function getPublicHome(_req, res) {
     const data = await getPublicHomeService();
     sendSuccess(res, data);
+}
+export async function submitPublicApply(req, res) {
+    const data = await submitPublicApplyService(req.body);
+    sendSuccess(res, data, "Application submitted successfully.", 201);
 }
 
 
