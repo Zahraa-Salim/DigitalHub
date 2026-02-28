@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { AdminRole } from "../utils/auth";
 import { ActivityLogsPage } from "../pages/admin/ActivityLogsPage";
 import { AnnouncementsPage } from "../pages/admin/AnnouncementsPage";
 import { AdmissionsPage } from "../pages/admin/AdmissionsPage";
@@ -39,6 +40,7 @@ export type AdminRoute = {
   path?: string;
   index?: boolean;
   element: ReactNode;
+  roles?: AdminRole[];
 };
 
 export const navConfig: NavItem[] = [

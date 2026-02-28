@@ -9,9 +9,9 @@ type RequireSuperAdminProps = {
 export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
   const location = useLocation();
   const user = getUser();
-  const role = user.role.trim().toLowerCase();
+  const role = (user.role || user.admin_role || "").trim().toLowerCase().replace(/\s+/g, "_");
 
-  if (role !== "super admin") {
+  if (role !== "super_admin") {
     return <Navigate to="/admin" replace state={{ from: location.pathname }} />;
   }
 

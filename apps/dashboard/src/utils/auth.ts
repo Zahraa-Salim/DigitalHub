@@ -8,6 +8,7 @@ export type AuthUser = {
   email: string;
   full_name: string;
   admin_role: AdminRole;
+  role: string;
   role_label: string;
 };
 
@@ -16,6 +17,7 @@ const defaultUser: AuthUser = {
   email: "",
   full_name: "Admin",
   admin_role: "admin",
+  role: "admin",
   role_label: "Admin",
 };
 
@@ -58,6 +60,7 @@ function normalizeUser(input: unknown): AuthUser {
     email,
     full_name: fullName,
     admin_role: adminRole,
+    role: adminRole,
     role_label: roleLabel,
   };
 }

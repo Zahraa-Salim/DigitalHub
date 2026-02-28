@@ -51,7 +51,8 @@ export function OverviewTab() {
     void loadOverview();
   }, [loadOverview]);
 
-  const role = (getUser().role || '').trim().toLowerCase();
+  const currentUser = getUser();
+  const role = (currentUser.role || currentUser.admin_role || '').trim().toLowerCase();
   const isSuperAdmin = role === 'super admin' || role === 'super_admin';
 
   const weeklySnapshot = useMemo(() => {

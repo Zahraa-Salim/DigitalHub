@@ -178,7 +178,20 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
   const [footerCollapsed, setFooterCollapsed] = useState(false);
 
   const displayName = user.full_name || "Admin";
-  const isSuperAdmin = user.role.trim().toLowerCase() === "super admin";
+  const rawRole =
+    typeof user.admin_role === "string" && user.admin_role.trim()
+      ? user.admin_role.trim()
+      : typeof user.role === "string" && user.role.trim()
+        ? user.role.trim()
+        : "admin";
+  const normalizedRole = rawRole.toLowerCase().replace(/\s+/g, "_");
+  const isSuperAdmin = normalizedRole === "super_admin";
+  const roleLabel =
+    typeof user.role_label === "string" && user.role_label.trim()
+      ? user.role_label
+      : isSuperAdmin
+        ? "Super Admin"
+        : "Admin";
 
   useEffect(() => {
     navConfig.forEach((item) => {
@@ -372,7 +385,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
                 >
                   {displayName}
                 </button>
-                <span className="sidebar-profile__role">{user.role}</span>
+                <span className="sidebar-profile__role">{roleLabel}</span>
               </div>
             </div>
 
