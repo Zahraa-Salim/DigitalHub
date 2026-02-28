@@ -23,6 +23,7 @@ type AdminProfile = {
 
 type ProfileFormState = {
   full_name: string;
+  phone: string;
   job_title: string;
   bio: string;
   avatar_url: string;
@@ -47,6 +48,7 @@ type ManageAdminForm = {
 
 const initialForm: ProfileFormState = {
   full_name: "",
+  phone: "",
   job_title: "",
   bio: "",
   avatar_url: "",
@@ -58,6 +60,7 @@ const initialForm: ProfileFormState = {
 function toFormState(profile: AdminProfile): ProfileFormState {
   return {
     full_name: profile.full_name ?? "",
+    phone: profile.phone ?? "",
     job_title: profile.job_title ?? "",
     bio: profile.bio ?? "",
     avatar_url: profile.avatar_url ?? "",
@@ -251,6 +254,7 @@ export function MyProfilePage() {
   const saveProfile = async () => {
     const payload: Record<string, unknown> = {
       full_name: form.full_name.trim(),
+      phone: form.phone.trim(),
       job_title: form.job_title.trim(),
       bio: form.bio.trim(),
       avatar_url: form.avatar_url.trim(),
@@ -459,6 +463,7 @@ export function MyProfilePage() {
       <Card>
         {loading ? <p className="info-text">Loading profile...</p> : null}
         {error ? <p className="alert alert--error">{error}</p> : null}
+        
         <div className="profile-main">
           {avatarSrc ? (
             <img className="profile-avatar profile-avatar--image" src={avatarSrc} alt={profile?.full_name || "Profile"} />
@@ -467,40 +472,78 @@ export function MyProfilePage() {
               {(profile?.full_name || "A").charAt(0)}
             </span>
           )}
-          <div>
+          <div style={{ flex: 1 }}>
             <h3 className="section-title">{profile?.full_name || "My Account"}</h3>
             <p className="info-text">{profile?.email || "No email"}</p>
-            {profile?.phone ? <p className="info-text">{profile.phone}</p> : null}
-            {profile?.job_title ? <p className="info-text">{profile.job_title}</p> : null}
           </div>
         </div>
-        {profile?.bio ? <p className="info-text">{profile.bio}</p> : null}
-        {profile ? (
-          <div className="profile-badges">
-            {profile.linkedin_url ? (
-              <a className="btn btn--secondary btn--sm" href={profile.linkedin_url} target="_blank" rel="noreferrer">
-                LinkedIn
-              </a>
-            ) : null}
-            {profile.github_url ? (
-              <a className="btn btn--secondary btn--sm" href={profile.github_url} target="_blank" rel="noreferrer">
-                GitHub
-              </a>
-            ) : null}
-            {profile.portfolio_url ? (
-              <a className="btn btn--secondary btn--sm" href={profile.portfolio_url} target="_blank" rel="noreferrer">
-                Portfolio
-              </a>
-            ) : null}
+
+        {/* Profile Information Box */}
+        <div style={{ marginTop: "20px", padding: "15px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
+          <h4 style={{ marginBottom: "15px", fontSize: "14px", fontWeight: "600", color: "#333" }}>Profile Information</h4>
+          
+          {/* Contact Information Section */}
+          <div style={{ marginBottom: "15px" }}>
+            <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+              <strong>Email:</strong> {profile?.email || "Not provided"}
+            </p>
+            {profile?.phone && (
+              <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+                <strong>Phone:</strong> {profile.phone}
+              </p>
+            )}
           </div>
-        ) : null}
-        {profile ? (
-          <div className="profile-badges">
-            <Badge tone="default">{formatRole(profile.admin_role)}</Badge>
-            <Badge tone="default">{profile.is_active ? "Active" : "Inactive"}</Badge>
+
+          {/* Professional Information Section */}
+          <div style={{ marginBottom: "15px" }}>
+            {profile?.job_title && (
+              <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+                <strong>Job Title:</strong> {profile.job_title}
+              </p>
+            )}
+            {profile?.bio && (
+              <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+                <strong>Bio:</strong> {profile.bio}
+              </p>
+            )}
           </div>
-        ) : null}
-        <div className="mobile-profile-card__actions">
+
+          {/* Status Information Section */}
+          <div style={{ marginBottom: "15px" }}>
+            <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+              <strong>Role:</strong> {profile ? formatRole(profile.admin_role) : "N/A"}
+            </p>
+            <p style={{ margin: "8px 0", fontSize: "13px", color: "#666" }}>
+              <strong>Status:</strong> {profile ? (profile.is_active ? "Active" : "Inactive") : "N/A"}
+            </p>
+          </div>
+
+          {/* Social Links Section */}
+          {profile && (profile.linkedin_url || profile.github_url || profile.portfolio_url) && (
+            <div style={{ marginBottom: "15px" }}>
+              <p style={{ margin: "8px 0", fontSize: "13px", fontWeight: "600", color: "#333" }}>Social Links:</p>
+              <div className="profile-badges" style={{ marginTop: "8px" }}>
+                {profile.linkedin_url ? (
+                  <a className="btn btn--secondary btn--sm" href={profile.linkedin_url} target="_blank" rel="noreferrer">
+                    LinkedIn
+                  </a>
+                ) : null}
+                {profile.github_url ? (
+                  <a className="btn btn--secondary btn--sm" href={profile.github_url} target="_blank" rel="noreferrer">
+                    GitHub
+                  </a>
+                ) : null}
+                {profile.portfolio_url ? (
+                  <a className="btn btn--secondary btn--sm" href={profile.portfolio_url} target="_blank" rel="noreferrer">
+                    Portfolio
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mobile-profile-card__actions" style={{ marginTop: "20px" }}>
           <button className="btn btn--secondary btn--sm" type="button" onClick={openEditProfile} disabled={loading}>
             Edit Profile
           </button>
@@ -565,6 +608,16 @@ export function MyProfilePage() {
                   type="text"
                   value={form.full_name}
                   onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))}
+                  disabled={loading}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Phone</span>
+                <input
+                  className="field__control"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
                   disabled={loading}
                 />
               </label>

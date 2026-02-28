@@ -103,6 +103,7 @@ export async function updateMyAdminProfile(userId, payload) {
             portfolio_url: payload.portfolio_url === "" ? null : payload.portfolio_url,
             bio: payload.bio === "" ? null : payload.bio,
             job_title: payload.job_title === "" ? null : payload.job_title,
+            phone: payload.phone === "" ? null : payload.phone,
         };
         const profileUpdates = {
             full_name: normalizedPayload.full_name ?? existing.full_name ?? "Admin",
@@ -117,6 +118,15 @@ export async function updateMyAdminProfile(userId, payload) {
             sort_order: existing.sort_order ?? 0,
         };
         await upsertAdminProfile(userId, profileUpdates, client);
+        
+        // Update phone on users table if provided
+        if (normalizedPayload.phone !== undefined) {
+            await client.query(
+                "UPDATE users SET phone = $1, updated_at = NOW() WHERE id = $2",
+                [normalizedPayload.phone, userId]
+            );
+        }
+        
         const refreshedResult = await findAdminProfileByUserId(userId, client);
         await logAdminAction({
             actorUserId: userId,
@@ -125,7 +135,7 @@ export async function updateMyAdminProfile(userId, payload) {
             entityId: userId,
             message: `Admin user ${userId} updated their profile.`,
             metadata: {
-                updated_fields: Object.keys(normalizedPayload),
+                updated_fields: Object.keys(normalizedPayload).filter(k => normalizedPayload[k] !== undefined),
             },
         }, client);
         await client.query("COMMIT");

@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { listProfilesService, patchProfileService, patchProfileVisibilityService, } from "../services/profiles.service.js";
+import { listProfilesService, patchProfileService, patchProfileVisibilityService, getStudentProfile, getPublicStudentProfile, updateStudentProfileAdmin } from "../services/profiles.service.js";
 function createListHandler(tableName, sortColumns) {
     return async (req, res) => {
         const result = await listProfilesService(tableName, sortColumns, req.query);
@@ -79,5 +79,43 @@ export const patchManagerProfile = createPatchHandler("admin_profiles", [
     "sort_order",
 ]);
 export const patchManagerVisibility = createVisibilityHandler("admin_profiles");
+
+
+// ===================================
+// STUDENT PROFILE DEDICATED HANDLERS
+// ===================================
+
+/**
+ * GET /profiles/students/:userId
+ * Fetch student profile with user data and projects
+ * Admin only access
+ */
+export async function getStudentProfileHandler(req, res) {
+  const { userId } = req.params;
+  const data = await getStudentProfile(Number(userId));
+  sendSuccess(res, data, "Student profile loaded successfully.");
+}
+
+/**
+ * PATCH /profiles/students/:userId
+ * Update student profile
+ * Admin only access
+ */
+export async function updateStudentProfileHandler(req, res) {
+  const { userId } = req.params;
+  const data = await updateStudentProfileAdmin(req.user.id, Number(userId), req.body);
+  sendSuccess(res, data, "Student profile updated successfully.");
+}
+
+/**
+ * GET /public/students/:public_slug
+ * Fetch public student profile
+ * Public access (no auth required)
+ */
+export async function getPublicStudentProfileHandler(req, res) {
+  const { public_slug } = req.params;
+  const data = await getPublicStudentProfile(public_slug);
+  sendSuccess(res, data, "Public profile loaded successfully.");
+}
 
 

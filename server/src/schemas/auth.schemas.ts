@@ -19,6 +19,7 @@ export const adminUserIdParamsSchema = z.object({
 }).strict();
 export const updateMeBodySchema = z.object({
     full_name: z.union([z.literal(""), z.string().trim().min(1).max(120)]).optional(),
+    phone: z.union([z.literal(""), z.string().trim().min(3)]).optional(),
     bio: z.union([z.literal(""), z.string().trim().max(2000)]).optional(),
     job_title: z.union([z.literal(""), z.string().trim().max(120)]).optional(),
     avatar_url: avatarUrlSchema.optional(),
