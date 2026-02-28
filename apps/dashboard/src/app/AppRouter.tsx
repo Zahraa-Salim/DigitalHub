@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "./AdminLayout";
 import { RequireAdmin } from "./RequireAdmin";
+import { RequireRole } from "./RequireRole";
 import { adminRoutes } from "./adminRoutes";
 import { LoginPage } from "../pages/LoginPage";
 
@@ -16,7 +17,11 @@ export function AppRouter() {
               route.index ? (
                 <Route index key="admin-index" element={route.element} />
               ) : (
-                <Route path={route.path} key={route.path} element={route.element} />
+                <Route
+                  path={route.path}
+                  key={route.path}
+                  element={route.roles ? <RequireRole allowedRoles={route.roles}>{route.element}</RequireRole> : route.element}
+                />
               ),
             )}
           </Route>

@@ -7,7 +7,7 @@ import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { cacheGetJson, cacheSetJson } from "../utils/cache.js";
-import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicAdmins, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
 import { listPublicProjectsByStudentUserId } from "../repositories/projects.repository.js";
 async function listPublicResource(query, config) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
@@ -168,6 +168,10 @@ export async function getPublicHomeService() {
     };
     await cacheSetJson(cacheKey, data, 60);
     return data;
+}
+export async function listPublicAdminsService() {
+    const result = await listPublicAdmins();
+    return result.rows;
 }
 
 

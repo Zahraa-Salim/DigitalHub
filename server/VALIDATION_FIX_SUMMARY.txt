@@ -1,0 +1,127 @@
+✅ FIXED: Profile Update Validation Issues
+============================================
+
+PROBLEM IDENTIFIED:
+- When saving profile with empty optional fields, received "Invalid request data" error
+- The validation schema was using `.or(z.literal(""))` which checked non-empty first
+- This caused empty strings to fail URL validation before checking for empty
+
+SOLUTION APPLIED:
+================
+
+1️⃣ AuthSchemas (server/src/schemas/auth.schemas.ts)
+   ├─ Fixed updateMeBodySchema - now accepts empty strings for all optional fields
+   ├─ Fixed superAdminUpdateAdminBodySchema - supports empty values
+   └─ Fixed avatarUrlSchema - allows empty string, data URL, or valid URL
+
+2️⃣ ProfileSchemas (server/src/schemas/profiles.schemas.ts)
+   ├─ Fixed studentPatchSchema - all URL fields now accept empty strings first
+   ├─ Fixed instructorPatchSchema - proper empty string handling
+   └─ Fixed managerPatchSchema - validates empty strings before URLs
+
+3️⃣ Changed validation approach
+   FROM: z.string().trim().url().or(z.literal(""))
+   TO:   z.union([z.literal(""), z.string().trim().url()])
+   
+   ✨ This checks for empty string FIRST, then validates URL if not empty
+
+SERVER STATUS:
+==============
+✅ Server rebuilt with npm run build
+✅ Server running on http://localhost:5000
+✅ All validation schemas updated
+✅ Ready for testing
+
+VALIDATION RULES NOW:
+====================
+
+For Profile Update (PUT /api/admins/me):
+- full_name: Required when not empty, max 120 chars
+- job_title: Optional, can be empty string or max 120 chars
+- bio: Optional, can be empty or max 2000 chars
+- avatar_url: Optional, can be empty, valid URL, or data URL
+- linkedin_url: Optional, can be empty or valid HTTPS URL
+- github_url: Optional, can be empty or valid HTTPS URL
+- portfolio_url: Optional, can be empty or valid HTTPS URL
+
+EXAMPLE PAYLOADS THAT NOW WORK:
+===============================
+
+✅ Empty optional fields:
+{
+  "full_name": "Admin Updated",
+  "job_title": "",
+  "bio": "",
+  "avatar_url": "",
+  "linkedin_url": "",
+  "github_url": "",
+  "portfolio_url": ""
+}
+
+✅ Partial update with mixed values:
+{
+  "full_name": "Updated Admin",
+  "job_title": "Senior Admin",
+  "bio": "System administrator",
+  "linkedin_url": "",
+  "github_url": ""
+}
+
+✅ Full profile with valid URLs:
+{
+  "full_name": "Admin User",
+  "job_title": "System Admin",
+  "bio": "Managing the platform",
+  "linkedin_url": "https://linkedin.com/in/admin",
+  "github_url": "https://github.com/admin",
+  "portfolio_url": "https://admin.portfolio.com"
+}
+
+WHAT TO DO NEXT:
+================
+
+1. In the Dashboard, navigate to My Profile / Edit Profile
+2. Update any profile fields (name, job title, bio, URLs)
+3. Leave optional fields empty if not needed (no validation errors)
+4. Click "Save Profile"
+5. Should see "Profile updated successfully" message ✅
+
+DATABASE ADMIN PROFILES:
+=======================
+
+Currently in database:
+- User ID: 1 - admin@digitalhub.com (Admin role)
+- User ID: 12 - superadmin@digitalhub.com (Super Admin role)
+
+Both profiles are public and visible on the website.
+
+FOR SUPER ADMINS:
+=================
+
+PUT /api/admins/:userId endpoint also fixed:
+- Can update other admin profiles
+- Supports all the same validations
+- Includes is_active, is_public, sort_order fields
+
+FILES MODIFIED:
+===============
+
+1. server/src/schemas/auth.schemas.ts
+   - avatarUrlSchema: Changed to z.union()
+   - updateMeBodySchema: All fields use z.union()
+   - superAdminUpdateAdminBodySchema: All fields use z.union()
+   - createAdminBodySchema: All URL fields use z.union()
+
+2. server/src/schemas/profiles.schemas.ts
+   - studentPatchSchema: All URL fields use z.union()
+   - instructorPatchSchema: All URL fields use z.union()
+   - managerPatchSchema: All URL fields use z.union()
+
+BUILD & DEPLOY:
+===============
+
+✅ npm run build - Successfully compiled
+✅ Server started - node dist/index.js
+✅ Ready for testing in dashboard
+
+Your profile save should now work perfectly! ✨

@@ -20,6 +20,15 @@ export async function findActiveAdminByEmail(email, db = pool) {
       LIMIT 1
     `, [email]);
 }
+export async function findUserByEmailOrPhone(email, phone, db = pool) {
+    return db.query(`
+      SELECT id
+      FROM users
+      WHERE ($1::text IS NOT NULL AND email = $1)
+         OR ($2::text IS NOT NULL AND phone = $2)
+      LIMIT 1
+    `, [email ?? null, phone ?? null]);
+}
 export async function updateLastLogin(userId, db = pool) {
     return db.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
 }
@@ -78,6 +87,21 @@ export async function listAdminProfiles(db = pool) {
         COALESCE(ap.full_name, 'Admin')
     `);
 }
+export async function createAdminUser(input, db = pool) {
+    return db.query(`
+      INSERT INTO users (email, phone, password_hash, is_admin, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, TRUE, $4, NOW(), NOW())
+      RETURNING id
+    `, [input.email ?? null, input.phone ?? null, input.password_hash, input.is_active ?? true]);
+}
+export async function deleteAdminUser(userId, db = pool) {
+    return db.query(`
+      DELETE FROM users
+      WHERE id = $1
+        AND is_admin = TRUE
+      RETURNING id
+    `, [userId]);
+}
 export async function getUserPasswordHash(userId, db = pool) {
     return db.query(`
       SELECT password_hash
@@ -116,7 +140,8 @@ export async function upsertAdminProfile(userId, input, db = pool) {
         admin_role,
         is_public,
         sort_order,
-        created_at
+        created_at,
+        updated_at
       )
       VALUES (
         $1,
@@ -130,6 +155,7 @@ export async function upsertAdminProfile(userId, input, db = pool) {
         $9,
         $10,
         $11,
+        NOW(),
         NOW()
       )
       ON CONFLICT (user_id)
@@ -143,7 +169,8 @@ export async function upsertAdminProfile(userId, input, db = pool) {
         portfolio_url = EXCLUDED.portfolio_url,
         admin_role = EXCLUDED.admin_role,
         is_public = EXCLUDED.is_public,
-        sort_order = EXCLUDED.sort_order
+        sort_order = EXCLUDED.sort_order,
+        updated_at = NOW()
       RETURNING *
     `, [
         userId,

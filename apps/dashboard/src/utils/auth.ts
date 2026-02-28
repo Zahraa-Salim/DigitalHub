@@ -1,19 +1,34 @@
 const TOKEN_KEY = "dh_admin_token";
 const USER_KEY = "dh_admin_user";
 
+export type AdminRole = "admin" | "super_admin";
+
 export type AuthUser = {
   id: number | string | null;
   email: string;
   full_name: string;
-  role: string;
+  admin_role: AdminRole;
+  role_label: string;
 };
 
 const defaultUser: AuthUser = {
   id: null,
   email: "",
   full_name: "Admin",
-  role: "Admin",
+  admin_role: "admin",
+  role_label: "Admin",
 };
+
+function toRoleLabel(role: AdminRole): string {
+  return role === "super_admin" ? "Super Admin" : "Admin";
+}
+
+function normalizeRole(input: unknown): AdminRole {
+  if (input === "super_admin") {
+    return "super_admin";
+  }
+  return "admin";
+}
 
 function normalizeUser(input: unknown): AuthUser {
   if (!input || typeof input !== "object") {
@@ -33,7 +48,8 @@ function normalizeUser(input: unknown): AuthUser {
       : typeof obj.admin_role === "string" && obj.admin_role.trim()
         ? obj.admin_role.trim()
         : "admin";
-  const role = roleSource.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+  const adminRole = normalizeRole(roleSource);
+  const roleLabel = toRoleLabel(adminRole);
   const email = typeof obj.email === "string" ? obj.email : "";
   const id = typeof obj.id === "number" || typeof obj.id === "string" ? obj.id : null;
 
@@ -41,7 +57,8 @@ function normalizeUser(input: unknown): AuthUser {
     id,
     email,
     full_name: fullName,
-    role,
+    admin_role: adminRole,
+    role_label: roleLabel,
   };
 }
 

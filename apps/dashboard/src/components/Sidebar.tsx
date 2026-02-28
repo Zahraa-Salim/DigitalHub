@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { navConfig } from "../app/adminRoutes";
+import { getNavConfig } from "../app/adminRoutes";
 import { cn } from "../utils/cn";
 import type { AuthUser } from "../utils/auth";
 import { apiList } from "../utils/api";
@@ -137,13 +137,21 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
           <path d="M5 20a7 7 0 0 1 14 0" />
         </>,
       );
+    case "/admin/admins":
+      return icon(
+        <>
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
+        </>,
+      );
     default:
       return icon(<circle cx="12" cy="12" r="3" />);
   }
 }
 
-function toInitialOpen(pathname: string): Record<string, boolean> {
+function toInitialOpen(pathname: string, role: AuthUser["admin_role"]): Record<string, boolean> {
   const initial: Record<string, boolean> = {};
+  const navConfig = getNavConfig(role);
 
   navConfig.forEach((item) => {
     if (!item.children) {
@@ -157,10 +165,11 @@ function toInitialOpen(pathname: string): Record<string, boolean> {
 }
 
 export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggleTheme }: SidebarProps) {
+  const navConfig = useMemo(() => getNavConfig(user.admin_role), [user.admin_role]);
   const location = useLocation();
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    toInitialOpen(location.pathname),
+    toInitialOpen(location.pathname, user.admin_role),
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const [footerCollapsed, setFooterCollapsed] = useState(false);
@@ -341,7 +350,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
                 >
                   {displayName}
                 </button>
-                <span className="sidebar-profile__role">{user.role}</span>
+                <span className="sidebar-profile__role">{user.role_label}</span>
               </div>
             </div>
 

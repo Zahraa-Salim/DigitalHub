@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS admin_profiles (
   is_public     BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order    INTEGER NOT NULL DEFAULT 0,
 
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_profiles_public_sort
@@ -394,6 +395,7 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT N
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE admin_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- =========================
 -- 11) CONTACT MESSAGES
