@@ -23,6 +23,8 @@ type CohortRow = {
   enrollment_close_at: string | null;
   start_date: string | null;
   end_date: string | null;
+  use_general_form?: boolean;
+  application_form_id?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -644,8 +646,9 @@ export function CohortsPage() {
       setEditing(null);
       setRefreshKey((current) => current + 1);
 
+      const isCreateFlow = formMode === "create";
       const wasOpenBefore = formMode === "edit" && editing?.status === "open";
-      if (saved.status === "open" && !wasOpenBefore) {
+      if (isCreateFlow || (saved.status === "open" && !wasOpenBefore)) {
         setOpenFormPrompt({
           cohortId: saved.id,
           cohortName: saved.name,
@@ -773,11 +776,10 @@ export function CohortsPage() {
     setIsAssigningGeneralForm(true);
 
     try {
-      await api(`/cohorts/${openFormPrompt.cohortId}`, {
-        method: "PATCH",
+      await api(`/cohorts/${openFormPrompt.cohortId}/form/assign`, {
+        method: "POST",
         body: JSON.stringify({
-          use_general_form: true,
-          application_form_id: null,
+          mode: "general",
         }),
       });
       setSuccess("General form assigned to cohort.");
@@ -806,9 +808,12 @@ export function CohortsPage() {
     setIsPreparingCustomForm(true);
 
     try {
-      // Quick preflight so CTA does not route users into a missing forms API.
-      await api("/forms/general");
+      await api(`/cohorts/${cohortId}/form/assign`, {
+        method: "POST",
+        body: JSON.stringify({ mode: "custom" }),
+      });
       setOpenFormPrompt(null);
+      setSuccess("Custom cohort form prepared.");
       navigate(`/admin/forms?cohort_id=${cohortId}&mode=custom`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND") {
@@ -1031,6 +1036,13 @@ export function CohortsPage() {
                   label: "Actions",
                   render: (row) => (
                     <div className="table-actions dh-table-actions">
+                      <button
+                        className="btn btn--secondary btn--sm dh-btn"
+                        type="button"
+                        onClick={() => navigate(`/admin/forms?cohort_id=${row.id}`)}
+                      >
+                        Form
+                      </button>
                       <button className="btn btn--secondary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>
                         Edit
                       </button>
@@ -1071,6 +1083,13 @@ export function CohortsPage() {
                     </select>
                   </div>
                   <div className="table-actions program-mobile-item__actions">
+                    <button
+                      className="btn btn--secondary btn--sm dh-btn"
+                      type="button"
+                      onClick={() => navigate(`/admin/forms?cohort_id=${row.id}`)}
+                    >
+                      Form
+                    </button>
                     <button className="btn btn--secondary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>
                       Edit
                     </button>
@@ -1126,6 +1145,16 @@ export function CohortsPage() {
               </p>
             </div>
             <div className="modal-actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  navigate(`/admin/forms?cohort_id=${selected.id}`);
+                  setSelected(null);
+                }}
+              >
+                Application Form
+              </button>
               <button
                 className="btn btn--secondary"
                 type="button"
@@ -1360,7 +1389,7 @@ export function CohortsPage() {
       ) : null}
 
       {openFormPrompt ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setOpenFormPrompt(null)}>
+        <div className="modal-overlay" role="presentation">
           <div
             className="modal-card modal-card--narrow"
             role="dialog"
@@ -1371,7 +1400,7 @@ export function CohortsPage() {
               <h3 className="modal-title">Application Form Setup</h3>
             </header>
             <p className="post-details__line">
-              <strong>{openFormPrompt.cohortName}</strong> is now open. Do you want to use the general form or customize a specific form for this cohort?
+              Choose the application form mode for <strong>{openFormPrompt.cohortName}</strong>.
             </p>
             <div className="modal-actions">
               <button

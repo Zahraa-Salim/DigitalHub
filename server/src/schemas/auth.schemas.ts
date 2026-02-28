@@ -57,4 +57,11 @@ export const superAdminUpdateAdminBodySchema = z.object({
     message: "At least one field is required.",
 });
 
+export const sendMessagingUsersBodySchema = z.object({
+    channel: z.enum(["email", "sms"]),
+    user_ids: z.array(z.coerce.number().int().positive()).min(1),
+    subject: z.string().trim().min(1).optional(),
+    body: z.string().trim().min(1),
+}).strict();
+
 

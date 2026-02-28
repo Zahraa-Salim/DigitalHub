@@ -7,7 +7,7 @@ import { z } from "zod";
 import { AppError } from "./appError.js";
 const baseListQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(10),
+    limit: z.coerce.number().int().min(1).default(10),
     sortBy: z.string().trim().min(1).optional(),
     order: z.enum(["asc", "desc"]).default("desc"),
     search: z.string().trim().min(1).optional(),
@@ -46,6 +46,7 @@ function parseOptionalInteger(input, fieldName) {
 }
 export function parseListQuery(query, allowedSortColumns, defaultSortColumn) {
     const parsed = baseListQuerySchema.parse(query);
+    const normalizedLimit = Math.min(parsed.limit, 100);
     if (!allowedSortColumns.includes(defaultSortColumn)) {
         throw new AppError(500, "INTERNAL_ERROR", "Invalid list configuration for default sort column.");
     }
@@ -54,8 +55,8 @@ export function parseListQuery(query, allowedSortColumns, defaultSortColumn) {
     }
     return {
         page: parsed.page,
-        limit: parsed.limit,
-        offset: (parsed.page - 1) * parsed.limit,
+        limit: normalizedLimit,
+        offset: (parsed.page - 1) * normalizedLimit,
         sortBy: parsed.sortBy ?? defaultSortColumn,
         order: parsed.order,
         search: parsed.search,

@@ -4,9 +4,11 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { Router } from "express";
+import { assignCohortForm } from "../controllers/forms.controller.js";
 import { assignCohortInstructor, closeCohort, createCohort, createProgram, deleteCohort, deleteProgram, getCohortInstructors, getCohorts, getPrograms, openCohort, patchCohort, patchProgram, } from "../controllers/programs.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
+import { cohortFormAssignBodySchema } from "../schemas/forms.schemas.js";
 import { cohortCreateSchema, cohortInstructorBodySchema, cohortPatchSchema, idParamsSchema, programCreateSchema, programPatchSchema, } from "../schemas/programs.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const programsRouter = Router();
@@ -17,6 +19,7 @@ programsRouter.delete("/programs/:id", verifyAdminAuth, validateRequest({ params
 programsRouter.post("/cohorts", verifyAdminAuth, validateRequest({ body: cohortCreateSchema }), asyncHandler(createCohort));
 programsRouter.get("/cohorts", verifyAdminAuth, asyncHandler(getCohorts));
 programsRouter.patch("/cohorts/:id", verifyAdminAuth, validateRequest({ params: idParamsSchema, body: cohortPatchSchema }), asyncHandler(patchCohort));
+programsRouter.post("/cohorts/:id/form/assign", verifyAdminAuth, validateRequest({ params: idParamsSchema, body: cohortFormAssignBodySchema }), asyncHandler(assignCohortForm));
 programsRouter.delete("/cohorts/:id", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(deleteCohort));
 programsRouter.post("/cohorts/:id/open", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(openCohort));
 programsRouter.post("/cohorts/:id/close", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(closeCohort));

@@ -4,11 +4,11 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { Router } from "express";
-import { getAdmins, getMe, login, patchAdmin, patchMe } from "../controllers/auth.controller.js";
+import { getAdmins, getMe, getUsers, login, patchAdmin, patchMe, postUsersMessage } from "../controllers/auth.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { adminUserIdParamsSchema, loginBodySchema, superAdminUpdateAdminBodySchema, updateMeBodySchema } from "../schemas/auth.schemas.js";
+import { adminUserIdParamsSchema, loginBodySchema, sendMessagingUsersBodySchema, superAdminUpdateAdminBodySchema, updateMeBodySchema } from "../schemas/auth.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const authRouter = Router();
 authRouter.post("/login", rateLimit({
@@ -19,6 +19,8 @@ authRouter.post("/login", rateLimit({
 authRouter.get("/me", verifyAdminAuth, asyncHandler(getMe));
 authRouter.patch("/me", verifyAdminAuth, validateRequest({ body: updateMeBodySchema }), asyncHandler(patchMe));
 authRouter.get("/admins", verifyAdminAuth, asyncHandler(getAdmins));
+authRouter.get("/users", verifyAdminAuth, asyncHandler(getUsers));
+authRouter.post("/users/messages", verifyAdminAuth, validateRequest({ body: sendMessagingUsersBodySchema }), asyncHandler(postUsersMessage));
 authRouter.patch("/admins/:userId", verifyAdminAuth, validateRequest({ params: adminUserIdParamsSchema, body: superAdminUpdateAdminBodySchema }), asyncHandler(patchAdmin));
 export { authRouter };
 

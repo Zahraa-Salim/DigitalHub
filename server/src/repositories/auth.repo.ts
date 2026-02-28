@@ -78,6 +78,68 @@ export async function listAdminProfiles(db = pool) {
         COALESCE(ap.full_name, 'Admin')
     `);
 }
+
+export async function countUsersForMessaging(whereClause, params, db = pool) {
+    return db.query(`
+      SELECT COUNT(*)::int AS total
+      FROM users u
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.id
+      LEFT JOIN instructor_profiles ip ON ip.user_id = u.id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      ${whereClause}
+    `, params);
+}
+
+export async function listUsersForMessaging(whereClause, sortBy, order, params, limit, offset, db = pool) {
+    return db.query(`
+      SELECT
+        u.id,
+        u.email,
+        u.phone,
+        u.is_admin,
+        u.is_instructor,
+        u.is_student,
+        u.is_active,
+        u.created_at,
+        COALESCE(
+          NULLIF(ap.full_name, ''),
+          NULLIF(ip.full_name, ''),
+          NULLIF(sp.full_name, ''),
+          NULLIF(split_part(COALESCE(u.email, ''), '@', 1), ''),
+          'User'
+        ) AS full_name
+      FROM users u
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.id
+      LEFT JOIN instructor_profiles ip ON ip.user_id = u.id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      ${whereClause}
+      ORDER BY ${sortBy} ${order}
+      LIMIT $${params.length + 1}
+      OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
+}
+
+export async function findUsersForMessagingByIds(userIds, db = pool) {
+    return db.query(`
+      SELECT
+        u.id,
+        u.email,
+        u.phone,
+        COALESCE(
+          NULLIF(ap.full_name, ''),
+          NULLIF(ip.full_name, ''),
+          NULLIF(sp.full_name, ''),
+          NULLIF(split_part(COALESCE(u.email, ''), '@', 1), ''),
+          'User'
+        ) AS full_name
+      FROM users u
+      LEFT JOIN admin_profiles ap ON ap.user_id = u.id
+      LEFT JOIN instructor_profiles ip ON ip.user_id = u.id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      WHERE u.id = ANY($1::bigint[])
+        AND u.is_active = TRUE
+    `, [userIds]);
+}
 export async function getUserPasswordHash(userId, db = pool) {
     return db.query(`
       SELECT password_hash

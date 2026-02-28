@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { GlobalMessageHub } from "../components/GlobalMessageHub";
+import { GlobalMessagingProvider } from "../components/GlobalMessagingContext";
 import { Sidebar } from "../components/Sidebar";
 import { clearAuth, getUser } from "../utils/auth";
 
@@ -9,6 +11,9 @@ export function AdminLayout() {
   const [user, setUserState] = useState(() => getUser());
   const location = useLocation();
   const navigate = useNavigate();
+  const showGlobalMessageHub =
+    location.pathname.startsWith("/admin/admissions") ||
+    location.pathname.startsWith("/admin/general-apply");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -102,9 +107,12 @@ export function AdminLayout() {
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
-          <div key={location.pathname} className="content-route-transition">
-            <Outlet />
-          </div>
+          <GlobalMessagingProvider>
+            <div key={location.pathname} className="content-route-transition">
+              <Outlet />
+            </div>
+            {showGlobalMessageHub ? <GlobalMessageHub /> : null}
+          </GlobalMessagingProvider>
         </main>
       </div>
     </div>

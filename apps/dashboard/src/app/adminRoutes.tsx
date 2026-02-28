@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { ActivityLogsPage } from "../pages/admin/ActivityLogsPage";
 import { AnnouncementsPage } from "../pages/admin/AnnouncementsPage";
-import { ApplicationsPage } from "../pages/admin/ApplicationsPage";
+import { AdmissionsPage } from "../pages/admin/AdmissionsPage";
+import { GeneralApplyPage } from "../pages/admin/GeneralApplyPage";
 import { CmsHomeSectionsPage } from "../pages/admin/CmsHomeSectionsPage";
 import { CmsPagesPage } from "../pages/admin/CmsPagesPage";
 import { CmsSiteSettingsPage } from "../pages/admin/CmsSiteSettingsPage";
@@ -10,23 +11,28 @@ import { CohortsPage } from "../pages/admin/CohortsPage";
 import { ContactInboxPage } from "../pages/admin/ContactInboxPage";
 import { EventsPage } from "../pages/admin/EventsPage";
 import { FormsPage } from "../pages/admin/FormsPage";
+import { AdminManagementPage } from "../pages/admin/AdminManagementPage";
 import { MyProfilePage } from "../pages/admin/MyProfilePage";
+import { MessageTemplatesPage } from "../pages/admin/MessageTemplatesPage";
 import { NotificationsPage } from "../pages/admin/NotificationsPage";
 import { ProfilesInstructorsPage } from "../pages/admin/ProfilesInstructorsPage";
 import { ProfilesManagersPage } from "../pages/admin/ProfilesManagersPage";
 import { ProfilesStudentsPage } from "../pages/admin/ProfilesStudentsPage";
 import { ProgramsPage } from "../pages/admin/ProgramsPage";
 import { OverviewPage } from "../pages/OverviewPage";
+import { RequireSuperAdmin } from "./RequireSuperAdmin";
 
 export type NavLeaf = {
   label: string;
   path: string;
+  requiresSuperAdmin?: boolean;
 };
 
 export type NavItem = {
   label: string;
   path?: string;
   children?: NavLeaf[];
+  requiresSuperAdmin?: boolean;
 };
 
 export type AdminRoute = {
@@ -37,8 +43,10 @@ export type AdminRoute = {
 
 export const navConfig: NavItem[] = [
   { label: "Dashboard", path: "/admin" },
-  { label: "Applications", path: "/admin/applications" },
+  { label: "Admissions", path: "/admin/admissions" },
+  { label: "General Apply", path: "/admin/general-apply" },
   { label: "Application Forms", path: "/admin/forms" },
+  { label: "Message Templates", path: "/admin/message-templates" },
   { label: "Cohorts", path: "/admin/cohorts" },
   { label: "Programs", path: "/admin/programs" },
   {
@@ -61,6 +69,7 @@ export const navConfig: NavItem[] = [
   { label: "Contact Inbox", path: "/admin/contact" },
   { label: "Notifications", path: "/admin/notifications" },
   { label: "Activity Logs", path: "/admin/logs" },
+  { label: "Admin Management", path: "/admin/admins", requiresSuperAdmin: true },
 ];
 
 const titleEntries = navConfig.flatMap((item) => {
@@ -88,8 +97,10 @@ export function getAdminRouteTitle(pathname: string): string {
 
 export const adminRoutes: AdminRoute[] = [
   { index: true, element: <OverviewPage /> },
-  { path: "applications", element: <ApplicationsPage /> },
+  { path: "admissions", element: <AdmissionsPage /> },
+  { path: "general-apply", element: <GeneralApplyPage /> },
   { path: "forms", element: <FormsPage /> },
+  { path: "message-templates", element: <MessageTemplatesPage /> },
   { path: "cohorts", element: <CohortsPage /> },
   { path: "programs", element: <ProgramsPage /> },
   { path: "cms/site-settings", element: <CmsSiteSettingsPage /> },
@@ -104,5 +115,13 @@ export const adminRoutes: AdminRoute[] = [
   { path: "contact", element: <ContactInboxPage /> },
   { path: "notifications", element: <NotificationsPage /> },
   { path: "logs", element: <ActivityLogsPage /> },
+  {
+    path: "admins",
+    element: (
+      <RequireSuperAdmin>
+        <AdminManagementPage />
+      </RequireSuperAdmin>
+    ),
+  },
   { path: "profile", element: <MyProfilePage /> },
 ];

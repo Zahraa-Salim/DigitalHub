@@ -6,7 +6,7 @@
 import { z } from "zod";
 const paginationSchema = z.object({
     page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
+    limit: z.coerce.number().int().min(1).optional(),
     order: z.enum(["asc", "desc"]).optional(),
 });
 export function validatePagination(req, _res, next) {

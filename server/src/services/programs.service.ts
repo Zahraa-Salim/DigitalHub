@@ -180,7 +180,15 @@ export async function createProgramService(adminId, payload) {
 }
 
 export async function listProgramsService(query) {
-  const list = parseListQuery(query, ["id", "title", "slug", "created_at", "updated_at"], "updated_at");
+  const normalizedQuery = { ...query };
+  if (normalizedQuery.limit !== undefined) {
+    const parsedLimit = Number(normalizedQuery.limit);
+    if (Number.isFinite(parsedLimit) && parsedLimit > 100) {
+      normalizedQuery.limit = 100;
+    }
+  }
+
+  const list = parseListQuery(normalizedQuery, ["id", "title", "slug", "created_at", "updated_at"], "updated_at");
   const params = [];
   const where = [];
 

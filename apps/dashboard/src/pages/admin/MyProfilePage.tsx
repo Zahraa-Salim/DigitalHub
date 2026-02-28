@@ -145,7 +145,7 @@ export function MyProfilePage() {
         try {
           allAdmins = await api<AdminProfile[]>("/auth/admins");
         } catch {
-          const fallback = await apiList<ManagerProfileRow>("/profiles/managers?limit=200&sortBy=sort_order&order=asc");
+          const fallback = await apiList<ManagerProfileRow>("/profiles/managers?limit=100&sortBy=sort_order&order=asc");
           allAdmins = fallback.data.map(fromManagerProfile);
         }
 

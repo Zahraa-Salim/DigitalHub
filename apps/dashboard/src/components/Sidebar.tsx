@@ -32,6 +32,9 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
         </>,
       );
     case "/admin/applications":
+    case "/admin/admissions":
+    case "/admin/general-apply":
+    case "/admin/message-templates":
       return icon(
         <>
           <rect x="5" y="3" width="14" height="18" rx="2" />
@@ -137,6 +140,15 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
           <path d="M5 20a7 7 0 0 1 14 0" />
         </>,
       );
+    case "/admin/admins":
+      return icon(
+        <>
+          <circle cx="8" cy="9" r="2.5" />
+          <circle cx="16" cy="9" r="2.5" />
+          <path d="M3.5 18a4.5 4.5 0 0 1 9 0" />
+          <path d="M11.5 18a4.5 4.5 0 0 1 9 0" />
+        </>,
+      );
     default:
       return icon(<circle cx="12" cy="12" r="3" />);
   }
@@ -166,6 +178,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
   const [footerCollapsed, setFooterCollapsed] = useState(false);
 
   const displayName = user.full_name || "Admin";
+  const isSuperAdmin = user.role.trim().toLowerCase() === "super admin";
 
   useEffect(() => {
     navConfig.forEach((item) => {
@@ -223,6 +236,24 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
     return active;
   }, [location.pathname]);
 
+  const visibleNavConfig = useMemo(
+    () =>
+      navConfig
+        .filter((item) => !item.requiresSuperAdmin || isSuperAdmin)
+        .map((item) => {
+          if (!item.children) {
+            return item;
+          }
+
+          return {
+            ...item,
+            children: item.children.filter((child) => !child.requiresSuperAdmin || isSuperAdmin),
+          };
+        })
+        .filter((item) => !item.children || item.children.length > 0),
+    [isSuperAdmin],
+  );
+
   return (
     <div className="sidebar-card">
       <div className="sidebar-brand">
@@ -231,7 +262,7 @@ export function Sidebar({ user, collapsed, onNavigate, onLogout, isDark, onToggl
       </div>
 
       <nav className="sidebar-nav" aria-label="Sidebar Navigation">
-        {navConfig.map((item) => {
+        {visibleNavConfig.map((item) => {
           if (item.path) {
             return (
               <NavLink

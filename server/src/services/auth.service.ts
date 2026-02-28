@@ -8,8 +8,14 @@ import jwt from "jsonwebtoken";
 import { pool } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
+import { buildPagination, parseListQuery } from "../utils/pagination.js";
+import { buildSearchClause } from "../utils/sql.js";
 import { buildUpdateQuery } from "../utils/sql.js";
+import { sendDigitalHubEmail } from "../utils/mailer.js";
+import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
 import { findActiveAdminByEmail, findAdminProfileByUserId, getUserPasswordHash, listAdminProfiles, updateLastLogin, updateUserAccount, updateUserPasswordHash, upsertAdminProfile, } from "../repositories/auth.repo.js";
+import { countUsersForMessaging, listUsersForMessaging } from "../repositories/auth.repo.js";
+import { findUsersForMessagingByIds } from "../repositories/auth.repo.js";
 export async function loginAdmin(input) {
     const userResult = await findActiveAdminByEmail(input.email.toLowerCase());
     if (!userResult.rowCount) {
@@ -223,6 +229,131 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
     finally {
         client.release();
     }
+}
+
+const USER_SORT_COLUMN_MAP = {
+    full_name: "COALESCE(NULLIF(ap.full_name, ''), NULLIF(ip.full_name, ''), NULLIF(sp.full_name, ''), NULLIF(split_part(COALESCE(u.email, ''), '@', 1), ''), 'User')",
+    email: "COALESCE(u.email, '')",
+    created_at: "u.created_at",
+};
+
+export async function listUsersForMessagingService(actorRole, query) {
+    if (actorRole !== "admin" && actorRole !== "super_admin") {
+        throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
+    }
+
+    const list = parseListQuery(query, ["full_name", "email", "created_at"], "full_name");
+    const sortColumn = USER_SORT_COLUMN_MAP[list.sortBy];
+    const params = [];
+    const where = ["u.is_active = TRUE"];
+
+    if (list.search) {
+        params.push(`%${list.search}%`);
+        where.push(buildSearchClause([
+            "COALESCE(u.email, '')",
+            "COALESCE(u.phone, '')",
+            "COALESCE(ap.full_name, '')",
+            "COALESCE(ip.full_name, '')",
+            "COALESCE(sp.full_name, '')",
+        ], params.length));
+    }
+
+    const whereClause = `WHERE ${where.join(" AND ")}`;
+    const countResult = await countUsersForMessaging(whereClause, params);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const dataResult = await listUsersForMessaging(whereClause, sortColumn, list.order, params, list.limit, list.offset);
+
+    return {
+        data: dataResult.rows,
+        pagination: buildPagination(list.page, list.limit, total),
+    };
+}
+
+export async function sendMessagingUsersService(actorUserId, actorRole, payload) {
+    if (actorRole !== "admin" && actorRole !== "super_admin") {
+        throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
+    }
+
+    const uniqueIds = [...new Set((payload.user_ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!uniqueIds.length) {
+        throw new AppError(400, "VALIDATION_ERROR", "At least one recipient user is required.");
+    }
+
+    const usersResult = await findUsersForMessagingByIds(uniqueIds);
+    const users = usersResult.rows;
+    if (!users.length) {
+        throw new AppError(404, "USERS_NOT_FOUND", "No active users found for the selected recipients.");
+    }
+
+    const body = String(payload.body || "").trim();
+    const subject = payload.channel === "email"
+        ? String(payload.subject || "").trim() || "Digital Hub Message"
+        : "";
+
+    let sentCount = 0;
+    let skippedCount = 0;
+    const skippedUsers = [];
+
+    for (const user of users) {
+        if (payload.channel === "email") {
+            const toValue = String(user.email || "").trim();
+            if (!toValue) {
+                skippedCount += 1;
+                skippedUsers.push({
+                    id: user.id,
+                    reason: "missing_email",
+                });
+                continue;
+            }
+            await sendDigitalHubEmail({
+                to: toValue,
+                subject,
+                body,
+            });
+            sentCount += 1;
+            continue;
+        }
+
+        const phone = String(user.phone || "").trim();
+        if (!phone) {
+            skippedCount += 1;
+            skippedUsers.push({
+                id: user.id,
+                reason: "missing_phone",
+            });
+            continue;
+        }
+        await sendDigitalHubWhatsApp({
+            to: phone,
+            body,
+        });
+        sentCount += 1;
+    }
+
+    await logAdminAction({
+        actorUserId,
+        action: "send messaging users",
+        entityType: "users",
+        entityId: null,
+        message: `User broadcast sent via ${payload.channel}.`,
+        metadata: {
+            channel: payload.channel,
+            requested_user_ids: uniqueIds,
+            sent_count: sentCount,
+            skipped_count: skippedCount,
+            skipped_users: skippedUsers,
+        },
+        title: "User Message Sent",
+        body: `${sentCount} ${payload.channel.toUpperCase()} message(s) sent${skippedCount ? `, ${skippedCount} skipped.` : "."}`,
+    });
+
+    return {
+        channel: payload.channel,
+        requested_count: uniqueIds.length,
+        sent_count: sentCount,
+        skipped_count: skippedCount,
+        skipped_users: skippedUsers,
+    };
 }
 
 

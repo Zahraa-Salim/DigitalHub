@@ -13,7 +13,15 @@ export function validateRequest(schemas) {
                 req.params = schemas.params.parse(req.params);
             }
             if (schemas.query) {
-                req.query = schemas.query.parse(req.query);
+                const parsedQuery = schemas.query.parse(req.query);
+                // Express 5 exposes req.query as a getter-only property.
+                // Mutate the existing object instead of reassigning the property.
+                if (req.query && typeof req.query === "object") {
+                    for (const key of Object.keys(req.query)) {
+                        delete req.query[key];
+                    }
+                    Object.assign(req.query, parsedQuery);
+                }
             }
             next();
         }
