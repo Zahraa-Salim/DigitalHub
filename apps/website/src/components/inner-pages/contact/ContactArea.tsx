@@ -1,6 +1,3 @@
-// File: src/components/inner-pages/contact/ContactArea.tsx
-// Purpose: UI component responsible for rendering part of the interface (inner-pages/contact/ContactArea.tsx).
-// If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -8,27 +5,34 @@ import ContactForm from "@/forms/ContactForm";
 import InjectableSvg from "@/hooks/InjectableSvg";
 import Link from "@/components/common/Link";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const EXACT_LOCATION_QUERY = "Siblin Training Centre, JC9J+8W9, Sebline";
 
 type ContactInfo = {
-  address: string; // multi-line text with "\n"
+  address: string;
   phone: string;
   email: string;
-  mapEmbedUrl: string; // iframe src
-  contactFormTitle: string; // "Send Us Message"
-  contactFormSubtitle: string; // "Your email address will not be published..."
+  mapEmbedUrl: string;
+  contactFormTitle: string;
+  contactFormSubtitle: string;
+};
+
+type PublicHomeResponse = {
+  success?: boolean;
+  data?: {
+    site_settings?: {
+      contact_info?: Record<string, unknown>;
+    };
+  };
 };
 
 const DEFAULTS: ContactInfo = {
-  address: "Awamileaug Drive, Kensington\nLondon, UK",
-  phone: "+1 (800) 123 456 789",
-  email: "info@gmail.com",
-  mapEmbedUrl:
-    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d48409.69813174607!2d-74.05163325136718!3d40.68264649999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25bae694479a3%3A0xb9949385da52e69e!2sBarclays%20Center!5e0!3m2!1sen!2sbd!4v1684309529719!5m2!1sen!2sbd",
+  address: "Siblin Training Centre\nJC9J+8W9, Sebline",
+  phone: "+961 70639085",
+  email: "info@digitalhub.com",
+  mapEmbedUrl: "",
   contactFormTitle: "Send Us Message",
-  contactFormSubtitle:
-    "Your email address will not be published. Required fields are marked *",
+  contactFormSubtitle: "Your email address will not be published. Required fields are marked *",
 };
 
 const ContactArea: React.FC = () => {
@@ -38,29 +42,32 @@ const ContactArea: React.FC = () => {
   useEffect(() => {
     const fetchContactInfo = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/contact-info`, {
-          // client-side fetch – CORS applies, but we already allowed 3001 in Nest
+        const res = await fetch(`${API_BASE_URL}/public/home`, {
           credentials: "include",
+          cache: "no-store",
         });
 
         if (!res.ok) {
-          console.error("Failed to load contact info:", res.status);
           setError("Failed to load contact info, using defaults.");
           return;
         }
 
-        const text = await res.text();
+        const payload = (await res.json()) as PublicHomeResponse;
+        const raw = payload?.data?.site_settings?.contact_info || {};
 
-        if (!text || !text.trim()) {
-          // No data in DB yet → just use defaults
-          setError("No contact info found, using defaults.");
-          return;
-        }
+        const normalized: ContactInfo = {
+          address: String(raw.address ?? DEFAULTS.address),
+          phone: String(raw.phone ?? DEFAULTS.phone),
+          email: String(raw.email ?? DEFAULTS.email),
+          mapEmbedUrl: String(raw.mapEmbedUrl ?? raw.map_embed_url ?? DEFAULTS.mapEmbedUrl),
+          contactFormTitle: String(raw.contactFormTitle ?? raw.contact_form_title ?? DEFAULTS.contactFormTitle),
+          contactFormSubtitle: String(
+            raw.contactFormSubtitle ?? raw.contact_form_subtitle ?? DEFAULTS.contactFormSubtitle
+          ),
+        };
 
-        const data = JSON.parse(text) as ContactInfo;
-        setContactInfo(data);
-      } catch (err) {
-        console.error("Error fetching contact info:", err);
+        setContactInfo(normalized);
+      } catch {
         setError("Error loading contact info, using defaults.");
       }
     };
@@ -68,10 +75,12 @@ const ContactArea: React.FC = () => {
     fetchContactInfo();
   }, []);
 
-  // Use DB data if present, otherwise defaults
   const info = contactInfo ?? DEFAULTS;
-
   const addressLines = (info.address || DEFAULTS.address).split("\n");
+  const fallbackPinnedMapUrl = `https://www.google.com/maps?q=${encodeURIComponent(EXACT_LOCATION_QUERY)}&z=15&output=embed`;
+  const dbMapUrl = (info.mapEmbedUrl || "").trim();
+  const useDbMapUrl = dbMapUrl.length > 0 && !dbMapUrl.includes("Barclays%20Center");
+  const mapSrc = useDbMapUrl ? dbMapUrl : fallbackPinnedMapUrl;
 
   return (
     <section className="contact-area section-py-120">
@@ -82,11 +91,7 @@ const ContactArea: React.FC = () => {
               <ul className="list-wrap">
                 <li>
                   <div className="icon">
-                    <InjectableSvg
-                      src="assets/img/icons/map.svg"
-                      alt="img"
-                      className="injectable"
-                    />
+                    <InjectableSvg src="assets/img/icons/map.svg" alt="img" className="injectable" />
                   </div>
                   <div className="content">
                     <h4 className="title">Address</h4>
@@ -102,49 +107,30 @@ const ContactArea: React.FC = () => {
                 </li>
                 <li>
                   <div className="icon">
-                    <InjectableSvg
-                      src="assets/img/icons/contact_phone.svg"
-                      alt="img"
-                      className="injectable"
-                    />
+                    <InjectableSvg src="assets/img/icons/contact_phone.svg" alt="img" className="injectable" />
                   </div>
                   <div className="content">
                     <h4 className="title">Phone</h4>
-                    <Link to={`tel:${info.phone || DEFAULTS.phone}`}>
-                      {info.phone || DEFAULTS.phone}
-                    </Link>
+                    <Link to={`tel:${info.phone || DEFAULTS.phone}`}>{info.phone || DEFAULTS.phone}</Link>
                   </div>
                 </li>
                 <li>
                   <div className="icon">
-                    <InjectableSvg
-                      src="assets/img/icons/emial.svg"
-                      alt="img"
-                      className="injectable"
-                    />
+                    <InjectableSvg src="assets/img/icons/emial.svg" alt="img" className="injectable" />
                   </div>
                   <div className="content">
                     <h4 className="title">E-mail Address</h4>
-                    <Link to={`mailto:${info.email || DEFAULTS.email}`}>
-                      {info.email || DEFAULTS.email}
-                    </Link>
+                    <Link to={`mailto:${info.email || DEFAULTS.email}`}>{info.email || DEFAULTS.email}</Link>
                   </div>
                 </li>
               </ul>
-              {error && (
-                <p className="mt-2 text-xs text-danger">
-                  {/* optional debug text */}
-                  {error}
-                </p>
-              )}
+              {error && <p className="mt-2 text-xs text-danger">{error}</p>}
             </div>
           </div>
 
           <div className="col-lg-8">
             <div className="contact-form-wrap">
-              <h4 className="title">
-                {info.contactFormTitle || DEFAULTS.contactFormTitle}
-              </h4>
+              <h4 className="title">{info.contactFormTitle || DEFAULTS.contactFormTitle}</h4>
               <p>{info.contactFormSubtitle || DEFAULTS.contactFormSubtitle}</p>
               <ContactForm />
               <p className="ajax-response mb-0"></p>
@@ -153,7 +139,7 @@ const ContactArea: React.FC = () => {
         </div>
         <div className="contact-map">
           <iframe
-            src={info.mapEmbedUrl || DEFAULTS.mapEmbedUrl}
+            src={mapSrc}
             style={{ border: "0" }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
@@ -165,5 +151,3 @@ const ContactArea: React.FC = () => {
 };
 
 export default ContactArea;
-
-

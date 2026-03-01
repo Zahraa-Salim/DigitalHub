@@ -1,11 +1,17 @@
-// File: src/components/inner-pages/instructors/InstructorArea.tsx
-// Purpose: UI component responsible for rendering part of the interface (inner-pages/instructors/InstructorArea.tsx).
-// If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 "use client";
 
 import React, { useEffect, useState } from "react";
 import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
+
+type ApiPerson = {
+  user_id: number;
+  full_name: string;
+  job_title?: string | null;
+  expertise?: string | null;
+  linkedin_url?: string | null;
+  avatar_url?: string | null;
+};
 
 type TeamMember = {
   id: number;
@@ -13,10 +19,9 @@ type TeamMember = {
   position: string;
   linkedinUrl: string | null;
   photoUrl: string | null;
-  isActive: boolean;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const fallbackThumb = "/assets/img/instructor/instructor01.png";
 
 function normalizeLinkedIn(url: string) {
@@ -26,11 +31,22 @@ function normalizeLinkedIn(url: string) {
   return `https://${v}`;
 }
 
-function getArrayPayload(raw: any): TeamMember[] {
-  if (Array.isArray(raw)) return raw;
-  if (raw && Array.isArray(raw.data)) return raw.data;
-  if (raw && Array.isArray(raw.items)) return raw.items;
+function getArrayPayload<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === "object" && Array.isArray((raw as { data?: T[] }).data)) {
+    return (raw as { data: T[] }).data;
+  }
   return [];
+}
+
+function mapPerson(item: ApiPerson): TeamMember {
+  return {
+    id: item.user_id,
+    name: item.full_name,
+    position: item.job_title || item.expertise || "Team Member",
+    linkedinUrl: item.linkedin_url ?? null,
+    photoUrl: item.avatar_url ?? null,
+  };
 }
 
 export default function InstructorArea() {
@@ -39,16 +55,18 @@ export default function InstructorArea() {
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const res = await fetch(`${API_BASE}/team`, { cache: "no-store" });
-        if (!res.ok) {
-          setItems([]);
-          return;
-        }
+        const [managersRes, instructorsRes] = await Promise.all([
+          fetch(`${API_BASE}/public/managers`, { cache: "no-store" }),
+          fetch(`${API_BASE}/public/instructors`, { cache: "no-store" }),
+        ]);
 
-        const raw = await res.json();
-        const arr = getArrayPayload(raw);
+        const managersRaw = managersRes.ok ? await managersRes.json() : [];
+        const instructorsRaw = instructorsRes.ok ? await instructorsRes.json() : [];
 
-        setItems(arr.filter((x) => x.isActive));
+        const managers = getArrayPayload<ApiPerson>(managersRaw);
+        const instructors = getArrayPayload<ApiPerson>(instructorsRaw);
+
+        setItems([...managers, ...instructors].map(mapPerson));
       } catch {
         setItems([]);
       }
@@ -71,28 +89,27 @@ export default function InstructorArea() {
             <div key={item.id} className="col-xl-4 col-sm-6">
               <div className="instructor__item">
                 <div className="instructor__thumb">
-  <div
-    style={{
-      width: "180px",
-      height: "180px",
-      borderRadius: "50%",
-      overflow: "hidden",
-      margin: "0 auto",
-    }}
-  >
-    <img
-      src={photoSrc(item)}
-      alt={item.name}
-      loading="lazy"
-      style={{
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-      }}
-    />
-  </div>
-</div>
-
+                  <div
+                    style={{
+                      width: "180px",
+                      height: "180px",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      margin: "0 auto",
+                    }}
+                  >
+                    <img
+                      src={photoSrc(item)}
+                      alt={item.name}
+                      loading="lazy"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </div>
+                </div>
 
                 <div className="instructor__content">
                   <h2 className="title">{item.name}</h2>
@@ -102,11 +119,7 @@ export default function InstructorArea() {
                     <ul className="list-wrap">
                       {item.linkedinUrl ? (
                         <li>
-                          <Link
-                            to={normalizeLinkedIn(item.linkedinUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
+                          <Link to={normalizeLinkedIn(item.linkedinUrl)} target="_blank" rel="noopener noreferrer">
                             <i className="fab fa-linkedin-in"></i>
                           </Link>
                         </li>

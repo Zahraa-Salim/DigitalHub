@@ -1,10 +1,9 @@
-// File: src/forms/ContactForm.tsx
-// Purpose: Form component that handles user input, validation, and submission flow.
-// If you change this file: Changing field names, validation rules, or handlers can break form behavior or submitted payload structures.
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
 import React, { useState } from "react";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 type ContactFormState = {
   success: boolean;
@@ -24,13 +23,39 @@ export default function ContactForm() {
     setState({ success: false, error: null });
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const formData = new FormData(e.currentTarget);
+      const payload = {
+        name: String(formData.get("fullName") || "").trim(),
+        email: String(formData.get("email") || "").trim(),
+        phone: String(formData.get("phone") || "").trim() || undefined,
+        subject: String(formData.get("subject") || "").trim() || undefined,
+        message: String(formData.get("message") || "").trim(),
+        kind: "question" as const,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        let message = "Unable to send message right now. Please try again.";
+        try {
+          const json = (await res.json()) as { error?: { message?: string } };
+          if (json?.error?.message) message = json.error.message;
+        } catch {
+          // Use fallback message.
+        }
+        throw new Error(message);
+      }
+
       setState({ success: true, error: null });
       e.currentTarget.reset();
-    } catch {
+    } catch (error) {
       setState({
         success: false,
-        error: "Unable to send message right now. Please try again.",
+        error: error instanceof Error ? error.message : "Unable to send message right now. Please try again.",
       });
     } finally {
       setPending(false);
@@ -71,16 +96,8 @@ export default function ContactForm() {
         {pending ? "Sending..." : "Submit Now"} <BtnArrow />
       </button>
 
-      {state.success && (
-        <p className="text-success mt-2">
-          Message sent successfully.
-        </p>
-      )}
-      {state.error && (
-        <p className="text-danger mt-2">
-          Error: {state.error}
-        </p>
-      )}
+      {state.success && <p className="text-success mt-2">Message sent successfully.</p>}
+      {state.error && <p className="text-danger mt-2">Error: {state.error}</p>}
     </form>
   );
 }
