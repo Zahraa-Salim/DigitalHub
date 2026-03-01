@@ -6,8 +6,8 @@ import Image, { StaticImageData } from "@/components/common/Image";
 import BtnArrow from "@/svg/BtnArrow";
 
 import instructor_thumb1 from "@/assets/img/instructor/instructor01.png"
-import instructor_thumb2 from "@/assets/img/instructor/instructor05.png"
-import instructor_thumb3 from "@/assets/img/instructor/instructor06.png"
+import instructor_thumb2 from "@/assets/img/instructor/instructor02.png"
+import instructor_thumb3 from "@/assets/img/instructor/instructor03.png"
 import instructor_thumb4 from "@/assets/img/instructor/instructor04.png"
 
 interface DataType {

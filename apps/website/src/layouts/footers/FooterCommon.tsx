@@ -1,7 +1,12 @@
+// File: src/layouts/footers/FooterCommon.tsx
+// Purpose: Shared layout container used across pages and sections.
+// If you change this file: Changing structure or wrapper logic can affect navigation, shared UI placement, and consistency across routes.
 "use client";
 
 import Link from "@/components/common/Link";
 import { useEffect, useState } from "react";
+
+/* ================= TYPES ================= */
 
 interface SectionLink {
   label: string;
@@ -24,15 +29,7 @@ interface FooterData {
   sections: Section[];
 }
 
-type PublicHomeResponse = {
-  success?: boolean;
-  data?: {
-    site_settings?: {
-      site_name?: string;
-      contact_info?: Record<string, unknown>;
-    };
-  };
-};
+/* ================= DEFAULT DATA ================= */
 
 const DEFAULT_FOOTER: FooterData = {
   brand: {
@@ -46,9 +43,10 @@ const DEFAULT_FOOTER: FooterData = {
     {
       title: "Useful Links",
       links: [
-        { label: "Home", url: "/#header-fixed-height" },
+        { label: "Home", url: "/" },
         { label: "Contact", url: "/contact" },
-        { label: "About", url: "/#home-about" },
+        { label: "About", url: "/about" },
+        { label: "Blog", url: "/blog" },
       ],
     },
     {
@@ -61,42 +59,46 @@ const DEFAULT_FOOTER: FooterData = {
   ],
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+/* ================= CONFIG ================= */
+
+const API_BASE = "http://localhost:3000";
+
+/* ================= COMPONENT ================= */
 
 const FooterCommon = () => {
   const [data, setData] = useState<FooterData>(DEFAULT_FOOTER);
 
-  const resolveLinkUrl = (link: SectionLink) => {
-    const normalized = link.label.trim().toLowerCase();
-    if (normalized === "home") return "/#header-fixed-height";
-    if (normalized === "about") return "/#home-about";
-    return link.url;
-  };
-
   useEffect(() => {
-    fetch(`${API_BASE}/public/home`, { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((payload: PublicHomeResponse | null) => {
-        if (!payload?.data?.site_settings) return;
+    fetch(`${API_BASE}/footer`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((res) => {
+        if (!res) return;
 
-        const contactInfo = payload.data.site_settings.contact_info || {};
-        setData((prev) => ({
-          ...prev,
+        setData({
           brand: {
-            ...prev.brand,
-            title: String(payload.data?.site_settings?.site_name || prev.brand.title),
-            address: String(contactInfo.address ?? prev.brand.address),
-            phone: String(contactInfo.phone ?? prev.brand.phone),
+            ...DEFAULT_FOOTER.brand,
+            ...res.brand,
+            logoUrl:
+              res.brand?.logoUrl && res.brand.logoUrl !== ""
+                ? res.brand.logoUrl.startsWith("http")
+                  ? res.brand.logoUrl
+                  : `${API_BASE}${res.brand.logoUrl}`
+                : DEFAULT_FOOTER.brand.logoUrl,
           },
-        }));
+          sections:
+            Array.isArray(res.sections) && res.sections.length > 0
+              ? res.sections
+              : DEFAULT_FOOTER.sections,
+        });
       })
       .catch(() => {
-        // Keep default footer if API fails.
+        // Keep default footer if API fails
       });
   }, []);
 
   return (
     <>
+      {/* ================= BRAND ================= */}
       <div className="col-xl-3 col-lg-4 col-md-6">
         <div className="footer__widget">
           <div className="logo mb-35">
@@ -107,11 +109,14 @@ const FooterCommon = () => {
                   alt={data.brand.title}
                   style={{ width: 40, height: "auto" }}
                   onError={(e) => {
-                    e.currentTarget.src = "/assets/img/logo/secondary_logo.svg";
+                    e.currentTarget.src =
+                      "/assets/img/logo/secondary_logo.svg";
                   }}
                 />
 
-                <h4 style={{ color: "#fff", margin: 0 }}>{data.brand.title}</h4>
+                <h4 style={{ color: "#fff", margin: 0 }}>
+                  {data.brand.title}
+                </h4>
               </div>
             </Link>
           </div>
@@ -126,8 +131,12 @@ const FooterCommon = () => {
         </div>
       </div>
 
+      {/* ================= SECTIONS ================= */}
       {data.sections.map((section, i) => (
-        <div key={i} className="col-xl-3 col-lg-4 col-md-6 col-sm-6">
+        <div
+          key={i}
+          className="col-xl-3 col-lg-4 col-md-6 col-sm-6"
+        >
           <div className="footer__widget">
             <h4 className="footer__widget-title">{section.title}</h4>
 
@@ -135,7 +144,7 @@ const FooterCommon = () => {
               <ul className="list-wrap">
                 {section.links.map((link, j) => (
                   <li key={j}>
-                    <Link to={resolveLinkUrl(link)}>{link.label}</Link>
+                    <Link to={link.url}>{link.label}</Link>
                   </li>
                 ))}
               </ul>
@@ -148,3 +157,5 @@ const FooterCommon = () => {
 };
 
 export default FooterCommon;
+
+

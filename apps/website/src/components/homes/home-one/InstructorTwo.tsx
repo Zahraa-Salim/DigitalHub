@@ -37,10 +37,10 @@ const InstructorTwo = ({ style }: StyleType) => {
                            </div>
                         </div>
                         <div className="instructor__content-two">
-                           <h3 className="title"><Link to="/apply?program=Full%20Stack%20Development">Become a Instructor</Link></h3>
+                           <h3 className="title"><Link to="/contact">Become a Instructor</Link></h3>
                            <p>To take a trivial example, which of us undertakes physical exercise yes is this happen here.</p>
                            <div className="tg-button-wrap">
-                              <Link to="/apply?program=Full%20Stack%20Development" className="btn arrow-btn">Apply Now <BtnArrow /></Link>
+                              <Link to="/contact" className="btn arrow-btn">Apply Now <BtnArrow /></Link>
                            </div>
                         </div>
                      </div>
@@ -58,10 +58,10 @@ const InstructorTwo = ({ style }: StyleType) => {
                            </div>
                         </div>
                         <div className="instructor__content-two">
-                           <h3 className="title"><Link to="/apply?program=UI%2FUX%20Design">Become a Student</Link></h3>
+                           <h3 className="title"><Link to="/contact">Become a Student</Link></h3>
                            <p>Join millions of people from around the world learning together. Online learning</p>
                            <div className="tg-button-wrap">
-                              <Link to="/apply?program=UI%2FUX%20Design" className="btn arrow-btn">Apply Now <BtnArrow /></Link>
+                              <Link to="/contact" className="btn arrow-btn">Apply Now <BtnArrow /></Link>
                            </div>
                         </div>
                      </div>

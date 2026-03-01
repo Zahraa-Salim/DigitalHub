@@ -8,7 +8,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 type PageModule = { default: ComponentType };
 
-const pageModules = import.meta.glob<PageModule>("../pages/*.tsx", {
+const pageModules = import.meta.glob<PageModule>("/src/pages/*.tsx", {
   eager: true,
 });
 

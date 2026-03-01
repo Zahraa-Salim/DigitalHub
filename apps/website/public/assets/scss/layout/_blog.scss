@@ -1098,49 +1098,34 @@ blockquote {
 }
 .pagination {
     &__wrap {
-        --pagination-size: 72px;
-        --pagination-gap: 12px;
-        --pagination-bg: #dfe3eb;
-        --pagination-fg: #0c1b52;
-        --pagination-active-bg: #4b4be2;
-        --pagination-active-fg: #ffffff;
-
         & ul {
             @include flexbox();
             align-items: center;
             justify-content: center;
-            flex-wrap: nowrap;
-            gap: var(--pagination-gap);
+            flex-wrap: wrap;
+            gap: 10px 10px;
             & li {
-                flex: 0 0 auto;
                 & a {
                     @include flexbox();
                     align-items: center;
                     justify-content: center;
-                    width: var(--pagination-size);
-                    height: var(--pagination-size);
-                    padding: 0;
-                    background: var(--pagination-bg);
+                    width: 50px;
+                    height: 50px;
+                    background: #E6E9EF;
                     @include border-radius(50%);
-                    font-size: 30px;
-                    line-height: 1;
-                    color: var(--pagination-fg);
+                    font-size: 18px;
+                    color: var(--tg-heading-color);
                     font-family: var(--tg-heading-font-family);
                     font-weight: var(--tg-fw-medium);
-                    white-space: nowrap;
-                    text-decoration: none;
-                    @include transition(.2s);
                     &:hover {
-                        color: var(--pagination-active-fg) !important;
-                        background: var(--pagination-active-bg);
-                        transform: translateY(-1px);
+                        color: var(--tg-common-color-white)!important;
+                        background: var(--tg-theme-primary);
                     }
                 }
                 &.selected {
                     & a {
-                        color: var(--pagination-active-fg);
-                        background: var(--pagination-active-bg);
-                        box-shadow: 0 10px 22px rgba(75, 75, 226, 0.28);
+                        color: var(--tg-common-color-white);
+                        background: var(--tg-theme-primary);
                     }
                 }
             }
@@ -1197,81 +1182,5 @@ blockquote {
 
  .pagination__wrap ul li.previous, 
  .pagination__wrap ul li.next{
-  display: flex !important;
-}
-
-.pagination__wrap ul li.previous a,
-.pagination__wrap ul li.next a {
-    width: var(--pagination-size) !important;
-    height: var(--pagination-size) !important;
-    min-width: var(--pagination-size) !important;
-    padding: 0;
-    gap: 0;
-    font-size: 0;
-    border-radius: 50% !important;
-}
-
-.pagination__wrap ul li.previous a i,
-.pagination__wrap ul li.next a i {
-    position: static;
-    font-size: 22px;
-    line-height: 1;
-}
-
-.pagination__wrap ul li.previous a i.flaticon-arrow-right {
-    transform: rotate(180deg);
-}
-
-.pagination__wrap ul li.disabled a {
-    opacity: 0.5;
-    pointer-events: none;
-    transform: none;
-    box-shadow: none;
-}
-
-@media #{$md} {
-    .pagination__wrap {
-        --pagination-size: 68px;
-    }
-
-    .pagination__wrap ul li.previous a,
-    .pagination__wrap ul li.next a {
-        width: var(--pagination-size) !important;
-        height: var(--pagination-size) !important;
-        min-width: var(--pagination-size) !important;
-        padding: 0;
-        font-size: 0;
-    }
-
-    .pagination__wrap ul li.previous a i,
-    .pagination__wrap ul li.next a i {
-        font-size: 18px;
-    }
-}
-
-@media #{$xs} {
-    .pagination__wrap {
-        --pagination-size: 56px;
-        --pagination-gap: 8px;
-        overflow-x: auto;
-        justify-content: center;
-    }
-
-    .pagination__wrap ul li a {
-        font-size: 22px;
-    }
-
-    .pagination__wrap ul li.previous a,
-    .pagination__wrap ul li.next a {
-        width: var(--pagination-size) !important;
-        height: var(--pagination-size) !important;
-        min-width: var(--pagination-size) !important;
-        padding: 0;
-        font-size: 0;
-    }
-
-    .pagination__wrap ul li.previous a i,
-    .pagination__wrap ul li.next a i {
-        font-size: 15px;
-    }
-}
+  display: none;
+} 
