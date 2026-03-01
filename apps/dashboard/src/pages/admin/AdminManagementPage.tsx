@@ -7,7 +7,7 @@ import { Pagination } from "../../components/Pagination";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
-import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
+import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 
@@ -32,17 +32,8 @@ type CreateFormState = {
   password: string;
   full_name: string;
   job_title: string;
-  admin_role: "admin" | "super_admin";
-};
-
-type EditFormState = {
-  full_name: string;
-  job_title: string;
   avatar_url: string;
   admin_role: "admin" | "super_admin";
-  is_public: boolean;
-  sort_order: string;
-  is_active: boolean;
 };
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
@@ -52,19 +43,39 @@ const initialCreateForm: CreateFormState = {
   password: "",
   full_name: "",
   job_title: "",
+  avatar_url: "",
   admin_role: "admin",
 };
 
-function toEditFormState(row: AdminRow): EditFormState {
-  return {
-    full_name: row.admin_profile.full_name,
-    job_title: row.admin_profile.job_title ?? "",
-    avatar_url: row.admin_profile.avatar_url ?? "",
-    admin_role: row.admin_profile.admin_role,
-    is_public: row.admin_profile.is_public,
-    sort_order: String(row.admin_profile.sort_order ?? 0),
-    is_active: row.is_active,
-  };
+function toInitials(fullName: string): string {
+  const source = String(fullName || "").trim();
+  if (!source) {
+    return "AD";
+  }
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return "AD";
+  }
+  const first = parts[0]?.charAt(0) ?? "";
+  const second = parts.length > 1 ? parts[1]?.charAt(0) ?? "" : parts[0]?.charAt(1) ?? "";
+  const initials = `${first}${second}`.trim();
+  return initials ? initials.toUpperCase() : "AD";
+}
+
+function resolveAvatarUrl(avatarUrl: string | null): string | null {
+  if (!avatarUrl) {
+    return null;
+  }
+  if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("data:")) {
+    return avatarUrl;
+  }
+  const normalizedPath = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  try {
+    const api = new URL(API_URL);
+    return `${api.origin}${normalizedPath}`;
+  } catch {
+    return `${API_URL.replace(/\/$/, "")}${normalizedPath}`;
+  }
 }
 
 export function AdminManagementPage() {
@@ -74,7 +85,6 @@ export function AdminManagementPage() {
   const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "super_admin">("all");
   const [activeFilter, setActiveFilter] = useState<"all" | "true" | "false">("all");
   const [sortBy, setSortBy] = useState<"created_at" | "last_login_at" | "email" | "full_name" | "admin_role">("created_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
@@ -84,10 +94,9 @@ export function AdminManagementPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(initialCreateForm);
   const [isCreating, setIsCreating] = useState(false);
+  const [createAvatarLoadFailed, setCreateAvatarLoadFailed] = useState(false);
 
-  const [editing, setEditing] = useState<AdminRow | null>(null);
-  const [editForm, setEditForm] = useState<EditFormState | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState<AdminRow | null>(null);
 
   const [activationTarget, setActivationTarget] = useState<AdminRow | null>(null);
   const [activationNext, setActivationNext] = useState<boolean | null>(null);
@@ -118,7 +127,7 @@ export function AdminManagementPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, roleFilter, activeFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, roleFilter, activeFilter, sortBy]);
 
   useEffect(() => {
     let active = true;
@@ -134,7 +143,7 @@ export function AdminManagementPage() {
             role: roleFilter === "all" ? undefined : roleFilter,
             is_active: activeFilter === "all" ? undefined : activeFilter === "true",
             sortBy,
-            order: sortOrder,
+            order: "desc",
           })}`,
         );
 
@@ -162,13 +171,29 @@ export function AdminManagementPage() {
     return () => {
       active = false;
     };
-  }, [activeFilter, debouncedSearch, page, refreshKey, roleFilter, sortBy, sortOrder]);
+  }, [activeFilter, debouncedSearch, page, refreshKey, roleFilter, sortBy]);
 
   const activeCount = rows.filter((row) => row.is_active).length;
   const superCount = rows.filter((row) => row.admin_profile.admin_role === "super_admin").length;
   const totalPagesSafe = Math.max(pagination.totalPages, 1);
+  const createAvatarSrc = useMemo(() => resolveAvatarUrl(createForm.avatar_url.trim() || null), [createForm.avatar_url]);
+  const createAvatarInitials = useMemo(() => toInitials(createForm.full_name), [createForm.full_name]);
 
-  const selectedEdit = useMemo(() => editing, [editing]);
+  useEffect(() => {
+    setCreateAvatarLoadFailed(false);
+  }, [createAvatarSrc]);
+
+  const openCreateModal = () => {
+    setCreateForm(initialCreateForm);
+    setCreateAvatarLoadFailed(false);
+    setShowCreate(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreate(false);
+    setCreateForm(initialCreateForm);
+    setCreateAvatarLoadFailed(false);
+  };
 
   const handleCreate = async () => {
     if (!createForm.email.trim() || !createForm.password.trim()) {
@@ -185,54 +210,21 @@ export function AdminManagementPage() {
           password: createForm.password,
           full_name: createForm.full_name.trim() || undefined,
           job_title: createForm.job_title.trim() || undefined,
+          avatar_url: createForm.avatar_url.trim() || undefined,
           admin_role: createForm.admin_role,
         }),
       });
-      setShowCreate(false);
-      setCreateForm(initialCreateForm);
+      closeCreateModal();
+      setSearch("");
+      setDebouncedSearch("");
+      setPage(1);
       setRefreshKey((current) => current + 1);
-      pushToast("success", "Admin created successfully.");
+      pushToast("success", "Admin created successfully. Created in users + admin_profiles.");
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to create admin.";
       pushToast("error", message);
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  const openEdit = (row: AdminRow) => {
-    setEditing(row);
-    setEditForm(toEditFormState(row));
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedEdit || !editForm) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await api<AdminRow>(`/admins/${selectedEdit.user_id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          full_name: editForm.full_name.trim(),
-          job_title: editForm.job_title.trim() || null,
-          avatar_url: editForm.avatar_url.trim() || null,
-          admin_role: editForm.admin_role,
-          is_public: editForm.is_public,
-          sort_order: Number(editForm.sort_order || "0"),
-          is_active: editForm.is_active,
-        }),
-      });
-      setEditing(null);
-      setEditForm(null);
-      setRefreshKey((current) => current + 1);
-      pushToast("success", "Admin updated successfully.");
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Failed to update admin.";
-      pushToast("error", message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -265,7 +257,15 @@ export function AdminManagementPage() {
   };
 
   return (
-    <PageShell title="Admin Management" subtitle="Super-admin controls for admin accounts and role assignment.">
+    <PageShell
+      title="Admin Management"
+      subtitle="Super-admin controls for admin accounts and role assignment."
+      actions={
+        <button className="btn btn--primary dh-btn dh-btn--add" type="button" onClick={openCreateModal}>
+          Add Admin
+        </button>
+      }
+    >
       <div className="dh-page">
         <div className="stats-grid stats-grid--compact dh-stats">
           <StatsCard label="Total (Page)" value={String(rows.length)} hint={`Total matching records: ${pagination.total}`} />
@@ -274,12 +274,10 @@ export function AdminManagementPage() {
         </div>
 
         <FilterBar
-          className="dh-form-grid dh-form-grid--admins"
+          className="dh-form-grid dh-form-grid--admins filters-grid--4"
           searchValue={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Search by full name or email"
-          actionLabel="Add Admin"
-          onAction={() => setShowCreate(true)}
+          searchPlaceholder="Search admins"
           selects={[
             {
               label: "Role",
@@ -314,15 +312,6 @@ export function AdminManagementPage() {
               onChange: (value) =>
                 setSortBy(value as "created_at" | "last_login_at" | "email" | "full_name" | "admin_role"),
             },
-            {
-              label: "Order",
-              value: sortOrder,
-              options: [
-                { label: "Descending", value: "desc" },
-                { label: "Ascending", value: "asc" },
-              ],
-              onChange: (value) => setSortOrder(value as "asc" | "desc"),
-            },
           ]}
         />
 
@@ -348,15 +337,27 @@ export function AdminManagementPage() {
                     key: "name",
                     label: "Name",
                     className: "table-cell-strong",
-                    render: (row) => row.admin_profile.full_name || "Admin",
+                    render: (row) => (
+                      <button className="program-title-btn" type="button" onClick={() => setSelectedAdmin(row)}>
+                        {row.admin_profile.full_name || "Admin"}
+                      </button>
+                    ),
                   },
-                  { key: "email", label: "Email", render: (row) => row.email },
                   {
                     key: "role",
                     label: "Role",
                     render: (row) => (
                       <Badge tone={row.admin_profile.admin_role === "super_admin" ? "approved" : "default"}>
                         {row.admin_profile.admin_role}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    key: "public",
+                    label: "Public",
+                    render: (row) => (
+                      <Badge tone={row.admin_profile.is_public ? "resolved" : "draft"}>
+                        {row.admin_profile.is_public ? "public" : "private"}
                       </Badge>
                     ),
                   },
@@ -377,9 +378,6 @@ export function AdminManagementPage() {
                     label: "Actions",
                     render: (row) => (
                       <div className="table-actions">
-                        <button className="btn btn--secondary btn--sm" type="button" onClick={() => openEdit(row)}>
-                          Edit
-                        </button>
                         {row.is_active ? (
                           <button className="btn btn--danger btn--sm" type="button" onClick={() => openActivationModal(row, false)}>
                             Deactivate
@@ -400,18 +398,19 @@ export function AdminManagementPage() {
               <div className="list-stack">
                 {rows.map((row) => (
                   <div className="program-mobile-item" key={row.user_id}>
-                    <p className="program-mobile-item__title">{row.admin_profile.full_name}</p>
-                    <p className="program-mobile-item__meta">{row.email}</p>
+                    <button className="program-mobile-item__title" type="button" onClick={() => setSelectedAdmin(row)}>
+                      {row.admin_profile.full_name}
+                    </button>
                     <div className="program-mobile-item__meta-row">
                       <Badge tone={row.admin_profile.admin_role === "super_admin" ? "approved" : "default"}>
                         {row.admin_profile.admin_role}
                       </Badge>
+                      <Badge tone={row.admin_profile.is_public ? "resolved" : "draft"}>
+                        {row.admin_profile.is_public ? "public" : "private"}
+                      </Badge>
                       <Badge tone={row.is_active ? "resolved" : "draft"}>{row.is_active ? "active" : "inactive"}</Badge>
                     </div>
                     <div className="program-mobile-item__actions">
-                      <button className="btn btn--secondary btn--sm" type="button" onClick={() => openEdit(row)}>
-                        Edit
-                      </button>
                       {row.is_active ? (
                         <button className="btn btn--danger btn--sm" type="button" onClick={() => openActivationModal(row, false)}>
                           Deactivate
@@ -437,26 +436,94 @@ export function AdminManagementPage() {
       </div>
 
       {showCreate ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setShowCreate(false)}>
+        <div className="modal-overlay" role="presentation" onClick={closeCreateModal}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
               <h3 className="modal-title">Add Admin</h3>
             </header>
             <div className="form-stack">
-              <label className="field"><span className="field__label">Email</span><input className="field__control" type="email" value={createForm.email} onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))} /></label>
-              <label className="field"><span className="field__label">Password</span><input className="field__control" type="password" value={createForm.password} onChange={(event) => setCreateForm((current) => ({ ...current, password: event.target.value }))} /></label>
-              <label className="field"><span className="field__label">Full Name</span><input className="field__control" type="text" value={createForm.full_name} onChange={(event) => setCreateForm((current) => ({ ...current, full_name: event.target.value }))} /></label>
-              <label className="field"><span className="field__label">Job Title</span><input className="field__control" type="text" value={createForm.job_title} onChange={(event) => setCreateForm((current) => ({ ...current, job_title: event.target.value }))} /></label>
+              <div className="modal-avatar-preview" aria-live="polite">
+                {createAvatarSrc && !createAvatarLoadFailed ? (
+                  <img
+                    className="profile-avatar profile-avatar--image modal-avatar-preview__media"
+                    src={createAvatarSrc}
+                    alt="Admin avatar preview"
+                    onError={() => setCreateAvatarLoadFailed(true)}
+                  />
+                ) : (
+                  <span className="profile-avatar modal-avatar-preview__media" aria-hidden>
+                    {createAvatarInitials}
+                  </span>
+                )}
+                <p className="modal-avatar-preview__hint">Avatar Preview</p>
+              </div>
+              <label className="field">
+                <span className="field__label">Email</span>
+                <input
+                  className="field__control"
+                  type="email"
+                  autoComplete="off"
+                  value={createForm.email}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Password</span>
+                <input
+                  className="field__control"
+                  type="password"
+                  autoComplete="new-password"
+                  value={createForm.password}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, password: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Full Name</span>
+                <input
+                  className="field__control"
+                  type="text"
+                  autoComplete="off"
+                  value={createForm.full_name}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, full_name: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Job Title</span>
+                <input
+                  className="field__control"
+                  type="text"
+                  autoComplete="off"
+                  value={createForm.job_title}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, job_title: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Avatar URL</span>
+                <input
+                  className="field__control"
+                  type="url"
+                  autoComplete="off"
+                  value={createForm.avatar_url}
+                  onChange={(event) => {
+                    setCreateAvatarLoadFailed(false);
+                    setCreateForm((current) => ({ ...current, avatar_url: event.target.value }));
+                  }}
+                />
+              </label>
               <label className="field">
                 <span className="field__label">Role</span>
-                <select className="field__control" value={createForm.admin_role} onChange={(event) => setCreateForm((current) => ({ ...current, admin_role: event.target.value as "admin" | "super_admin" }))}>
+                <select
+                  className="field__control"
+                  value={createForm.admin_role}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, admin_role: event.target.value as "admin" | "super_admin" }))}
+                >
                   <option value="admin">admin</option>
                   <option value="super_admin">super_admin</option>
                 </select>
               </label>
             </div>
             <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => setShowCreate(false)} disabled={isCreating}>
+              <button className="btn btn--secondary" type="button" onClick={closeCreateModal} disabled={isCreating}>
                 Cancel
               </button>
               <button className="btn btn--primary" type="button" onClick={() => void handleCreate()} disabled={isCreating}>
@@ -467,39 +534,25 @@ export function AdminManagementPage() {
         </div>
       ) : null}
 
-      {selectedEdit && editForm ? (
-        <div className="modal-overlay" role="presentation" onClick={() => { setEditing(null); setEditForm(null); }}>
+      {selectedAdmin ? (
+        <div className="modal-overlay" role="presentation" onClick={() => setSelectedAdmin(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <h3 className="modal-title">Edit Admin</h3>
+              <h3 className="modal-title">Admin Details</h3>
             </header>
-            <div className="form-stack">
-              <label className="field"><span className="field__label">Full Name</span><input className="field__control" type="text" value={editForm.full_name} onChange={(event) => setEditForm((current) => (current ? { ...current, full_name: event.target.value } : current))} /></label>
-              <label className="field"><span className="field__label">Job Title</span><input className="field__control" type="text" value={editForm.job_title} onChange={(event) => setEditForm((current) => (current ? { ...current, job_title: event.target.value } : current))} /></label>
-              <label className="field"><span className="field__label">Avatar URL</span><input className="field__control" type="text" value={editForm.avatar_url} onChange={(event) => setEditForm((current) => (current ? { ...current, avatar_url: event.target.value } : current))} /></label>
-              <label className="field">
-                <span className="field__label">Role</span>
-                <select className="field__control" value={editForm.admin_role} onChange={(event) => setEditForm((current) => (current ? { ...current, admin_role: event.target.value as "admin" | "super_admin" } : current))}>
-                  <option value="admin">admin</option>
-                  <option value="super_admin">super_admin</option>
-                </select>
-              </label>
-              <label className="field"><span className="field__label">Sort Order</span><input className="field__control" type="number" value={editForm.sort_order} onChange={(event) => setEditForm((current) => (current ? { ...current, sort_order: event.target.value } : current))} /></label>
-              <label className="cohort-form-switch">
-                <span className="field__label">Public Profile</span>
-                <input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_public} onChange={(event) => setEditForm((current) => (current ? { ...current, is_public: event.target.checked } : current))} />
-              </label>
-              <label className="cohort-form-switch">
-                <span className="field__label">Account Active</span>
-                <input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_active} onChange={(event) => setEditForm((current) => (current ? { ...current, is_active: event.target.checked } : current))} />
-              </label>
+            <div className="post-details">
+              <p className="post-details__line"><strong>Name:</strong> {selectedAdmin.admin_profile.full_name || "Admin"}</p>
+              <p className="post-details__line"><strong>Email:</strong> {selectedAdmin.email || "N/A"}</p>
+              <p className="post-details__line"><strong>Job Title:</strong> {selectedAdmin.admin_profile.job_title || "Not set"}</p>
+              <p className="post-details__line"><strong>Role:</strong> {selectedAdmin.admin_profile.admin_role}</p>
+              <p className="post-details__line"><strong>Status:</strong> {selectedAdmin.is_active ? "active" : "inactive"}</p>
+              <p className="post-details__line"><strong>Public Profile:</strong> {selectedAdmin.admin_profile.is_public ? "public" : "private"}</p>
+              <p className="post-details__line"><strong>Last Login:</strong> {selectedAdmin.last_login_at ? formatDateTime(selectedAdmin.last_login_at) : "Never"}</p>
+              <p className="post-details__line"><strong>Created:</strong> {formatDateTime(selectedAdmin.created_at)}</p>
             </div>
             <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => { setEditing(null); setEditForm(null); }} disabled={isSaving}>
-                Cancel
-              </button>
-              <button className="btn btn--primary" type="button" onClick={() => void handleSaveEdit()} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
+              <button className="btn btn--primary" type="button" onClick={() => setSelectedAdmin(null)}>
+                Close
               </button>
             </div>
           </div>

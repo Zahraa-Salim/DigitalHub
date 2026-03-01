@@ -4,7 +4,17 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { listProfilesService, patchProfileService, patchProfileVisibilityService, getStudentProfile, getPublicStudentProfile, updateStudentProfileAdmin } from "../services/profiles.service.js";
+import {
+  createInstructorProfileService,
+  getPublicStudentProfile,
+  getStudentProfile,
+  listProfilesService,
+  patchProfileService,
+  patchProfileVisibilityService,
+  setInstructorActivationService,
+  uploadInstructorAvatarService,
+  updateStudentProfileAdmin,
+} from "../services/profiles.service.js";
 function createListHandler(tableName, sortColumns) {
     return async (req, res) => {
         const result = await listProfilesService(tableName, sortColumns, req.query);
@@ -60,6 +70,22 @@ export const patchInstructorProfile = createPatchHandler("instructor_profiles", 
     "portfolio_url",
 ]);
 export const patchInstructorVisibility = createVisibilityHandler("instructor_profiles");
+export async function postInstructorProfile(req, res) {
+    const data = await createInstructorProfileService(req.user.id, req.body);
+    sendSuccess(res, data, "Instructor created successfully.", 201);
+}
+export async function postInstructorAvatar(req, res) {
+    const data = await uploadInstructorAvatarService(req.user.id, req.body);
+    sendSuccess(res, data, "Instructor avatar uploaded successfully.", 201);
+}
+export async function activateInstructor(req, res) {
+    const data = await setInstructorActivationService(req.user.id, Number(req.params.userId), true);
+    sendSuccess(res, data, "Instructor activated successfully.");
+}
+export async function deactivateInstructor(req, res) {
+    const data = await setInstructorActivationService(req.user.id, Number(req.params.userId), false);
+    sendSuccess(res, data, "Instructor deactivated successfully.");
+}
 export const getManagerProfiles = createListHandler("admin_profiles", [
     "user_id",
     "full_name",
@@ -117,5 +143,3 @@ export async function getPublicStudentProfileHandler(req, res) {
   const data = await getPublicStudentProfile(public_slug);
   sendSuccess(res, data, "Public profile loaded successfully.");
 }
-
-

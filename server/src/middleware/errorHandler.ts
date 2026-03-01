@@ -46,6 +46,10 @@ export function errorHandler(error, _req, res, _next) {
       sendError(res, 400, "VALIDATION_ERROR", "Value violates a check constraint.");
       return;
     }
+    if (dbCode === "08P01" || dbCode === "08006" || dbCode === "08001" || dbCode === "57P01") {
+      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+      return;
+    }
   }
     // Log unexpected errors for easier operational debugging.
     console.error("Unhandled error:", error);

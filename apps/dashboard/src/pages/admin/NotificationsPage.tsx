@@ -7,6 +7,7 @@ import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
+import { emitNotificationsUpdated } from "../../utils/notifications";
 import { buildQueryString } from "../../utils/query";
 
 type NotificationRow = {
@@ -39,6 +40,8 @@ export function NotificationsPage() {
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [isClearingRead, setIsClearingRead] = useState(false);
+  const [selected, setSelected] = useState<NotificationRow | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [toastId, setToastId] = useState(1);
 
@@ -107,7 +110,7 @@ export function NotificationsPage() {
   const unreadCount = useMemo(() => rows.filter((item) => !item.is_read).length, [rows]);
   const totalPagesSafe = Math.max(pagination.totalPages, 1);
 
-  const markOneRead = async (row: NotificationRow) => {
+  const markOneRead = async (row: NotificationRow, options?: { silent?: boolean; keepOpen?: boolean }) => {
     if (row.is_read) {
       return;
     }
@@ -116,11 +119,20 @@ export function NotificationsPage() {
       await api<NotificationRow>(`/notifications/${row.id}/read`, {
         method: "PATCH",
       });
-      pushToast("success", "Notification marked as read.");
+      emitNotificationsUpdated();
+      setRows((current) => current.map((item) => (item.id === row.id ? { ...item, is_read: true, read_at: new Date().toISOString() } : item)));
+      if (options?.keepOpen && selected?.id === row.id) {
+        setSelected((current) => (current ? { ...current, is_read: true, read_at: new Date().toISOString() } : current));
+      }
+      if (!options?.silent) {
+        pushToast("success", "Notification marked as read.");
+      }
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to mark notification as read." : "Failed to mark notification as read.";
-      pushToast("error", message);
+      if (!options?.silent) {
+        pushToast("error", message);
+      }
     }
   };
 
@@ -131,6 +143,7 @@ export function NotificationsPage() {
         method: "PATCH",
         body: JSON.stringify({}),
       });
+      emitNotificationsUpdated();
       pushToast("success", "All notifications marked as read.");
       setRefreshKey((current) => current + 1);
     } catch (err) {
@@ -141,14 +154,42 @@ export function NotificationsPage() {
     }
   };
 
+  const clearRead = async () => {
+    setIsClearingRead(true);
+    try {
+      const result = await api<{ deleted: number }>("/notifications/read", { method: "DELETE" });
+      emitNotificationsUpdated();
+      pushToast("success", result.deleted ? `${result.deleted} read notifications cleared.` : "No read notifications to clear.");
+      setSelected(null);
+      setRefreshKey((current) => current + 1);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message || "Failed to clear read notifications." : "Failed to clear read notifications.";
+      pushToast("error", message);
+    } finally {
+      setIsClearingRead(false);
+    }
+  };
+
+  const openDetails = (row: NotificationRow) => {
+    setSelected(row);
+    if (!row.is_read) {
+      void markOneRead(row, { silent: true, keepOpen: true });
+    }
+  };
+
   return (
     <PageShell
       title="Notifications"
       subtitle="Review unread updates and mark them as handled."
       actions={
-        <button className="btn btn--primary dh-btn" type="button" onClick={markAllRead} disabled={isMarkingAll || !rows.length}>
-          {isMarkingAll ? "Updating..." : "Mark All Read"}
-        </button>
+        <div className="table-actions">
+          <button className="btn btn--secondary dh-btn" type="button" onClick={clearRead} disabled={isClearingRead}>
+            {isClearingRead ? "Clearing..." : "Clear Read"}
+          </button>
+          <button className="btn btn--primary dh-btn" type="button" onClick={markAllRead} disabled={isMarkingAll || !rows.length}>
+            {isMarkingAll ? "Updating..." : "Mark All Read"}
+          </button>
+        </div>
       }
     >
       <div className="dh-page">
@@ -213,12 +254,20 @@ export function NotificationsPage() {
                   key: "title",
                   label: "Title",
                   className: "table-cell-strong",
-                  render: (row) => row.title,
+                  render: (row) => (
+                    <button className="program-title-btn" type="button" onClick={() => openDetails(row)}>
+                      {row.title}
+                    </button>
+                  ),
                 },
                 {
                   key: "preview",
                   label: "Body",
-                  render: (row) => <p className="program-description-cell">{row.body || "No message body."}</p>,
+                  render: (row) => (
+                    <button className="program-description-cell program-title-btn" type="button" onClick={() => openDetails(row)}>
+                      {row.body || "No message body."}
+                    </button>
+                  ),
                 },
                 {
                   key: "status",
@@ -251,8 +300,12 @@ export function NotificationsPage() {
             {rows.length ? (
               rows.map((row) => (
                 <article className="program-mobile-item" key={row.id}>
-                  <h3 className="program-mobile-item__title">{row.title}</h3>
-                  <p className="info-text">{row.body || "No message body."}</p>
+                  <button className="program-mobile-item__title program-title-btn" type="button" onClick={() => openDetails(row)}>
+                    {row.title}
+                  </button>
+                  <button className="info-text program-title-btn" type="button" onClick={() => openDetails(row)}>
+                    {row.body || "No message body."}
+                  </button>
                   <p className="info-text info-text--small">{formatDateTime(row.created_at)}</p>
                   <div className="table-actions">
                     <Badge tone={row.is_read ? "default" : "new"}>{row.is_read ? "read" : "unread"}</Badge>
@@ -279,6 +332,32 @@ export function NotificationsPage() {
           </Card>
         ) : null}
       </div>
+
+      {selected ? (
+        <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <header className="modal-header">
+              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
+              <h3 className="modal-title">Notification Details</h3>
+            </header>
+            <div className="post-details">
+              <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
+              <p className="post-details__line"><strong>Body:</strong> {selected.body || "No message body."}</p>
+              <p className="post-details__line"><strong>Status:</strong> {selected.is_read ? "Read" : "Unread"}</p>
+              <p className="post-details__line"><strong>Created:</strong> {formatDateTime(selected.created_at)}</p>
+              <p className="post-details__line"><strong>Read At:</strong> {selected.read_at ? formatDateTime(selected.read_at) : "Not yet"}</p>
+            </div>
+            <div className="modal-actions">
+              {!selected.is_read ? (
+                <button className="btn btn--secondary" type="button" onClick={() => void markOneRead(selected, { keepOpen: true })}>
+                  Mark Read
+                </button>
+              ) : null}
+              <button className="btn btn--primary" type="button" onClick={() => setSelected(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </PageShell>

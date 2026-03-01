@@ -10,6 +10,34 @@ export const userIdParamsSchema = z.object({
 export const visibilitySchema = z.object({
     is_public: z.boolean(),
 }).strict();
+
+export const emptyProfileBodySchema = z.object({}).strict();
+
+export const instructorAvatarUploadSchema = z
+    .object({
+    filename: z.string().trim().min(1).max(120).optional(),
+    mime_type: z.enum(["image/jpeg", "image/jpg", "image/png", "image/webp"]),
+    data_base64: z.string().trim().min(1),
+})
+    .strict();
+
+export const instructorCreateSchema = z
+    .object({
+    email: z.union([z.literal(""), z.string().trim().email()]).optional(),
+    phone: z.union([z.literal(""), z.string().trim().min(4)]).optional(),
+    full_name: z.string().trim().min(1),
+    avatar_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
+    bio: z.string().trim().nullable().optional(),
+    expertise: z.string().trim().nullable().optional(),
+    linkedin_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
+    github_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
+    portfolio_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
+    is_public: z.boolean().optional(),
+})
+    .strict()
+    .refine((payload) => Boolean((payload.email || "").trim()) || Boolean((payload.phone || "").trim()), {
+    message: "Email or phone is required.",
+});
 export const studentPatchSchema = z
     .object({
     full_name: z.union([z.literal(""), z.string().trim().min(1)]).optional(),
@@ -31,6 +59,8 @@ export const studentPatchSchema = z
 export const instructorPatchSchema = z
     .object({
     full_name: z.union([z.literal(""), z.string().trim().min(1)]).optional(),
+    email: z.union([z.literal(""), z.string().trim().email()]).optional(),
+    phone: z.union([z.literal(""), z.string().trim().min(4)]).optional(),
     avatar_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     bio: z.string().trim().nullable().optional(),
     expertise: z.string().trim().nullable().optional(),
@@ -87,5 +117,3 @@ export const updateStudentProfileBodySchema = z.object({
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field is required.",
   });
-
-

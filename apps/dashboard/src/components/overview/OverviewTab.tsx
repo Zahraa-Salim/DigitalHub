@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getAdminOverview, type AdminOverviewData } from "../../lib/api";
 import { ApiError } from "../../utils/api";
-import { getUser } from "../../utils/auth";
+import { getUser, isSuperAdminUser } from "../../utils/auth";
 import { Card } from "../Card";
 import { ActivityFeedPanel } from "./ActivityFeedPanel";
 import { CohortCapacityPanel } from "./CohortCapacityPanel";
@@ -58,8 +58,7 @@ export function OverviewTab() {
   }, [load]);
 
   const currentUser = getUser();
-  const role = (currentUser.role || currentUser.admin_role || "").trim().toLowerCase();
-  const isSuperAdmin = role === "super admin" || role === "super_admin";
+  const isSuperAdmin = isSuperAdminUser(currentUser);
 
   const weeklySnapshot = useMemo(() => {
     if (!state.data) {

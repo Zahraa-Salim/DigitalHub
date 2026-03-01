@@ -6,6 +6,7 @@
 import { AppError } from "../utils/appError.js";
 import { buildPagination, parseListQuery, parseQueryBoolean } from "../utils/pagination.js";
 import { countNotifications, getNotificationById, listNotifications, markAllNotificationsRead, markNotificationRead, } from "../repositories/notifications.repo.js";
+import { clearReadNotifications } from "../repositories/notifications.repo.js";
 export async function listNotificationsService(adminId, query) {
     const list = parseListQuery(query, ["created_at"], "created_at");
     const isRead = parseQueryBoolean(query.is_read, "is_read");
@@ -38,6 +39,10 @@ export async function markNotificationReadService(id, adminId) {
 export async function markAllNotificationsReadService(adminId) {
     const result = await markAllNotificationsRead(adminId);
     return { updated: result.rowCount ?? 0 };
+}
+export async function clearReadNotificationsService(adminId) {
+    const result = await clearReadNotifications(adminId);
+    return { deleted: result.rowCount ?? 0 };
 }
 
 

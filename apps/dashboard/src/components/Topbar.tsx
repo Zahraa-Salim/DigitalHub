@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuthUser } from "../utils/auth";
 import { apiList } from "../utils/api";
+import { NOTIFICATIONS_UPDATED_EVENT } from "../utils/notifications";
 
 type TopbarProps = {
   title: string;
@@ -43,13 +44,31 @@ export function Topbar({
     };
 
     void loadUnreadCount();
+    const onNotificationsUpdated = () => {
+      void loadUnreadCount();
+    };
+    const onWindowFocus = () => {
+      void loadUnreadCount();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadUnreadCount();
+      }
+    };
+
     const interval = window.setInterval(() => {
       void loadUnreadCount();
-    }, 30000);
+    }, 10000);
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, onNotificationsUpdated);
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       active = false;
       window.clearInterval(interval);
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, onNotificationsUpdated);
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 

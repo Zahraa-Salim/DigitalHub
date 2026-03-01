@@ -120,7 +120,7 @@ export async function updateMyAdminProfile(userId, payload) {
             github_url: normalizedPayload.github_url !== undefined ? normalizedPayload.github_url : (existing.github_url ?? null),
             portfolio_url: normalizedPayload.portfolio_url !== undefined ? normalizedPayload.portfolio_url : (existing.portfolio_url ?? null),
             admin_role: existing.admin_role ?? "admin",
-            is_public: existing.is_public ?? true,
+            is_public: normalizedPayload.is_public !== undefined ? normalizedPayload.is_public : (existing.is_public ?? true),
             sort_order: existing.sort_order ?? 0,
         };
         await upsertAdminProfile(userId, profileUpdates, client);

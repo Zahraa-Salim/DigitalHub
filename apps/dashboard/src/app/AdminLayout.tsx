@@ -3,10 +3,12 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { GlobalMessageHub } from "../components/GlobalMessageHub";
 import { GlobalMessagingProvider } from "../components/GlobalMessagingContext";
 import { Sidebar } from "../components/Sidebar";
-import { clearAuth, getUser } from "../utils/auth";
+import { ApiError, api } from "../utils/api";
+import { clearAuth, getUser, setUser } from "../utils/auth";
 
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [user, setUserState] = useState(() => getUser());
   const location = useLocation();
@@ -38,6 +40,30 @@ export function AdminLayout() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const me = await api<Record<string, unknown>>("/auth/me");
+        setUser(me);
+        if (active) {
+          setUserState(getUser());
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          clearAuth();
+          navigate("/login", { replace: true });
+        }
+      }
+    };
+
+    void loadCurrentUser();
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
     if (!mobileOpen) {
       return;
     }
@@ -63,11 +89,12 @@ export function AdminLayout() {
     <div className="dashboard-root">
       <div className="dashboard-shell">
         <aside
-          className="sidebar-desktop"
+          className={sidebarCollapsed ? "sidebar-desktop sidebar-desktop--collapsed" : "sidebar-desktop"}
           aria-label="Sidebar"
         >
           <Sidebar
-            collapsed={false}
+            collapsed={sidebarCollapsed}
+            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
             user={user}
             onLogout={handleLogout}
             onToggleTheme={() => setIsDark((current) => !current)}

@@ -6,6 +6,9 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { pool } from "./db/index.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { validatePagination } from "./middleware/validatePagination.js";
@@ -30,6 +33,14 @@ import { publicRouter } from "./routes/public.routes.js";
 import { sendSuccess } from "./utils/httpResponse.js";
 dotenv.config();
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.resolve(__dirname, "../uploads");
+
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
     : true;
@@ -37,7 +48,8 @@ app.use(cors({
     origin: allowedOrigins,
     allowedHeaders: ["Content-Type", "Authorization"],
 }));
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "8mb" }));
+app.use("/uploads", express.static(uploadsDir));
 app.use(validatePagination);
 app.get("/", (_req, res) => {
     sendSuccess(res, { status: "ok" }, "Digital Hub API is running.");

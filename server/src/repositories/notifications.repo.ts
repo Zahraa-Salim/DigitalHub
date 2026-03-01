@@ -42,5 +42,12 @@ export async function markAllNotificationsRead(adminId, db = pool) {
         AND is_read = FALSE
     `, [adminId]);
 }
+export async function clearReadNotifications(adminId, db = pool) {
+    return db.query(`
+      DELETE FROM admin_notifications
+      WHERE recipient_admin_user_id = $1
+        AND is_read = TRUE
+    `, [adminId]);
+}
 
 

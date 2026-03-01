@@ -9,6 +9,7 @@ export type AuthUser = {
   full_name: string;
   admin_role: AdminRole;
   role: string;
+  job_title: string;
   role_label: string;
 };
 
@@ -18,6 +19,7 @@ const defaultUser: AuthUser = {
   full_name: "Admin",
   admin_role: "admin",
   role: "admin",
+  job_title: "",
   role_label: "Admin",
 };
 
@@ -26,10 +28,16 @@ function toRoleLabel(role: AdminRole): string {
 }
 
 function normalizeRole(input: unknown): AdminRole {
-  if (input === "super_admin") {
+  const normalized = String(input || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalized === "super_admin") {
     return "super_admin";
   }
   return "admin";
+}
+
+function isSuperAdminJobTitle(input: unknown): boolean {
+  const value = String(input || "").trim().toLowerCase();
+  return value.includes("super admin");
 }
 
 function normalizeUser(input: unknown): AuthUser {
@@ -50,7 +58,8 @@ function normalizeUser(input: unknown): AuthUser {
       : typeof obj.admin_role === "string" && obj.admin_role.trim()
         ? obj.admin_role.trim()
         : "admin";
-  const adminRole = normalizeRole(roleSource);
+  const jobTitle = typeof obj.job_title === "string" ? obj.job_title.trim() : "";
+  const adminRole = isSuperAdminJobTitle(jobTitle) ? "super_admin" : normalizeRole(roleSource);
   const roleLabel = toRoleLabel(adminRole);
   const email = typeof obj.email === "string" ? obj.email : "";
   const id = typeof obj.id === "number" || typeof obj.id === "string" ? obj.id : null;
@@ -61,8 +70,22 @@ function normalizeUser(input: unknown): AuthUser {
     full_name: fullName,
     admin_role: adminRole,
     role: adminRole,
+    job_title: jobTitle,
     role_label: roleLabel,
   };
+}
+
+export function isSuperAdminUser(user: Pick<AuthUser, "admin_role" | "role" | "job_title"> | null | undefined): boolean {
+  if (!user) {
+    return false;
+  }
+
+  const roleValue = String(user.admin_role || user.role || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (roleValue === "super_admin") {
+    return true;
+  }
+
+  return isSuperAdminJobTitle(user.job_title);
 }
 
 export function getToken(): string | null {

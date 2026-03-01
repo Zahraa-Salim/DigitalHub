@@ -45,12 +45,19 @@ export type AdminRoute = {
 
 export const navConfig: NavItem[] = [
   { label: "Dashboard", path: "/admin" },
-  { label: "Admissions", path: "/admin/admissions" },
+  { label: "Applications", path: "/admin/admissions" },
   { label: "General Apply", path: "/admin/general-apply" },
   { label: "Application Forms", path: "/admin/forms" },
   { label: "Message Templates", path: "/admin/message-templates" },
-  { label: "Cohorts", path: "/admin/cohorts" },
-  { label: "Programs", path: "/admin/programs" },
+  {
+    label: "Operations",
+    children: [
+      { label: "Cohorts", path: "/admin/cohorts" },
+      { label: "Programs", path: "/admin/programs" },
+      { label: "Events", path: "/admin/events" },
+      { label: "Announcements", path: "/admin/announcements" },
+    ],
+  },
   {
     label: "CMS",
     children: [
@@ -60,16 +67,8 @@ export const navConfig: NavItem[] = [
       { label: "Theme Tokens", path: "/admin/cms/theme" },
     ],
   },
-  { label: "Announcements", path: "/admin/announcements" },
-  { label: "Events", path: "/admin/events" },
-  {
-    label: "Profiles",
-    children: [
-      { label: "Instructors", path: "/admin/profiles/instructors" },
-    ],
-  },
+  { label: "Instructors Profiles", path: "/admin/profiles/instructors" },
   { label: "Contact Inbox", path: "/admin/contact" },
-  { label: "Notifications", path: "/admin/notifications" },
   { label: "Activity Logs", path: "/admin/logs" },
   { label: "Admin Management", path: "/admin/admins", requiresSuperAdmin: true },
 ];

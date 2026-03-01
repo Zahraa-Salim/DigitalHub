@@ -15,6 +15,7 @@ export const updateMeBodySchema = z.object({
     full_name: z.string().trim().min(1).optional(),
     email: z.string().trim().email().optional(),
     phone: z.string().trim().min(3).or(z.literal("")).optional(),
+    is_public: z.boolean().optional(),
     bio: z.string().trim().max(2000).optional(),
     job_title: z.string().trim().max(120).optional(),
     avatar_url: z.string().trim().url().or(z.literal("")).optional(),

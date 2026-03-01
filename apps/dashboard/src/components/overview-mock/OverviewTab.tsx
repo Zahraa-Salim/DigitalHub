@@ -13,7 +13,7 @@ import { WeeklySnapshotPanel } from './WeeklySnapshotPanel';
 import { SuperAdminPanel } from './SuperAdminPanel';
 import { getAdminOverview, retryAdminOverviewFailedMessages, type AdminOverviewData } from '../../lib/api';
 import { ApiError } from '../../utils/api';
-import { getUser } from '../../utils/auth';
+import { getUser, isSuperAdminUser } from '../../utils/auth';
 
 const LAST_ADMISSIONS_COHORT_KEY = 'dh:lastAdmissionsCohortId';
 
@@ -52,8 +52,7 @@ export function OverviewTab() {
   }, [loadOverview]);
 
   const currentUser = getUser();
-  const role = (currentUser.role || currentUser.admin_role || '').trim().toLowerCase();
-  const isSuperAdmin = role === 'super admin' || role === 'super_admin';
+  const isSuperAdmin = isSuperAdminUser(currentUser);
 
   const weeklySnapshot = useMemo(() => {
     if (!data) {
