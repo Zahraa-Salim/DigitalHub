@@ -53,7 +53,7 @@ const DEFAULT_DATA: FooterData = {
 };
 
 function normalizeSocialLinks(
-  raw: Record<string, unknown> | Array<{ name?: string; url?: string }> | undefined
+  raw: Record<string, unknown> | Array<{ name?: string; url?: string }> | undefined,
 ): SocialItem[] {
   if (!raw) return [];
 
@@ -70,6 +70,7 @@ function normalizeSocialLinks(
 
 const FooterOne = ({ style, style_2 }: StyleType) => {
   const [data, setData] = useState<FooterData>(DEFAULT_DATA);
+  const currentYear = new Date().getFullYear().toString();
 
   useEffect(() => {
     fetch(`${API_BASE}/public/home`, { cache: "no-store" })
@@ -129,7 +130,7 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
           <div className="row align-items-center">
             <div className="col-md-7">
               <div className="copy-right-text">
-                <p>&copy; {data.legal.copyright} The Digital Hub. All rights reserved.</p>
+                <p>&copy; {data.legal.copyright || currentYear} The Digital Hub. All rights reserved.</p>
               </div>
             </div>
 
