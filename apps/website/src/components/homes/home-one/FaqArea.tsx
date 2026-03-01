@@ -17,7 +17,7 @@ const FaqArea = () => {
    const svgIconRef = SvgAnimation('/assets/img/others/faq_shape02.svg');
 
    return (
-      <section className="faq__area">
+      <section className="faq__area faq__area--home">
          <div className="container">
             <div className="row align-items-center">
                <div className="col-lg-6">

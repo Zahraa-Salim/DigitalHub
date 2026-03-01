@@ -113,6 +113,17 @@ export default function CourseArea() {
                     pageRangeDisplayed={3}
                     pageCount={pageCount}
                     className="list-wrap"
+                    previousLabel={
+                      <i
+                        className="flaticon-arrow-right"
+                        style={{ transform: "rotate(180deg)", display: "inline-block" }}
+                      ></i>
+                    }
+                    nextLabel={<i className="flaticon-arrow-right"></i>}
+                    previousAriaLabel="Previous page"
+                    nextAriaLabel="Next page"
+                    previousClassName="previous pagination__arrow"
+                    nextClassName="next pagination__arrow"
                   />
                 </nav>
               </div>

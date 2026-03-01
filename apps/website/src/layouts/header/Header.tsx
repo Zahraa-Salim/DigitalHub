@@ -38,8 +38,8 @@ const Header = () => {
                     </div>
 
                     <div className="tgmenu__action dh-navbar__actions d-none d-lg-flex">
-                      <Link to="/contact" className="dh-auth-btn">
-                        Contact
+                      <Link to="/apply" className="dh-auth-btn dh-auth-btn--special">
+                        Apply Now
                       </Link>
                     </div>
 
