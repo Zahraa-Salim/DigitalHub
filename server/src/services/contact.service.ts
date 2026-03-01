@@ -7,7 +7,9 @@ import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause } from "../utils/sql.js";
+import { sendDigitalHubEmail } from "../utils/mailer.js";
 import { countContactMessages, createContactMessage, listContactMessages, markContactReplied, updateContactStatus, } from "../repositories/contact.repo.js";
+import { getContactMessageById } from "../repositories/contact.repo.js";
 export async function createContactMessageService(payload) {
     const body = payload;
     const result = await createContactMessage({
@@ -53,26 +55,53 @@ export async function updateContactMessageStatusService(id, status) {
     }
     return result.rows[0];
 }
-export async function replyToContactMessageService(id, adminId, replyMessage) {
-    const result = await markContactReplied(id);
-    if (!result.rowCount) {
+export async function replyToContactMessageService(id, adminId, replyMessage, replySubject, templateKey) {
+    const messageResult = await getContactMessageById(id);
+    if (!messageResult.rowCount) {
         throw new AppError(404, "CONTACT_MESSAGE_NOT_FOUND", "Contact message not found.");
     }
+    const contactMessage = messageResult.rows[0];
+    const recipientEmail = String(contactMessage.email ?? "").trim();
+    if (!recipientEmail) {
+        throw new AppError(400, "VALIDATION_ERROR", "Contact email is required to send a reply.");
+    }
+    const normalizedSubject = String(replySubject ?? "").trim();
+    const fallbackSubject = contactMessage.subject
+        ? `Re: ${String(contactMessage.subject).trim()}`
+        : "Reply from Digital Hub";
+    const subjectToSend = normalizedSubject || fallbackSubject;
+    try {
+        await sendDigitalHubEmail({
+            to: recipientEmail,
+            subject: subjectToSend,
+            body: replyMessage,
+        });
+    }
+    catch (error) {
+        throw new AppError(502, "EMAIL_SEND_FAILED", "Failed to send reply email.", String(error?.message || error));
+    }
+    const result = await markContactReplied(id);
     await logAdminAction({
         actorUserId: adminId,
         action: "reply to contact message",
         entityType: "contact_messages",
         entityId: id,
-        message: `A reply was recorded for contact message ${id}.`,
+        message: `A reply email was sent for contact message ${id}.`,
         metadata: {
             reply_message: replyMessage,
+            reply_subject: subjectToSend,
+            template_key: templateKey ?? null,
+            recipient_email: recipientEmail,
         },
-        title: "Contact Reply Logged",
-        body: `Contact message #${id} was replied to.`,
+        title: "Contact Reply Sent",
+        body: `Contact message #${id} was replied to by email.`,
     });
     return {
         ...result.rows[0],
         reply_message: replyMessage,
+        reply_subject: subjectToSend,
+        recipient_email: recipientEmail,
+        template_key: templateKey ?? null,
     };
 }
 

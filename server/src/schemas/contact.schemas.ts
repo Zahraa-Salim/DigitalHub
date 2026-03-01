@@ -29,6 +29,8 @@ export const statusPatchSchema = z
 export const replyBodySchema = z
     .object({
     reply_message: z.string().trim().min(1),
+    reply_subject: z.string().trim().min(1).max(300).optional(),
+    template_key: z.string().trim().min(1).max(120).optional(),
 })
     .strict();
 

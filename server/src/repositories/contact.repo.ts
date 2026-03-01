@@ -53,5 +53,12 @@ export async function markContactReplied(id, db = pool) {
       RETURNING *
     `, [id]);
 }
-
+export async function getContactMessageById(id, db = pool) {
+    return db.query(`
+      SELECT *
+      FROM contact_messages
+      WHERE id = $1
+      LIMIT 1
+    `, [id]);
+}
 

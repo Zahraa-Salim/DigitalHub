@@ -18,8 +18,8 @@ export async function patchContactMessageStatus(req, res) {
     sendSuccess(res, data, "Contact message status updated.");
 }
 export async function replyToContactMessage(req, res) {
-    const data = await replyToContactMessageService(Number(req.params.id), req.user.id, req.body.reply_message);
-    sendSuccess(res, data, "Reply saved successfully.");
+    const data = await replyToContactMessageService(Number(req.params.id), req.user.id, req.body.reply_message, req.body.reply_subject, req.body.template_key);
+    sendSuccess(res, data, "Reply sent successfully.");
 }
 
 

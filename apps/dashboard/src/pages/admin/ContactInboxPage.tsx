@@ -8,12 +8,14 @@ import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
+import { applyTemplateTokens } from "../../lib/messageTemplates";
 import { buildQueryString } from "../../utils/query";
 
 type ContactKind = "question" | "feedback" | "visit_request";
 type ContactStatus = "new" | "in_progress" | "resolved";
 type SortBy = "created_at" | "status" | "last_replied_at";
 type ToastTone = "success" | "error";
+type ReplyRecipientGroup = "individual" | "all" | ContactKind;
 
 type ContactRow = {
   id: number;
@@ -33,6 +35,59 @@ type ContactRow = {
   created_at: string;
   resolved_at: string | null;
 };
+
+type ContactReplyTemplate = {
+  key: string;
+  label: string;
+  kinds: "all" | ContactKind[];
+  subject: string;
+  body: string;
+};
+
+const CONTACT_REPLY_TEMPLATES: ContactReplyTemplate[] = [
+  {
+    key: "contact_question_reply",
+    label: "Question Reply",
+    kinds: ["question"],
+    subject: "Re: {subject}",
+    body:
+      "Hi {name},\n\nThank you for your question.\n\n" +
+      "Here is our response:\n\n" +
+      "{response}\n\n" +
+      "If you need anything else, reply to this email.\n\n" +
+      "Best regards,\nDigital Hub Team",
+  },
+  {
+    key: "contact_visit_request_reply",
+    label: "Visit Request Reply",
+    kinds: ["visit_request"],
+    subject: "Re: Visit Request - {company_name}",
+    body:
+      "Hi {name},\n\nThank you for your visit request.\n\n" +
+      "We reviewed your request and would like to coordinate next steps.\n" +
+      "Preferred dates received: {visit_preferred_dates}\n\n" +
+      "{response}\n\n" +
+      "Best regards,\nDigital Hub Team",
+  },
+  {
+    key: "contact_general_reply",
+    label: "General Reply",
+    kinds: "all",
+    subject: "Re: {subject}",
+    body:
+      "Hi {name},\n\n" +
+      "{response}\n\n" +
+      "Best regards,\nDigital Hub Team",
+  },
+];
+
+function MessageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 5.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4.5 3v-3H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
+    </svg>
+  );
+}
 
 const defaultPagination: PaginationMeta = {
   page: 1,
@@ -55,8 +110,16 @@ export function ContactInboxPage() {
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<ContactRow | null>(null);
-  const [replyTarget, setReplyTarget] = useState<ContactRow | null>(null);
+  const [replyComposerOpen, setReplyComposerOpen] = useState(false);
+  const [replyComposerTarget, setReplyComposerTarget] = useState<ContactRow | null>(null);
+  const [replyComposerGroup, setReplyComposerGroup] = useState<ReplyRecipientGroup>("individual");
+  const [replyComposerSingleId, setReplyComposerSingleId] = useState<number | null>(null);
+  const [replySearch, setReplySearch] = useState("");
+  const [replySubject, setReplySubject] = useState("");
   const [replyBody, setReplyBody] = useState("");
+  const [replyTemplateKey, setReplyTemplateKey] = useState<string>("");
+  const [replyShowTemplates, setReplyShowTemplates] = useState(false);
+  const [replyError, setReplyError] = useState("");
   const [isReplying, setIsReplying] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [detailStatus, setDetailStatus] = useState<ContactStatus>("new");
@@ -149,12 +212,93 @@ export function ContactInboxPage() {
 
     return rows.filter((row) => row.kind === kindFilter);
   }, [kindFilter, rows]);
+  const kindCounts = useMemo(
+    () => ({
+      all: rows.length,
+      question: rows.filter((row) => row.kind === "question").length,
+      feedback: rows.filter((row) => row.kind === "feedback").length,
+      visit_request: rows.filter((row) => row.kind === "visit_request").length,
+    }),
+    [rows],
+  );
 
   const totalPagesSafe = Math.max(pagination.totalPages, 1);
+  const contactsWithEmail = useMemo(
+    () => rows.filter((row) => typeof row.email === "string" && row.email.trim().length > 0),
+    [rows],
+  );
+  const searchedReplyRecipients = useMemo(() => {
+    const query = replySearch.trim().toLowerCase();
+    if (!query) return contactsWithEmail;
+    return contactsWithEmail.filter((row) => {
+      const haystack = `${row.name} ${row.email} ${row.subject ?? ""} ${row.company_name ?? ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [contactsWithEmail, replySearch]);
+  const singleReplyRecipient = useMemo(
+    () => contactsWithEmail.find((row) => row.id === replyComposerSingleId) ?? null,
+    [contactsWithEmail, replyComposerSingleId],
+  );
+  const replyRecipients = useMemo(() => {
+    if (replyComposerGroup === "individual") {
+      return singleReplyRecipient ? [singleReplyRecipient] : [];
+    }
+    if (replyComposerGroup === "all") {
+      return searchedReplyRecipients;
+    }
+    return searchedReplyRecipients.filter((row) => row.kind === replyComposerGroup);
+  }, [replyComposerGroup, searchedReplyRecipients, singleReplyRecipient]);
+  const visibleReplyTemplates = useMemo(() => {
+    const kindContext = replyComposerGroup === "individual" ? singleReplyRecipient?.kind : replyComposerGroup === "all" ? null : replyComposerGroup;
+    return CONTACT_REPLY_TEMPLATES.filter((template) => {
+      if (template.kinds === "all") return true;
+      if (!kindContext) return true;
+      return template.kinds.includes(kindContext);
+    });
+  }, [replyComposerGroup, singleReplyRecipient?.kind]);
+  const canSendReply = replyRecipients.length > 0 && replySubject.trim().length > 0 && replyBody.trim().length > 0;
 
   const openDetails = (row: ContactRow) => {
     setSelected(row);
     setDetailStatus(row.status);
+  };
+
+  const openReplyComposer = (target?: ContactRow) => {
+    const firstRecipient = target ?? contactsWithEmail[0] ?? null;
+    setReplyComposerOpen(true);
+    setReplyComposerTarget(target ?? null);
+    setReplyComposerGroup(target ? "individual" : "all");
+    setReplyComposerSingleId(firstRecipient?.id ?? null);
+    setReplySearch("");
+    setReplySubject(firstRecipient?.subject?.trim() ? `Re: ${firstRecipient.subject.trim()}` : "Reply from Digital Hub");
+    setReplyBody("");
+    setReplyTemplateKey("");
+    setReplyShowTemplates(false);
+    setReplyError("");
+  };
+
+  const closeReplyComposer = () => {
+    setReplyComposerOpen(false);
+    setReplyComposerTarget(null);
+    setReplySearch("");
+    setReplyTemplateKey("");
+    setReplyShowTemplates(false);
+    setReplyError("");
+  };
+
+  const applyReplyTemplate = (template: ContactReplyTemplate) => {
+    const source = singleReplyRecipient ?? replyComposerTarget ?? replyRecipients[0] ?? contactsWithEmail[0] ?? null;
+    const tokens: Record<string, string> = {
+      name: source?.name?.trim() || "there",
+      subject: source?.subject?.trim() || "Your message",
+      company_name: source?.company_name?.trim() || "your company",
+      visit_preferred_dates: source?.visit_preferred_dates?.trim() || "N/A",
+      response: "",
+    };
+    setReplyTemplateKey(template.key);
+    setReplySubject(applyTemplateTokens(template.subject, tokens));
+    setReplyBody(applyTemplateTokens(template.body, tokens));
+    setReplyShowTemplates(false);
   };
 
   const updateStatus = async (row: ContactRow, nextStatus: ContactStatus) => {
@@ -178,28 +322,32 @@ export function ContactInboxPage() {
   };
 
   const submitReply = async () => {
-    if (!replyTarget) {
-      return;
-    }
-
-    const trimmed = replyBody.trim();
-    if (!trimmed) {
-      pushToast("error", "Reply body is required.");
+    if (!canSendReply) {
+      setReplyError("Recipient, subject, and reply body are required.");
       return;
     }
 
     setIsReplying(true);
+    setReplyError("");
     try {
-      await api<{ id: number; reply_message: string }>(`/contact/${replyTarget.id}/reply`, {
-        method: "POST",
-        body: JSON.stringify({ reply_message: trimmed }),
-      });
-      pushToast("success", "Reply saved successfully.");
-      setReplyTarget(null);
-      setReplyBody("");
+      await Promise.all(
+        replyRecipients.map((recipient) =>
+          api<{ id: number; reply_message: string }>(`/contact/${recipient.id}/reply`, {
+            method: "POST",
+            body: JSON.stringify({
+              reply_subject: replySubject.trim(),
+              reply_message: replyBody.trim(),
+              template_key: replyTemplateKey || undefined,
+            }),
+          }),
+        ),
+      );
+      pushToast("success", `Reply sent to ${replyRecipients.length} contact${replyRecipients.length === 1 ? "" : "s"}.`);
+      closeReplyComposer();
       setRefreshKey((current) => current + 1);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message || "Failed to save reply." : "Failed to save reply.";
+      const message = err instanceof ApiError ? err.message || "Failed to send reply." : "Failed to send reply.";
+      setReplyError(message);
       pushToast("error", message);
     } finally {
       setIsReplying(false);
@@ -291,10 +439,7 @@ export function ContactInboxPage() {
       <button
         className="btn btn--primary btn--sm dh-btn"
         type="button"
-        onClick={() => {
-          setReplyTarget(row);
-          setReplyBody("");
-        }}
+        onClick={() => openReplyComposer(row)}
       >
         Reply
       </button>
@@ -319,17 +464,6 @@ export function ContactInboxPage() {
               onSearchChange={setSearch}
               searchPlaceholder="Search name, email, subject, or message"
               selects={[
-                {
-                  label: "Kind",
-                  value: kindFilter,
-                  options: [
-                    { label: "All", value: "all" },
-                    { label: "Question", value: "question" },
-                    { label: "Feedback", value: "feedback" },
-                    { label: "Visit Request", value: "visit_request" },
-                  ],
-                  onChange: (value) => setKindFilter(value as "all" | ContactKind),
-                },
                 {
                   label: "Status",
                   value: statusFilter,
@@ -375,6 +509,36 @@ export function ContactInboxPage() {
               <span className="dh-filters-toggle__label">Filter</span>
             </button>
           </div>
+        </div>
+        <div className="admx-chip-row" style={{ justifyContent: "flex-end", marginTop: "0.4rem" }}>
+          <button
+            className={kindFilter === "all" ? "admx-chip admx-chip--active" : "admx-chip"}
+            type="button"
+            onClick={() => setKindFilter("all")}
+          >
+            All ({kindCounts.all})
+          </button>
+          <button
+            className={kindFilter === "question" ? "admx-chip admx-chip--active" : "admx-chip"}
+            type="button"
+            onClick={() => setKindFilter("question")}
+          >
+            Question ({kindCounts.question})
+          </button>
+          <button
+            className={kindFilter === "feedback" ? "admx-chip admx-chip--active" : "admx-chip"}
+            type="button"
+            onClick={() => setKindFilter("feedback")}
+          >
+            Feedback ({kindCounts.feedback})
+          </button>
+          <button
+            className={kindFilter === "visit_request" ? "admx-chip admx-chip--active" : "admx-chip"}
+            type="button"
+            onClick={() => setKindFilter("visit_request")}
+          >
+            Visit Request ({kindCounts.visit_request})
+          </button>
         </div>
 
         {error ? (
@@ -560,8 +724,7 @@ export function ContactInboxPage() {
                 className="btn btn--secondary"
                 type="button"
                 onClick={() => {
-                  setReplyTarget(selected);
-                  setReplyBody("");
+                  openReplyComposer(selected);
                   setSelected(null);
                 }}
               >
@@ -572,24 +735,123 @@ export function ContactInboxPage() {
         </div>
       ) : null}
 
-      {replyTarget ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setReplyTarget(null)}>
-          <div className="modal-card modal-card--narrow" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <header className="modal-header">
-              <h3 className="modal-title">Reply to {replyTarget.name}</h3>
+      <button className="admx-fab" type="button" aria-label="Open reply composer" onClick={() => openReplyComposer()}>
+        <MessageIcon />
+      </button>
+
+      {replyComposerOpen ? (
+        <div className="admx-modal" role="presentation">
+          <div className="admx-modal__backdrop" onClick={closeReplyComposer} />
+          <div className="admx-modal__card" role="dialog" aria-modal="true">
+            <header className="admx-modal__header">
+              <div>
+                <h3>Compose Reply</h3>
+                <p>{replyRecipients.length} recipient{replyRecipients.length === 1 ? "" : "s"}</p>
+              </div>
+              <div className="admx-switch">
+                <button className="admx-switch__btn admx-switch__btn--active" type="button">Email</button>
+              </div>
             </header>
-            <label className="field">
-              <span className="field__label">Reply Body</span>
-              <textarea className="textarea-control" value={replyBody} onChange={(event) => setReplyBody(event.target.value)} />
-            </label>
-            <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => setReplyTarget(null)} disabled={isReplying}>
+
+            <div className="admx-modal__body">
+              {replyError ? <p className="admx-inline-error">{replyError}</p> : null}
+
+              <label className="admx-label">Send To</label>
+              <div className="admx-chip-row">
+                <button
+                  className={replyComposerGroup === "individual" ? "admx-chip admx-chip--active" : "admx-chip"}
+                  type="button"
+                  onClick={() => setReplyComposerGroup("individual")}
+                >
+                  Individual
+                </button>
+                <button
+                  className={replyComposerGroup === "all" ? "admx-chip admx-chip--active" : "admx-chip"}
+                  type="button"
+                  onClick={() => setReplyComposerGroup("all")}
+                >
+                  All ({contactsWithEmail.length})
+                </button>
+                <button
+                  className={replyComposerGroup === "question" ? "admx-chip admx-chip--active" : "admx-chip"}
+                  type="button"
+                  onClick={() => setReplyComposerGroup("question")}
+                >
+                  Question
+                </button>
+                <button
+                  className={replyComposerGroup === "visit_request" ? "admx-chip admx-chip--active" : "admx-chip"}
+                  type="button"
+                  onClick={() => setReplyComposerGroup("visit_request")}
+                >
+                  Visit Request
+                </button>
+              </div>
+
+              <input
+                className="field__control"
+                type="text"
+                placeholder="Search contacts by name, email, or subject..."
+                value={replySearch}
+                onChange={(event) => setReplySearch(event.target.value)}
+              />
+
+              {replyComposerGroup === "individual" ? (
+                <select
+                  className="field__control"
+                  value={replyComposerSingleId ?? ""}
+                  onChange={(event) => setReplyComposerSingleId(event.target.value ? Number(event.target.value) : null)}
+                >
+                  <option value="">Select contact...</option>
+                  {searchedReplyRecipients.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.name} | {entry.email}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              <input
+                className="field__control"
+                type="text"
+                placeholder="Reply subject"
+                value={replySubject}
+                onChange={(event) => setReplySubject(event.target.value)}
+              />
+
+              <div className="admx-inline-head">
+                <span className="admx-label">Message</span>
+                <button className="btn btn--secondary btn--sm" type="button" onClick={() => setReplyShowTemplates((current) => !current)}>
+                  Templates
+                </button>
+              </div>
+
+              {replyShowTemplates ? (
+                <div className="admx-template-grid">
+                  {visibleReplyTemplates.map((template) => (
+                    <button key={template.key} className="admx-template" type="button" onClick={() => applyReplyTemplate(template)}>
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <textarea
+                className="textarea-control"
+                rows={8}
+                value={replyBody}
+                onChange={(event) => setReplyBody(event.target.value)}
+              />
+            </div>
+
+            <footer className="admx-modal__footer">
+              <button className="btn btn--secondary" type="button" onClick={closeReplyComposer} disabled={isReplying}>
                 Cancel
               </button>
-              <button className="btn btn--primary" type="button" onClick={submitReply} disabled={isReplying}>
-                {isReplying ? "Sending..." : "Send Reply"}
+              <button className="btn btn--primary" type="button" onClick={submitReply} disabled={!canSendReply || isReplying}>
+                {isReplying ? "Sending..." : `Send to ${replyRecipients.length || "-"}`}
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       ) : null}
@@ -614,17 +876,6 @@ export function ContactInboxPage() {
               onSearchChange={setSearch}
               searchPlaceholder="Search name, email, subject, or message"
               selects={[
-                {
-                  label: "Kind",
-                  value: kindFilter,
-                  options: [
-                    { label: "All", value: "all" },
-                    { label: "Question", value: "question" },
-                    { label: "Feedback", value: "feedback" },
-                    { label: "Visit Request", value: "visit_request" },
-                  ],
-                  onChange: (value) => setKindFilter(value as "all" | ContactKind),
-                },
                 {
                   label: "Status",
                   value: statusFilter,
@@ -665,6 +916,3 @@ export function ContactInboxPage() {
     </PageShell>
   );
 }
-
-
-
