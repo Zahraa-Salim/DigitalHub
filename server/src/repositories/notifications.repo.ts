@@ -49,5 +49,13 @@ export async function clearReadNotifications(adminId, db = pool) {
         AND is_read = TRUE
     `, [adminId]);
 }
+export async function clearReadNotificationsOlderThan(adminId, days, db = pool) {
+    return db.query(`
+      DELETE FROM admin_notifications
+      WHERE recipient_admin_user_id = $1
+        AND is_read = TRUE
+        AND COALESCE(read_at, created_at) < NOW() - ($2 * INTERVAL '1 day')
+    `, [adminId, days]);
+}
 
 

@@ -41,6 +41,8 @@ export function NotificationsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [isClearingRead, setIsClearingRead] = useState(false);
+  const [isClearingOlderRead, setIsClearingOlderRead] = useState(false);
+  const [clearOlderDays, setClearOlderDays] = useState<"7" | "30" | "90">("30");
   const [selected, setSelected] = useState<NotificationRow | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [toastId, setToastId] = useState(1);
@@ -170,6 +172,25 @@ export function NotificationsPage() {
     }
   };
 
+  const clearReadOlderThan = async () => {
+    setIsClearingOlderRead(true);
+    try {
+      const result = await api<{ deleted: number; days: number }>(`/notifications/read/older?days=${clearOlderDays}`, {
+        method: "DELETE",
+      });
+      emitNotificationsUpdated();
+      const label = `${result.days || Number(clearOlderDays)} day${Number(clearOlderDays) === 1 ? "" : "s"}`;
+      pushToast("success", result.deleted ? `${result.deleted} read notifications older than ${label} cleared.` : `No read notifications older than ${label}.`);
+      setSelected(null);
+      setRefreshKey((current) => current + 1);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message || "Failed to clear old read notifications." : "Failed to clear old read notifications.";
+      pushToast("error", message);
+    } finally {
+      setIsClearingOlderRead(false);
+    }
+  };
+
   const openDetails = (row: NotificationRow) => {
     setSelected(row);
     if (!row.is_read) {
@@ -181,16 +202,6 @@ export function NotificationsPage() {
     <PageShell
       title="Notifications"
       subtitle="Review unread updates and mark them as handled."
-      actions={
-        <div className="table-actions">
-          <button className="btn btn--secondary dh-btn" type="button" onClick={clearRead} disabled={isClearingRead}>
-            {isClearingRead ? "Clearing..." : "Clear Read"}
-          </button>
-          <button className="btn btn--primary dh-btn" type="button" onClick={markAllRead} disabled={isMarkingAll || !rows.length}>
-            {isMarkingAll ? "Updating..." : "Mark All Read"}
-          </button>
-        </div>
-      }
     >
       <div className="dh-page">
         <Card className="card--compact-row notification-filter-row">
@@ -210,10 +221,32 @@ export function NotificationsPage() {
               All
             </button>
           </div>
-          <p className="info-text">
-            {filter === "unread" ? `Unread notifications: ${pagination.total}` : `Unread on current page: ${unreadCount}`}
-          </p>
+          <div className="table-actions" style={{ marginLeft: "auto" }}>
+            <select
+              className="field__control"
+              value={clearOlderDays}
+              onChange={(event) => setClearOlderDays(event.target.value as "7" | "30" | "90")}
+              aria-label="Clear read notifications older than"
+              style={{ width: 170, minWidth: 170 }}
+            >
+              <option value="7">Older than 7 days</option>
+              <option value="30">Older than 30 days</option>
+              <option value="90">Older than 90 days</option>
+            </select>
+            <button className="btn btn--secondary dh-btn" type="button" onClick={clearReadOlderThan} disabled={isClearingOlderRead}>
+              {isClearingOlderRead ? "Clearing..." : "Clear Older Read"}
+            </button>
+            <button className="btn btn--secondary dh-btn" type="button" onClick={clearRead} disabled={isClearingRead}>
+              {isClearingRead ? "Clearing..." : "Clear Read"}
+            </button>
+            <button className="btn btn--primary dh-btn" type="button" onClick={markAllRead} disabled={isMarkingAll || !rows.length}>
+              {isMarkingAll ? "Updating..." : "Mark All Read"}
+            </button>
+          </div>
         </Card>
+        <p className="info-text">
+          {filter === "unread" ? `Unread notifications: ${pagination.total}` : `Unread on current page: ${unreadCount}`}
+        </p>
 
         {error ? (
           <Card>

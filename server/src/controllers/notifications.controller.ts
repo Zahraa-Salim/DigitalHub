@@ -6,6 +6,7 @@
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import { listNotificationsService, markAllNotificationsReadService, markNotificationReadService, } from "../services/notifications.service.js";
 import { clearReadNotificationsService } from "../services/notifications.service.js";
+import { clearReadNotificationsOlderThanService } from "../services/notifications.service.js";
 export async function getNotifications(req, res) {
     const result = await listNotificationsService(req.user.id, req.query);
     sendList(res, result.data, result.pagination);
@@ -21,6 +22,10 @@ export async function markAllNotificationsRead(req, res) {
 export async function clearReadNotifications(req, res) {
     const data = await clearReadNotificationsService(req.user.id);
     sendSuccess(res, data, "Read notifications cleared.");
+}
+export async function clearReadNotificationsOlderThan(req, res) {
+    const data = await clearReadNotificationsOlderThanService(req.user.id, Number(req.query.days));
+    sendSuccess(res, data, `Read notifications older than ${data.days} days cleared.`);
 }
 
 
