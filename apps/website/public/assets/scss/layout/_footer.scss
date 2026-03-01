@@ -244,8 +244,37 @@
         & li {
             & a {
                 color: var(--tg-common-color-gray-5);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 20px;
+                height: 20px;
+                & img,
+                & svg {
+                    width: 18px;
+                    height: 18px;
+                }
+                & svg path {
+                    fill: currentColor !important;
+                }
                 &:hover {
                     color: var(--tg-theme-secondary);
+                }
+            }
+            &.social-item--github {
+                & a {
+                    color: var(--tg-common-color-white) !important;
+                }
+            }
+            & a[href*="github.com"] {
+                color: var(--tg-common-color-white) !important;
+                & svg,
+                & svg path {
+                    fill: var(--tg-common-color-white) !important;
+                    color: var(--tg-common-color-white) !important;
+                }
+                & img {
+                    filter: brightness(0) invert(1);
                 }
             }
         }

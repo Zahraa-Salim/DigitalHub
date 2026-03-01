@@ -1,6 +1,3 @@
-// File: src/lib/axios.ts
-// Purpose: Low-level library/client configuration used by higher-level modules.
-// If you change this file: Changing connection settings or exported client behavior can break all dependent API/data operations.
 import axios from "axios";
 
 const axiosInstance = axios.create({
@@ -9,4 +6,3 @@ const axiosInstance = axios.create({
 });
 
 export default axiosInstance;
-
