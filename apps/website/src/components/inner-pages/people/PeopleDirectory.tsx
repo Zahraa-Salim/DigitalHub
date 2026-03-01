@@ -5,23 +5,12 @@
 
 import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { PeopleMode } from "@/data/mock/peopleDirectoryData";
 import { peopleData } from "@/data/mock/peopleDirectoryData";
-import axiosInstance from "@/lib/axios";
 
 type PeopleDirectoryProps = {
   mode: PeopleMode;
-};
-
-type PublicAdminProfile = {
-  full_name: string;
-  avatar_url: string | null;
-  bio: string | null;
-  job_title: string | null;
-  linkedin_url: string | null;
-  github_url: string | null;
-  portfolio_url: string | null;
 };
 
 const modeText = {
@@ -48,42 +37,6 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
   const [selectedPrimary, setSelectedPrimary] = useState<string[]>([]);
   const [selectedSecondary, setSelectedSecondary] = useState<string[]>([]);
   const [sortValue, setSortValue] = useState("default");
-  const [publicAdmins, setPublicAdmins] = useState<PublicAdminProfile[]>([]);
-  const [loadingAdmins, setLoadingAdmins] = useState(false);
-  const [adminsError, setAdminsError] = useState("");
-
-  useEffect(() => {
-    if (mode !== "team") {
-      return;
-    }
-
-    let active = true;
-
-    const loadPublicAdmins = async () => {
-      setLoadingAdmins(true);
-      setAdminsError("");
-      try {
-        const response = await axiosInstance.get<{ success: true; data: PublicAdminProfile[] }>("/api/public/admins");
-        if (active) {
-          setPublicAdmins(Array.isArray(response.data?.data) ? response.data.data : []);
-        }
-      } catch {
-        if (active) {
-          setAdminsError("Failed to load team members.");
-        }
-      } finally {
-        if (active) {
-          setLoadingAdmins(false);
-        }
-      }
-    };
-
-    void loadPublicAdmins();
-
-    return () => {
-      active = false;
-    };
-  }, [mode]);
 
   const primaryOptions = useMemo(
     () => Array.from(new Set(source.map((item) => item.primaryTag))).sort(sortByName),
@@ -130,70 +83,6 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
 
     return items;
   }, [selectedPrimary, selectedSecondary, sortValue, source]);
-
-  if (mode === "team") {
-    return (
-      <section className="people-directory section-py-120">
-        <div className="container">
-          <div className="people-toolbar">
-            <p className="people-toolbar__count">
-              Showing {publicAdmins.length} team members
-            </p>
-          </div>
-
-          {adminsError ? <p className="people-empty">{adminsError}</p> : null}
-          {loadingAdmins ? <p className="people-empty">Loading team members...</p> : null}
-
-          {!loadingAdmins && !adminsError ? (
-            <div className="row g-4">
-              {publicAdmins.map((item, index) => (
-                <div key={`${item.full_name}-${index}`} className="col-xl-4 col-md-6">
-                  <article className="people-card" data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
-                    <div className="people-card__head">
-                      <div className="people-card__avatar">
-                        {item.avatar_url ? (
-                          <Image src={item.avatar_url} alt={item.full_name} />
-                        ) : (
-                          <div className="people-card__avatar-fallback" aria-hidden>
-                            {item.full_name.charAt(0)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <h4 className="people-card__name">{item.full_name}</h4>
-                    <p className="people-card__role">{item.job_title || "Team Member"}</p>
-                    <p className="people-card__bio">{item.bio || "No biography available yet."}</p>
-                    <div className="people-card__tags">
-                      {item.linkedin_url ? (
-                        <Link to={item.linkedin_url} target="_blank" rel="noreferrer">
-                          LinkedIn
-                        </Link>
-                      ) : null}
-                      {item.github_url ? (
-                        <Link to={item.github_url} target="_blank" rel="noreferrer">
-                          GitHub
-                        </Link>
-                      ) : null}
-                      {item.portfolio_url ? (
-                        <Link to={item.portfolio_url} target="_blank" rel="noreferrer">
-                          Portfolio
-                        </Link>
-                      ) : null}
-                    </div>
-                  </article>
-                </div>
-              ))}
-              {!publicAdmins.length ? (
-                <div className="col-12">
-                  <p className="people-empty">No public team profiles available.</p>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="people-directory section-py-120">
@@ -331,3 +220,5 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
 };
 
 export default PeopleDirectory;
+
+
