@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import ContactForm from "@/forms/ContactForm";
 import InjectableSvg from "@/hooks/InjectableSvg";
 import Link from "@/components/common/Link";
+import { notifyWarning } from "@/lib/feedbackToast";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const EXACT_LOCATION_QUERY = "Siblin Training Centre, JC9J+8W9, Sebline";
@@ -43,8 +44,8 @@ const ContactArea: React.FC = () => {
     const fetchContactInfo = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/public/home`, {
-          credentials: "include",
           cache: "no-store",
+          credentials: "omit",
         });
 
         if (!res.ok) {
@@ -67,6 +68,7 @@ const ContactArea: React.FC = () => {
         };
 
         setContactInfo(normalized);
+        setError(null);
       } catch {
         setError("Error loading contact info, using defaults.");
       }
@@ -74,6 +76,11 @@ const ContactArea: React.FC = () => {
 
     fetchContactInfo();
   }, []);
+
+  useEffect(() => {
+    if (!error) return;
+    notifyWarning(error, { id: "contact-info-load-warning" });
+  }, [error]);
 
   const info = contactInfo ?? DEFAULTS;
   const addressLines = (info.address || DEFAULTS.address).split("\n");
@@ -124,7 +131,6 @@ const ContactArea: React.FC = () => {
                   </div>
                 </li>
               </ul>
-              {error && <p className="mt-2 text-xs text-danger">{error}</p>}
             </div>
           </div>
 
@@ -133,7 +139,6 @@ const ContactArea: React.FC = () => {
               <h4 className="title">{info.contactFormTitle || DEFAULTS.contactFormTitle}</h4>
               <p>{info.contactFormSubtitle || DEFAULTS.contactFormSubtitle}</p>
               <ContactForm />
-              <p className="ajax-response mb-0"></p>
             </div>
           </div>
         </div>

@@ -109,6 +109,17 @@ export const programApplicationParticipationConfirmSchema = z
   })
   .strict();
 
-export const programApplicationCreateUserSchema = z.object({}).strict();
+export const programApplicationCreateUserSchema = z
+  .object({
+    channels: z
+      .object({
+        email: z.boolean().optional(),
+        sms: z.boolean().optional(),
+        whatsapp: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 export const programApplicationMessageSendBodySchema = z.object({}).strict();

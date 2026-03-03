@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export type CsvExportColumn<T> = {
   key: string;
@@ -15,7 +15,6 @@ export type CsvExportRowScope<T> = {
 };
 
 type CsvExportModalProps<T> = {
-  open: boolean;
   onClose: () => void;
   title?: string;
   filename: string;
@@ -74,7 +73,6 @@ function downloadCsv(content: string, filename: string) {
 }
 
 export function CsvExportModal<T>({
-  open,
   onClose,
   title = "Export CSV",
   filename,
@@ -91,19 +89,14 @@ export function CsvExportModal<T>({
     return explicitDefault?.id ?? availableScopes[0]?.id ?? "";
   }, [availableScopes]);
 
-  const [selectedScopeId, setSelectedScopeId] = useState<string>(defaultScopeId);
-  const [selectedColumnKeys, setSelectedColumnKeys] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setSelectedScopeId(defaultScopeId);
+  const defaultColumnKeys = useMemo(() => {
     const initialColumns = columns
       .filter((column) => column.enabledByDefault !== false)
       .map((column) => column.key);
-    setSelectedColumnKeys(initialColumns.length ? initialColumns : columns.map((column) => column.key));
-  }, [open, defaultScopeId, columns]);
+    return initialColumns.length ? initialColumns : columns.map((column) => column.key);
+  }, [columns]);
+  const [selectedScopeId, setSelectedScopeId] = useState<string>(defaultScopeId);
+  const [selectedColumnKeys, setSelectedColumnKeys] = useState<string[]>(defaultColumnKeys);
 
   const activeScope = availableScopes.find((scope) => scope.id === selectedScopeId) ?? availableScopes[0];
   const exportRows = activeScope?.rows ?? [];
@@ -111,10 +104,6 @@ export function CsvExportModal<T>({
 
   const allColumnsSelected = selectedColumnKeys.length === columns.length;
   const canExport = Boolean(exportRows.length && exportColumns.length);
-
-  if (!open) {
-    return null;
-  }
 
   return (
     <div className="admx-modal" role="presentation">
@@ -204,4 +193,3 @@ export function CsvExportModal<T>({
     </div>
   );
 }
-

@@ -86,7 +86,7 @@ export async function confirmParticipation(req, res) {
 }
 
 export async function createUserFromApplication(req, res) {
-    const data = await createUserFromApplicationService(Number(req.params.id), req.user.id);
+    const data = await createUserFromApplicationService(Number(req.params.id), req.user.id, req.body);
     sendSuccess(res, data, "User and enrollment created successfully.");
 }
 

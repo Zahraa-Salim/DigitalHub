@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
@@ -45,16 +45,15 @@ export function NotificationsPage() {
   const [clearOlderDays, setClearOlderDays] = useState<"7" | "30" | "90">("30");
   const [selected, setSelected] = useState<NotificationRow | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [toastId, setToastId] = useState(1);
+  const toastIdRef = useRef(1);
 
-  const pushToast = (tone: ToastTone, message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
+  const pushToast = useCallback((tone: ToastTone, message: string) => {
+    const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3200);
-  };
+  }, []);
 
   const dismissToast = (id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -107,7 +106,7 @@ export function NotificationsPage() {
     return () => {
       active = false;
     };
-  }, [filter, page, refreshKey]);
+  }, [filter, page, pushToast, refreshKey]);
 
   const unreadCount = useMemo(() => rows.filter((item) => !item.is_read).length, [rows]);
   const totalPagesSafe = Math.max(pagination.totalPages, 1);
@@ -396,3 +395,4 @@ export function NotificationsPage() {
     </PageShell>
   );
 }
+

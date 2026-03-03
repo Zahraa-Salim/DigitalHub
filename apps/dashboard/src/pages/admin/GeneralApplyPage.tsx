@@ -13,6 +13,7 @@ import {
   getProgramApplicationForm,
   listMessageTemplates,
   listProgramApplications,
+  markProgramApplicationInterviewCompleted,
   scheduleProgramApplicationInterview,
   sendProgramApplicationMessage,
   updateProgramApplicationFormFields,
@@ -24,7 +25,7 @@ import {
   FALLBACK_MESSAGE_TEMPLATES,
   filterTemplatesForChannel,
 } from "../../lib/messageTemplates";
-import { summarizeOnboardingMessage } from "../../lib/onboardingMessage";
+import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, apiList } from "../../utils/api";
 import "./GeneralApplyPage.css";
 
@@ -47,6 +48,11 @@ type DetailData = {
   program_application: Record<string, unknown>;
   applicant: Record<string, unknown> | null;
   program: Record<string, unknown>;
+};
+
+type CreateUserDeliveryChannels = {
+  email: boolean;
+  sms: boolean;
 };
 
 type EditableField = {
@@ -170,6 +176,11 @@ function toStage(value: string): ProgramApplicationStage {
   return STATUS_ORDER.includes(value as ProgramApplicationStage) ? (value as ProgramApplicationStage) : "applied";
 }
 
+function hasCreatedUser(value: unknown): boolean {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+}
+
 function statusClass(status: ProgramApplicationStage): string {
   switch (status) {
     case "reviewing":
@@ -209,6 +220,40 @@ function statusLabel(status: ProgramApplicationStage): string {
     default:
       return status;
   }
+}
+
+function friendlyCreateUserError(error: unknown, fallbackName = "This applicant"): string {
+  if (!(error instanceof ApiError)) {
+    return "We couldn't create a user account right now. Please try again.";
+  }
+  if (error.code === "INVALID_STAGE") {
+    return `${fallbackName} is not ready for account creation yet. Move the status to Accepted or Participation Confirmed, then try again.`;
+  }
+  if (error.code === "PROGRAM_APPLICATION_NOT_FOUND") {
+    return "This application could not be found. Refresh the page and try again.";
+  }
+  return error.message || "We couldn't create a user account right now. Please try again.";
+}
+
+function buildInterviewScheduleFeedback(applicantName: string, hasEmail: boolean, hasPhone: boolean): string {
+  if (hasEmail && hasPhone) {
+    return `Interview scheduled for ${applicantName}. Email and WhatsApp drafts were created (drafts are not sent automatically).`;
+  }
+  if (hasEmail) {
+    return `Interview scheduled for ${applicantName}. An email draft was created (drafts are not sent automatically).`;
+  }
+  if (hasPhone) {
+    return `Interview scheduled for ${applicantName}. A WhatsApp draft was created (drafts are not sent automatically).`;
+  }
+  return `Interview scheduled for ${applicantName}. No email or phone is available, so no message draft was created.`;
+}
+
+function toFriendlyDeliveryFailure(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("badcredentials") || normalized.includes("invalid login") || normalized.includes("535-5.7.8")) {
+    return "SMTP authentication failed. Update SMTP_USER and SMTP_PASS (for Gmail use a 16-character App Password).";
+  }
+  return message;
 }
 
 function isProgramApplicationStage(value: string): value is ProgramApplicationStage {
@@ -295,6 +340,11 @@ function toSubmittedLabel(key: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function hasDeliverableEmail(value: string): boolean {
+  const trimmed = value.trim();
+  return Boolean(trimmed) && !trimmed.endsWith("@digitalhub.local");
+}
+
 function toSubmittedValue(value: unknown): string {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string") return value;
@@ -307,20 +357,68 @@ function toSubmittedValue(value: unknown): string {
   }
 }
 
-function getSubmissionEntries(submissionAnswers: unknown): Array<{ key: string; label: string; value: string }> {
+function hasSubmittedValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some((item) => hasSubmittedValue(item));
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).some((item) => hasSubmittedValue(item));
+  }
+  return true;
+}
+
+function getSubmissionEntries(
+  submissionAnswers: unknown,
+  options?: { programTitle?: string; programTitleById?: Map<number, string> },
+): Array<{ key: string; label: string; value: string }> {
   if (!submissionAnswers || typeof submissionAnswers !== "object" || Array.isArray(submissionAnswers)) {
     return [];
   }
 
-  return Object.entries(submissionAnswers as Record<string, unknown>).map(([key, value]) => ({
-    key,
-    label: toSubmittedLabel(key),
-    value: toSubmittedValue(value),
-  }));
+  return Object.entries(submissionAnswers as Record<string, unknown>).map((entry) => {
+    const [key, value] = entry;
+    if (!hasSubmittedValue(value)) {
+      return null;
+    }
+
+    const normalizedKey = key.trim().toLowerCase();
+    const compactKey = normalizedKey.replace(/[^a-z0-9]+/g, "");
+    if (compactKey === "programid" || compactKey === "program") {
+      const numericProgramId =
+        typeof value === "number"
+          ? value
+          : Number(String(value).trim());
+      const mappedProgramTitle =
+        options?.programTitle ||
+        (Number.isFinite(numericProgramId) ? options?.programTitleById?.get(numericProgramId) : undefined);
+
+      if (mappedProgramTitle) {
+        return {
+          key,
+          label: "Program",
+          value: mappedProgramTitle,
+        };
+      }
+      const fallbackProgramValue = typeof value === "string" ? value.trim() : "";
+      if (fallbackProgramValue) {
+        return {
+          key,
+          label: "Program",
+          value: fallbackProgramValue,
+        };
+      }
+      return null;
+    }
+
+    return {
+      key,
+      label: toSubmittedLabel(key),
+      value: toSubmittedValue(value),
+    };
+  }).filter((entry): entry is { key: string; label: string; value: string } => Boolean(entry));
 }
 
 type InterviewSchedulerModalProps = {
-  open: boolean;
   applicantName: string;
   busy: boolean;
   error: string;
@@ -340,7 +438,6 @@ type InterviewSchedulerModalProps = {
 };
 
 function InterviewSchedulerModal({
-  open,
   applicantName,
   busy,
   error,
@@ -352,16 +449,6 @@ function InterviewSchedulerModal({
   const [durationMinutes, setDurationMinutes] = useState(initial.duration_minutes);
   const [locationType, setLocationType] = useState<InterviewLocationType>(initial.location_type);
   const [locationDetails, setLocationDetails] = useState(initial.location_details);
-
-  useEffect(() => {
-    if (!open) return;
-    setScheduledAt(initial.scheduled_at);
-    setDurationMinutes(initial.duration_minutes);
-    setLocationType(initial.location_type);
-    setLocationDetails(initial.location_details);
-  }, [open, initial]);
-
-  if (!open) return null;
 
   return (
     <div className="admx-modal" role="presentation">
@@ -435,7 +522,97 @@ function InterviewSchedulerModal({
               })
             }
           >
-            {busy ? "Scheduling..." : "Schedule & Set Invited"}
+            {busy ? "Scheduling interview..." : "Schedule Interview"}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+type CreateUserDeliveryModalProps = {
+  open: boolean;
+  label: string;
+  recipients: ComposerRecipient[];
+  initialChannels: CreateUserDeliveryChannels;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (channels: CreateUserDeliveryChannels) => void;
+};
+
+function CreateUserDeliveryModal({
+  open,
+  label,
+  recipients,
+  initialChannels,
+  busy,
+  onClose,
+  onSubmit,
+}: CreateUserDeliveryModalProps) {
+  const [emailEnabled, setEmailEnabled] = useState(initialChannels.email);
+  const [smsEnabled, setSmsEnabled] = useState(initialChannels.sms);
+
+  if (!open) return null;
+
+  const emailCount = recipients.filter((entry) => hasDeliverableEmail(entry.email)).length;
+  const phoneCount = recipients.filter((entry) => entry.phone.trim().length > 0).length;
+  const canSubmit = emailEnabled || smsEnabled;
+
+  return (
+    <div className="admx-modal" role="presentation">
+      <div className="admx-modal__backdrop" onClick={busy ? undefined : onClose} />
+      <div className="admx-modal__card" role="dialog" aria-modal="true">
+        <header className="admx-modal__header">
+          <div>
+            <h3>Create User</h3>
+            <p>{label}</p>
+          </div>
+        </header>
+        <div className="admx-modal__body">
+          <p className="admx-subtext">
+            Select how credentials should be delivered after account creation.
+          </p>
+          <div className="admx-channel-list">
+            <label className="admx-channel-option">
+              <input
+                type="checkbox"
+                checked={emailEnabled}
+                onChange={(event) => setEmailEnabled(event.target.checked)}
+                disabled={busy}
+              />
+              <span>
+                <strong>Email</strong>
+                <small>{emailCount} recipient{emailCount === 1 ? "" : "s"} with valid email</small>
+              </span>
+            </label>
+            <label className="admx-channel-option">
+              <input
+                type="checkbox"
+                checked={smsEnabled}
+                onChange={(event) => setSmsEnabled(event.target.checked)}
+                disabled={busy}
+              />
+              <span>
+                <strong>WhatsApp</strong>
+                <small>{phoneCount} recipient{phoneCount === 1 ? "" : "s"} with phone number</small>
+              </span>
+            </label>
+          </div>
+          {!canSubmit ? (
+            <p className="admx-inline-error">Select at least one delivery channel.</p>
+          ) : null}
+        </div>
+        <footer className="admx-modal__footer">
+          <button className="btn btn--secondary btn--sm" type="button" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            className="btn btn--primary btn--sm"
+            type="button"
+            disabled={!canSubmit || busy}
+            onClick={() => onSubmit({ email: emailEnabled, sms: smsEnabled })}
+          >
+            {busy ? "Creating..." : "Create User"}
           </button>
         </footer>
       </div>
@@ -468,6 +645,8 @@ export function GeneralApplyPage() {
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
   const [detailData, setDetailData] = useState<DetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [savingReviewMessage, setSavingReviewMessage] = useState(false);
+  const [detailReviewMessageDraft, setDetailReviewMessageDraft] = useState("");
   const [detailError, setDetailError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
@@ -482,6 +661,13 @@ export function GeneralApplyPage() {
     duration_minutes: 30,
     location_type: "online" as InterviewLocationType,
     location_details: "",
+  });
+  const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [createUserTargetIds, setCreateUserTargetIds] = useState<number[]>([]);
+  const [createUserLabel, setCreateUserLabel] = useState("");
+  const [createUserInitialChannels, setCreateUserInitialChannels] = useState<CreateUserDeliveryChannels>({
+    email: true,
+    sms: true,
   });
 
   const [composerOpen, setComposerOpen] = useState(false);
@@ -574,15 +760,42 @@ export function GeneralApplyPage() {
   const addFieldLabelRef = useRef<HTMLInputElement | null>(null);
 
   const selectedApplication = useMemo(() => applicants.find((item) => item.id === selectedApplicationId) ?? null, [applicants, selectedApplicationId]);
-  const submissionEntries = useMemo(
-    () => getSubmissionEntries(detailData?.program_application?.submission_answers),
-    [detailData],
+  const programTitleById = useMemo(
+    () => new Map(programs.map((program) => [program.id, program.title])),
+    [programs],
   );
+  const resolvedProgramTitle = useMemo(
+    () =>
+      String(
+        detailData?.program?.title ??
+          selectedApplication?.program_title ??
+          "",
+      ).trim() || undefined,
+    [detailData?.program?.title, selectedApplication?.program_title],
+  );
+  const submissionEntries = useMemo(
+    () =>
+      getSubmissionEntries(detailData?.program_application?.submission_answers, {
+        programTitle: resolvedProgramTitle,
+        programTitleById,
+      }),
+    [detailData, programTitleById, resolvedProgramTitle],
+  );
+  const currentReviewMessage = useMemo(
+    () => String(detailData?.program_application?.review_message ?? "").trim(),
+    [detailData?.program_application?.review_message],
+  );
+  const canSaveReviewMessage =
+    Boolean(selectedApplicationId) &&
+    !loadingDetail &&
+    !savingReviewMessage &&
+    detailReviewMessageDraft.trim().length > 0 &&
+    detailReviewMessageDraft.trim() !== currentReviewMessage;
   const composerApplicants = useMemo<ComposerRecipient[]>(
     () =>
       applicants.map((item) => ({
         id: item.id,
-        name: item.full_name?.trim() || item.email?.trim() || `Application #${item.id}`,
+        name: item.full_name?.trim() || item.email?.trim() || "Unnamed applicant",
         email: item.email?.trim() || "",
         phone: item.phone?.trim() || "",
         stage: toStage(item.stage),
@@ -590,14 +803,27 @@ export function GeneralApplyPage() {
       })),
     [applicants],
   );
+  const createUserTargetIdSet = useMemo(() => new Set(createUserTargetIds), [createUserTargetIds]);
+  const createUserRecipients = useMemo(
+    () => composerApplicants.filter((entry) => createUserTargetIdSet.has(entry.id)),
+    [composerApplicants, createUserTargetIdSet],
+  );
   const selectedIdList = useMemo(() => [...selectedIds], [selectedIds]);
+  const selectedApplicants = useMemo(
+    () => applicants.filter((item) => selectedIds.has(item.id)),
+    [applicants, selectedIds],
+  );
+  const selectedCreateEligibleCount = useMemo(
+    () => selectedApplicants.filter((item) => !hasCreatedUser(item.created_user_id)).length,
+    [selectedApplicants],
+  );
   const selectedExportRows = useMemo(
     () => applicants.filter((row) => selectedIds.has(row.id)),
     [applicants, selectedIds],
   );
   const csvColumns = useMemo<CsvExportColumn<ProgramApplicationListItem>[]>(
     () => [
-      { key: "applicant", label: "Applicant", getValue: (row) => row.full_name || row.email || `Application #${row.id}` },
+      { key: "applicant", label: "Applicant", getValue: (row) => row.full_name || row.email || "Unnamed applicant" },
       { key: "email", label: "Email", getValue: (row) => row.email || "" },
       { key: "phone", label: "Phone", getValue: (row) => row.phone || "" },
       { key: "program", label: "Program", getValue: (row) => row.program_title },
@@ -644,7 +870,7 @@ export function GeneralApplyPage() {
       scope: "program_applications",
       recipients: applicants.map((entry) => ({
         id: String(entry.id),
-        name: entry.full_name?.trim() || entry.email?.trim() || `Application #${entry.id}`,
+        name: entry.full_name?.trim() || entry.email?.trim() || "Unnamed applicant",
         email: entry.email?.trim() || "",
         phone: entry.phone?.trim() || "",
         status: toStage(entry.stage),
@@ -727,9 +953,11 @@ export function GeneralApplyPage() {
         applicant: detail.applicant,
         program: detail.program,
       });
+      setDetailReviewMessageDraft(String(detail.program_application?.review_message ?? "").trim());
     } catch (error) {
       setDetailError(error instanceof ApiError ? error.message : "Failed to load application detail.");
       setDetailData(null);
+      setDetailReviewMessageDraft("");
     } finally {
       setLoadingDetail(false);
     }
@@ -793,7 +1021,6 @@ export function GeneralApplyPage() {
     if (activeTab === "form") {
       void loadProgramForm();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   useEffect(() => {
@@ -821,8 +1048,9 @@ export function GeneralApplyPage() {
     let active = true;
     const loadTemplates = async () => {
       try {
-        const templates = await listMessageTemplates();
+        const result = await listMessageTemplates({ limit: 100, sortBy: "sort_order", order: "asc" });
         if (!active) return;
+        const templates = result.data;
         setMessageTemplates(templates.length ? templates : FALLBACK_MESSAGE_TEMPLATES);
       } catch {
         if (!active) return;
@@ -847,39 +1075,118 @@ export function GeneralApplyPage() {
         await loadDetail(selectedApplicationId);
       }
     } catch (error) {
-      setActionError(error instanceof ApiError ? error.message : "Operation failed.");
+      setActionError(error instanceof ApiError ? error.message : "Action couldn't be completed. Please try again.");
     } finally {
       setActionBusy(false);
     }
   };
 
-  const createSingleUser = async (id: number, label?: string | null) => {
+  const openCreateUserModal = (ids: number[], label: string) => {
+    if (!ids.length) return;
+    const idSet = new Set(ids);
+    const eligibleIds = applicants
+      .filter((entry) => idSet.has(entry.id) && !hasCreatedUser(entry.created_user_id))
+      .map((entry) => entry.id);
+    if (!eligibleIds.length) {
+      setActionError("Selected applicant(s) already have user accounts.");
+      return;
+    }
+    const eligibleIdSet = new Set(eligibleIds);
+    const targets = composerApplicants.filter((entry) => eligibleIdSet.has(entry.id));
+    const emailAvailable = targets.some((entry) => hasDeliverableEmail(entry.email));
+    const phoneAvailable = targets.some((entry) => entry.phone.trim().length > 0);
+    setCreateUserTargetIds(eligibleIds);
+    setCreateUserLabel(label);
+    setCreateUserInitialChannels({
+      email: emailAvailable || !phoneAvailable,
+      sms: phoneAvailable,
+    });
+    setCreateUserModalOpen(true);
+  };
+
+  const closeCreateUserModal = () => {
+    if (actionBusy) return;
+    setCreateUserModalOpen(false);
+    setCreateUserTargetIds([]);
+    setCreateUserLabel("");
+  };
+
+  const createSingleUser = async (
+    id: number,
+    label?: string | null,
+    channels?: CreateUserDeliveryChannels,
+  ) => {
     await runAction(async () => {
-      const response = await createUserFromProgramApplication(id);
+      const safeLabel = label?.trim() || "this applicant";
+      let response;
+      try {
+        response = await createUserFromProgramApplication(id, {
+          channels: {
+            email: channels?.email,
+            sms: channels?.sms,
+            whatsapp: channels?.sms,
+          },
+        });
+      } catch (error) {
+        throw new Error(friendlyCreateUserError(error, safeLabel));
+      }
+      const createdUserId = Number((response as { user_id?: unknown }).user_id);
+      if (Number.isFinite(createdUserId) && createdUserId > 0) {
+        setApplicants((current) =>
+          current.map((entry) => (entry.id === id ? { ...entry, created_user_id: createdUserId } : entry)),
+        );
+      }
+      const existingUser = Boolean((response as { existing_user?: unknown }).existing_user);
       const summary = summarizeOnboardingMessage(response);
       const extras: string[] = [];
       if (summary.sentCount > 0) extras.push(`credentials sent (${summary.sentCount})`);
-      if (summary.skipped) extras.push("delivery skipped");
+      if (summary.skipped) extras.push(onboardingSkipReasonText(summary.reason));
       setActionSuccess(
         extras.length
-          ? `User created for ${label?.trim() || `application #${id}`}; ${extras.join(", ")}.`
-          : `User created for ${label?.trim() || `application #${id}`}.`,
+          ? `${existingUser ? "Existing account linked" : "User created"} for ${safeLabel}; ${extras.join(", ")}.`
+          : `${existingUser ? "Existing account linked" : "User created"} for ${safeLabel}.`,
       );
       if (summary.failedCount > 0) {
+        const firstFailure = summary.firstFailure ? toFriendlyDeliveryFailure(summary.firstFailure) : "";
         setActionError(
-          `User created, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${summary.firstFailure ? ` ${summary.firstFailure}` : ""}`,
+          `${existingUser ? "Account linked" : "User created"}, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${firstFailure ? ` ${firstFailure}` : ""}`,
         );
       }
     });
   };
 
-  const createUsersForSelected = async () => {
-    if (!selectedIds.size) return;
-
+  const createUsersForIds = async (
+    ids: number[],
+    channels?: CreateUserDeliveryChannels,
+  ) => {
+    if (!ids.length) return;
     await runAction(async () => {
       const results = await Promise.allSettled(
-        [...selectedIds].map((id) => createUserFromProgramApplication(id)),
+        ids.map((id) =>
+          createUserFromProgramApplication(id, {
+            channels: {
+              email: channels?.email,
+              sms: channels?.sms,
+              whatsapp: channels?.sms,
+            },
+          }),
+        ),
       );
+      const createdMap = new Map<number, number>();
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        const createdUserId = Number((result.value as { user_id?: unknown }).user_id);
+        if (!Number.isFinite(createdUserId) || createdUserId <= 0) return;
+        createdMap.set(ids[index], createdUserId);
+      });
+      if (createdMap.size > 0) {
+        setApplicants((current) =>
+          current.map((entry) => ({
+            ...entry,
+            created_user_id: createdMap.get(entry.id) ?? entry.created_user_id,
+          })),
+        );
+      }
       const successCount = results.filter((result) => result.status === "fulfilled").length;
       const failed = results.filter((result) => result.status === "rejected");
       const summaries = results
@@ -889,11 +1196,22 @@ export function GeneralApplyPage() {
       const deliveryFailedCount = summaries.reduce((acc, item) => acc + item.failedCount, 0);
       const skippedCount = summaries.reduce((acc, item) => acc + (item.skipped ? 1 : 0), 0);
       const firstDeliveryFailure = summaries.find((item) => item.firstFailure)?.firstFailure || "";
+      const skippedReasonCounts = summaries.reduce<Record<string, number>>((acc, item) => {
+        if (!item.skipped) return acc;
+        const key = item.reason || "unknown";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
 
       if (successCount > 0) {
         const parts = [`Created ${successCount} user${successCount === 1 ? "" : "s"}.`];
         if (sentCount > 0) parts.push(`Credentials sent: ${sentCount}.`);
-        if (skippedCount > 0) parts.push(`Delivery skipped: ${skippedCount}.`);
+        if (skippedCount > 0) {
+          const skippedReasonText = Object.entries(skippedReasonCounts)
+            .map(([reason, count]) => `${onboardingSkipReasonText(reason)} (${count})`)
+            .join(" ");
+          parts.push(`Delivery skipped: ${skippedCount}.${skippedReasonText ? ` ${skippedReasonText}` : ""}`);
+        }
         setActionSuccess(parts.join(" "));
       }
 
@@ -901,17 +1219,59 @@ export function GeneralApplyPage() {
         const messages: string[] = [];
         if (failed.length) {
           const firstReason = failed[0].status === "rejected" ? failed[0].reason : null;
-          const reasonText = firstReason instanceof ApiError ? firstReason.message : "Some users could not be created.";
+          const reasonText = friendlyCreateUserError(firstReason, "One or more selected applicants");
           messages.push(`${failed.length} user create request${failed.length === 1 ? "" : "s"} failed. ${reasonText}`);
         }
         if (deliveryFailedCount > 0) {
+          const friendlyFailure = firstDeliveryFailure ? toFriendlyDeliveryFailure(firstDeliveryFailure) : "";
           messages.push(
-            `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${firstDeliveryFailure ? ` ${firstDeliveryFailure}` : ""}`,
+            `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${friendlyFailure ? ` ${friendlyFailure}` : ""}`,
           );
         }
         setActionError(messages.join(" "));
       }
     });
+  };
+
+  const submitCreateUserModal = async (channels: CreateUserDeliveryChannels) => {
+    if (!createUserTargetIds.length) return;
+    if (createUserTargetIds.length === 1) {
+      const target = composerApplicants.find((entry) => entry.id === createUserTargetIds[0]);
+      const label = target?.name || "this applicant";
+      await createSingleUser(createUserTargetIds[0], label, channels);
+    } else {
+      await createUsersForIds(createUserTargetIds, channels);
+    }
+    closeCreateUserModal();
+  };
+
+  const saveDetailReviewMessage = async () => {
+    if (!selectedApplicationId || !detailData) return;
+    const nextMessage = detailReviewMessageDraft.trim();
+    if (!nextMessage) {
+      setActionError("Review message cannot be empty.");
+      return;
+    }
+    const currentMessage = String(detailData.program_application?.review_message ?? "").trim();
+    if (nextMessage === currentMessage) return;
+
+    const stage = toStage(String(detailData.program_application?.stage ?? "applied"));
+    setSavingReviewMessage(true);
+    setActionError("");
+    try {
+      await updateProgramApplicationStage(selectedApplicationId, {
+        stage,
+        review_message: nextMessage,
+      });
+      await loadApplications();
+      await loadStatusCounts();
+      await loadDetail(selectedApplicationId);
+      setActionSuccess("Review message saved.");
+    } catch (error) {
+      setActionError(error instanceof ApiError ? error.message : "Failed to save review message.");
+    } finally {
+      setSavingReviewMessage(false);
+    }
   };
 
   const openScheduleModal = (id: number, name: string) => {
@@ -953,12 +1313,16 @@ export function GeneralApplyPage() {
         target?.full_name?.trim() ||
         target?.email?.trim() ||
         fallbackName?.trim() ||
-        `Application #${id}`;
+        "Selected applicant";
       openScheduleModal(id, name);
       return;
     }
 
     await runAction(async () => {
+      if (nextStage === "interview_confirmed") {
+        await markProgramApplicationInterviewCompleted(id);
+        return;
+      }
       await updateProgramApplicationStage(id, { stage: nextStage });
     });
   };
@@ -985,6 +1349,9 @@ export function GeneralApplyPage() {
         location_details: input.location_details || undefined,
         channels: hasEmail || hasPhone ? { email: hasEmail, sms: hasPhone } : undefined,
       });
+      const targetName = target?.full_name?.trim() || target?.email?.trim() || scheduleTargetName || "Applicant";
+      setActionSuccess(buildInterviewScheduleFeedback(targetName, hasEmail, hasPhone));
+      setActionError("");
 
       setApplicants((current) =>
         current.map((entry) =>
@@ -1060,15 +1427,18 @@ export function GeneralApplyPage() {
   const closeApplicationModal = () => {
     setSelectedApplicationId(null);
     setDetailData(null);
+    setDetailReviewMessageDraft("");
+    setSavingReviewMessage(false);
     setDetailError("");
     setActionError("");
   };
 
   useEffect(() => {
-    if (!selectedApplicationId && !composerOpen && !scheduleModalOpen) return;
+    if (!selectedApplicationId && !composerOpen && !scheduleModalOpen && !createUserModalOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (scheduleModalOpen) closeScheduleModal();
+        else if (createUserModalOpen) closeCreateUserModal();
         else if (composerOpen) closeComposer();
         else closeApplicationModal();
       }
@@ -1076,7 +1446,7 @@ export function GeneralApplyPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedApplicationId, composerOpen, scheduleModalOpen]);
+  }, [selectedApplicationId, composerOpen, scheduleModalOpen, createUserModalOpen]);
 
   useEffect(() => {
     if (!composerOpen) return;
@@ -1448,9 +1818,12 @@ export function GeneralApplyPage() {
                     }
                     void runAction(async () => {
                       await Promise.all(
-                        [...selectedIds].map((id) =>
-                          updateProgramApplicationStage(id, { stage: bulkStatus as ProgramApplicationStage }),
-                        ),
+                        [...selectedIds].map((id) => {
+                          if (bulkStatus === "interview_confirmed") {
+                            return markProgramApplicationInterviewCompleted(id);
+                          }
+                          return updateProgramApplicationStage(id, { stage: bulkStatus as ProgramApplicationStage });
+                        }),
                       );
                       setSelectedIds(new Set());
                     });
@@ -1461,13 +1834,22 @@ export function GeneralApplyPage() {
                 <button
                   className="btn btn--secondary btn--sm admx-create-user-btn"
                   type="button"
-                  disabled={actionBusy}
+                  disabled={actionBusy || selectedCreateEligibleCount === 0}
                   onClick={() => {
-                    if (!window.confirm(`Create user accounts and send credentials to ${selectedIds.size} selected applicant${selectedIds.size === 1 ? "" : "s"}?`)) return;
-                    void createUsersForSelected();
+                    const ids = [...selectedIds];
+                    openCreateUserModal(
+                      ids,
+                      `${ids.length} selected applicant${ids.length === 1 ? "" : "s"}`,
+                    );
                   }}
                 >
-                  {actionBusy ? "Creating..." : "Create User"}
+                  {selectedCreateEligibleCount === 0
+                    ? selectedApplicants.length === 1
+                      ? "User Created"
+                      : "Users Created"
+                    : actionBusy
+                      ? "Creating..."
+                      : "Create User"}
                 </button>
                 <button
                   className="admx-bulkbar__message"
@@ -1502,10 +1884,11 @@ export function GeneralApplyPage() {
                 ) : applicants.length ? (
                   applicants.map((applicant) => {
                     const stage = toStage(applicant.stage);
+                    const userCreated = hasCreatedUser(applicant.created_user_id);
                     return (
                       <tr key={applicant.id}>
                         <td className="popapply-col-check"><input type="checkbox" checked={selectedIds.has(applicant.id)} onChange={() => toggleSelect(applicant.id)} /></td>
-                        <td><button className="popapply-name-btn" type="button" onClick={() => void openApplication(applicant.id)}>{applicant.full_name || applicant.email || `Application #${applicant.id}`}</button></td>
+                        <td><button className="popapply-name-btn" type="button" onClick={() => void openApplication(applicant.id)}>{applicant.full_name || applicant.email || "Unnamed applicant"}</button></td>
                         <td>{applicant.program_title}</td>
                         <td>{formatDate(applicant.created_at)}</td>
                         <td>
@@ -1528,17 +1911,13 @@ export function GeneralApplyPage() {
                             <button
                               className="btn btn--secondary btn--sm admx-create-user-btn"
                               type="button"
-                              disabled={actionBusy}
+                              disabled={actionBusy || userCreated}
                               onClick={() => {
-                                const label = applicant.full_name || applicant.email || `application #${applicant.id}`;
-                                if (!window.confirm(`Create user for ${label} and send credentials message?`)) return;
-                                void createSingleUser(
-                                  applicant.id,
-                                  label,
-                                );
+                                const label = applicant.full_name || applicant.email || "this applicant";
+                                openCreateUserModal([applicant.id], label);
                               }}
                             >
-                              {actionBusy ? "Creating..." : "Create User"}
+                              {userCreated ? "User Created" : actionBusy ? "Creating..." : "Create User"}
                             </button>
                           </div>
                         </td>
@@ -1566,17 +1945,26 @@ export function GeneralApplyPage() {
                 <div className="popapply-modal-header">
                   <div>
                     <h3 className="popapply-modal-title">
-                      {String(detailData?.applicant?.full_name ?? selectedApplication?.full_name ?? `Application #${selectedApplicationId}`)}
+                      {String(detailData?.applicant?.full_name ?? selectedApplication?.full_name ?? "Applicant")}
                     </h3>
                     <p className="popapply-modal-subtitle">
                       {String(detailData?.applicant?.email ?? selectedApplication?.email ?? "-")} • {String(detailData?.program?.title ?? selectedApplication?.program_title ?? "-")}
                     </p>
                   </div>
-                  <button className="popapply-modal-close" type="button" aria-label="Close detail modal" onClick={closeApplicationModal}>x</button>
+                  <div className="admx-modal__header-actions">
+                    <button
+                      className="btn btn--secondary btn--sm"
+                      type="button"
+                      onClick={() => openMessageComposer({ id: selectedApplicationId })}
+                    >
+                      Message Applicant
+                    </button>
+                    <button className="popapply-modal-close" type="button" aria-label="Close detail modal" onClick={closeApplicationModal}>x</button>
+                  </div>
                 </div>
 
                 <div className="popapply-modal-body">
-                  {loadingDetail ? <p className="popapply-info">Loading detail...</p> : null}
+                  {loadingDetail ? <p className="popapply-info">Loading application details...</p> : null}
                   {detailError ? <p className="popapply-error">{detailError}</p> : null}
                   {actionError ? <p className="popapply-error">{actionError}</p> : null}
                   {actionSuccess ? <p className="popapply-success">{actionSuccess}</p> : null}
@@ -1596,6 +1984,29 @@ export function GeneralApplyPage() {
                           </div>
                         </section>
                       ) : null}
+
+                      <section className="popapply-modal-section">
+                        <div className="admx-inline-head">
+                          <h4 className="popapply-section-title">Review Message</h4>
+                          <button
+                            className="btn btn--secondary btn--sm"
+                            type="button"
+                            disabled={!canSaveReviewMessage}
+                            onClick={() => {
+                              void saveDetailReviewMessage();
+                            }}
+                          >
+                            {savingReviewMessage ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                        <textarea
+                          className="textarea-control"
+                          rows={3}
+                          value={detailReviewMessageDraft}
+                          onChange={(event) => setDetailReviewMessageDraft(event.target.value)}
+                          placeholder="Add review feedback for this application."
+                        />
+                      </section>
 
                       <section className="popapply-modal-section">
                         <h4 className="popapply-section-title">Application Stage</h4>
@@ -1633,20 +2044,30 @@ export function GeneralApplyPage() {
                           <button
                             className="popapply-btn popapply-btn--primary"
                             type="button"
-                            disabled={actionBusy}
+                            disabled={
+                              actionBusy ||
+                              hasCreatedUser(
+                                detailData.program_application?.created_user_id ??
+                                  selectedApplication?.created_user_id,
+                              )
+                            }
                             onClick={() => {
                               const label = String(
                                 detailData.applicant?.full_name ??
                                   detailData.applicant?.email ??
                                   selectedApplication?.full_name ??
                                   selectedApplication?.email ??
-                                  `application #${selectedApplicationId}`,
+                                  "this applicant",
                               );
-                              if (!window.confirm(`Create user for ${label} and send credentials message?`)) return;
-                              void runAction(async () => createUserFromProgramApplication(selectedApplicationId));
+                              openCreateUserModal([selectedApplicationId], label);
                             }}
                           >
-                            Create User
+                            {hasCreatedUser(
+                              detailData.program_application?.created_user_id ??
+                                selectedApplication?.created_user_id,
+                            )
+                              ? "User Created"
+                              : "Create User"}
                           </button>
                         </div>
                       </section>
@@ -1657,15 +2078,29 @@ export function GeneralApplyPage() {
             </div>
           ) : null}
 
-          <InterviewSchedulerModal
-            open={scheduleModalOpen}
-            applicantName={scheduleTargetName || "Applicant"}
-            busy={scheduleBusy}
-            error={scheduleError}
-            initial={scheduleInitial}
-            onClose={() => closeScheduleModal()}
-            onSubmit={(input) => void submitScheduleModal(input)}
+          <CreateUserDeliveryModal
+            key={`${createUserTargetIds.join(",")}:${String(createUserInitialChannels.email)}:${String(createUserInitialChannels.sms)}`}
+            open={createUserModalOpen}
+            label={createUserLabel}
+            recipients={createUserRecipients}
+            initialChannels={createUserInitialChannels}
+            busy={actionBusy}
+            onClose={closeCreateUserModal}
+            onSubmit={(channels) => {
+              void submitCreateUserModal(channels);
+            }}
           />
+
+          {scheduleModalOpen ? (
+            <InterviewSchedulerModal
+              applicantName={scheduleTargetName || "Applicant"}
+              busy={scheduleBusy}
+              error={scheduleError}
+              initial={scheduleInitial}
+              onClose={() => closeScheduleModal()}
+              onSubmit={(input) => void submitScheduleModal(input)}
+            />
+          ) : null}
 
           {composerOpen ? (
             <div className="admx-modal" role="presentation">
@@ -1748,14 +2183,15 @@ export function GeneralApplyPage() {
             </div>
           ) : null}
 
-          <CsvExportModal<ProgramApplicationListItem>
-            open={csvExportOpen}
-            onClose={() => setCsvExportOpen(false)}
-            title="Export General Apply CSV"
-            filename={`general-apply-${new Date().toISOString().slice(0, 10)}`}
-            columns={csvColumns}
-            rowScopes={csvRowScopes}
-          />
+          {csvExportOpen ? (
+            <CsvExportModal<ProgramApplicationListItem>
+              onClose={() => setCsvExportOpen(false)}
+              title="Export General Apply CSV"
+              filename={`general-apply-${new Date().toISOString().slice(0, 10)}`}
+              columns={csvColumns}
+              rowScopes={csvRowScopes}
+            />
+          ) : null}
 
         </section>
       ) : (

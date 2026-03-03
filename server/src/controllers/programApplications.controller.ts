@@ -75,6 +75,6 @@ export async function confirmProgramApplicationParticipation(req, res) {
 }
 
 export async function createUserFromProgramApplication(req, res) {
-  const data = await createUserFromProgramApplicationService(Number(req.params.id), req.user.id);
+  const data = await createUserFromProgramApplicationService(Number(req.params.id), req.user.id, req.body);
   sendSuccess(res, data, "User created from program application.");
 }

@@ -13,6 +13,7 @@ import { pool } from "./db/index.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { validatePagination } from "./middleware/validatePagination.js";
 import { announcementsRouter } from "./routes/announcements.routes.js";
+import { attendanceRouter } from "./routes/attendance.routes.js";
 import { adminFormsRouter } from "./routes/adminForms.routes.js";
 import { adminsRouter } from "./routes/admins.routes.js";
 import { applicationsRouter } from "./routes/applications.routes.js";
@@ -46,8 +47,15 @@ const allowedOrigins = process.env.CORS_ORIGIN
     : true;
 app.use(cors({
     origin: allowedOrigins,
+    credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
 }));
+app.use((req, res, next) => {
+    if (req.headers.origin) {
+        res.header("Access-Control-Allow-Credentials", "true");
+    }
+    next();
+});
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "8mb" }));
 app.use("/uploads", express.static(uploadsDir));
 app.use(validatePagination);
@@ -74,6 +82,7 @@ app.use("/admin", adminFormsRouter);
 app.use("/admin/admins", adminsRouter);
 app.use("/admins", adminsRouter);
 app.use("/announcements", announcementsRouter);
+app.use("/attendance", attendanceRouter);
 app.use("/events", eventsRouter);
 app.use("/forms", formsRouter);
 app.use("/admin/forms", formsRouter);
@@ -90,14 +99,80 @@ async function ensureSoftDeleteColumns() {
     await pool.query(`
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE programs ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS attendance_days JSONB NOT NULL DEFAULT '["monday","tuesday","wednesday","thursday"]'::jsonb;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS attendance_start_time TIME;
+      ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS attendance_end_time TIME;
       ALTER TABLE applications ADD COLUMN IF NOT EXISTS submission_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE applications ADD COLUMN IF NOT EXISTS review_message TEXT;
       ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage TEXT;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS completion_image_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS post_body TEXT;
+      UPDATE events SET completion_image_urls = '[]'::jsonb WHERE completion_image_urls IS NULL;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
+        attendance_date DATE NOT NULL,
+        location_type TEXT NOT NULL DEFAULT 'on_site',
+        submitted_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        submitted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT attendance_sessions_location_type_check CHECK (location_type IN ('remote', 'on_site')),
+        CONSTRAINT attendance_sessions_unique_cohort_day UNIQUE (cohort_id, attendance_date)
+      );
+      CREATE TABLE IF NOT EXISTS attendance_records (
+        id BIGSERIAL PRIMARY KEY,
+        session_id BIGINT NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        student_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        attendance_status TEXT NOT NULL DEFAULT 'present',
+        note TEXT,
+        marked_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        marked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT attendance_records_status_check CHECK (attendance_status IN ('present', 'absent', 'late')),
+        CONSTRAINT attendance_records_unique_student_per_session UNIQUE (session_id, student_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_attendance_sessions_cohort_date
+        ON attendance_sessions (cohort_id, attendance_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_attendance_records_student
+        ON attendance_records (student_user_id, marked_at DESC);
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS admin_status TEXT;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS dropout_reason TEXT;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMPTZ;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS status_updated_by BIGINT;
+      UPDATE student_profiles sp
+      SET admin_status = CASE
+        WHEN COALESCE(NULLIF(sp.admin_status, ''), '') <> '' THEN sp.admin_status
+        WHEN EXISTS (
+          SELECT 1
+          FROM users u
+          WHERE u.id = sp.user_id
+            AND u.is_active = FALSE
+        ) THEN 'dropout'
+        ELSE 'active'
+      END
+      WHERE sp.admin_status IS NULL OR sp.admin_status = '';
+      ALTER TABLE student_profiles ALTER COLUMN admin_status SET DEFAULT 'active';
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'student_profiles_admin_status_check'
+            AND conrelid = 'student_profiles'::regclass
+        ) THEN
+          ALTER TABLE student_profiles
+            ADD CONSTRAINT student_profiles_admin_status_check
+            CHECK (admin_status IN ('active', 'dropout'));
+        END IF;
+      END $$;
 
       -- Drop legacy/unknown applications check constraints before data normalization.
       DO $$

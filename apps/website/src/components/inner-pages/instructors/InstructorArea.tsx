@@ -56,8 +56,8 @@ export default function InstructorArea() {
     const fetchTeam = async () => {
       try {
         const [managersRes, instructorsRes] = await Promise.all([
-          fetch(`${API_BASE}/public/managers`, { cache: "no-store" }),
-          fetch(`${API_BASE}/public/instructors`, { cache: "no-store" }),
+          fetch(`${API_BASE}/public/managers`, { cache: "no-store", credentials: "omit" }),
+          fetch(`${API_BASE}/public/instructors`, { cache: "no-store", credentials: "omit" }),
         ]);
 
         const managersRaw = managersRes.ok ? await managersRes.json() : [];

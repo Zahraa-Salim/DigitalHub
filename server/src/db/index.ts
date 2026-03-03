@@ -3,19 +3,42 @@
 // Purpose: Provides PostgreSQL pool setup and transaction helper behavior.
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
-import dotenv from "dotenv";
 import pkg from "pg";
+import dns from "node:dns";
 const { Pool } = pkg;
-dotenv.config();
-const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+const LEGACY_SSL_MODES = new Set(["prefer", "require", "verify-ca"]);
+function normalizeDatabaseUrl(rawUrl: string): string {
+    if (!rawUrl) {
+        return rawUrl;
+    }
+    try {
+        const parsed = new URL(rawUrl);
+        const sslMode = (parsed.searchParams.get("sslmode") || "").trim().toLowerCase();
+        const libpqCompat = (parsed.searchParams.get("uselibpqcompat") || "").trim().toLowerCase();
+        if (LEGACY_SSL_MODES.has(sslMode) && libpqCompat !== "true") {
+            parsed.searchParams.set("sslmode", "verify-full");
+        }
+        return parsed.toString();
+    }
+    catch {
+        return rawUrl;
+    }
+}
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Ignore when runtime does not support changing DNS result order.
+}
+
+const databaseUrl = normalizeDatabaseUrl(String(process.env.DATABASE_URL || "").trim());
 const sslMode = String(process.env.PGSSLMODE || "").trim().toLowerCase();
 const sslEnabled = process.env.PGSSL !== "false" && sslMode !== "disable";
 const sharedPoolOptions = {
     ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
-    max: Number(process.env.PG_POOL_MAX || 10),
-    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
-    connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS || 10000),
-    keepAlive: true,
+  max: Number(process.env.PG_POOL_MAX || 10),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
+  connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS || 15000),
+  keepAlive: true,
 };
 export const pool = new Pool(databaseUrl
     ? {

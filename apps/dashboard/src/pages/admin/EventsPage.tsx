@@ -1,12 +1,13 @@
 ﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
+import type { ChangeEvent } from "react";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
 import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
-import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
+import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 
@@ -19,12 +20,14 @@ type EventRow = {
   slug: string;
   title: string;
   description: string | null;
+  post_body: string | null;
   location: string | null;
   starts_at: string;
   ends_at: string | null;
   is_published: boolean;
   is_done: boolean;
   done_at: string | null;
+  completion_image_urls: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,10 +36,12 @@ type EventFormState = {
   slug: string;
   title: string;
   description: string;
+  postBody: string;
   location: string;
   startsAt: string;
   endsAt: string;
   isPublished: boolean;
+  completionImageUrls: string[];
 };
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
@@ -44,11 +49,42 @@ const initialForm: EventFormState = {
   slug: "",
   title: "",
   description: "",
+  postBody: "",
   location: "",
   startsAt: "",
   endsAt: "",
   isPublished: false,
+  completionImageUrls: [],
 };
+
+function resolveEventImageUrl(imageUrl: string | null): string | null {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:")) {
+    return imageUrl;
+  }
+  const normalizedPath = imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`;
+  try {
+    const api = new URL(API_URL);
+    return `${api.origin}${normalizedPath}`;
+  } catch {
+    return `${API_URL.replace(/\/$/, "")}${normalizedPath}`;
+  }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseImageDataUrl(value: string): { mimeType: string; base64: string } | null {
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i.exec(value);
+  if (!match) return null;
+  return { mimeType: match[1].toLowerCase(), base64: match[2] };
+}
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -74,10 +110,12 @@ function toFormState(item: EventRow | null): EventFormState {
     slug: item.slug,
     title: item.title,
     description: item.description ?? "",
+    postBody: item.post_body ?? "",
     location: item.location ?? "",
     startsAt: toDateTimeInputValue(item.starts_at),
     endsAt: toDateTimeInputValue(item.ends_at),
     isPublished: item.is_published,
+    completionImageUrls: Array.isArray(item.completion_image_urls) ? item.completion_image_urls : [],
   };
 }
 
@@ -101,6 +139,7 @@ export function EventsPage() {
   const [form, setForm] = useState<EventFormState>(initialForm);
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<EventRow | null>(null);
   const [markDoneTarget, setMarkDoneTarget] = useState<EventRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -134,8 +173,9 @@ export function EventsPage() {
   };
 
   useEffect(() => {
+    const timers = toastTimersRef.current;
     return () => {
-      Object.values(toastTimersRef.current).forEach((timeoutId) => {
+      Object.values(timers).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
     };
@@ -210,7 +250,7 @@ export function EventsPage() {
   };
 
   const closeForm = () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isUploadingImages) return;
     setFormMode(null);
     setEditing(null);
     setFormError("");
@@ -247,10 +287,12 @@ export function EventsPage() {
       slug,
       title,
       description: form.description.trim() || null,
+      post_body: form.postBody.trim() || null,
       location: form.location.trim() || null,
       starts_at: startsAt,
       ends_at: endsAt,
       is_published: form.isPublished,
+      completion_image_urls: form.completionImageUrls,
     };
 
     setIsSubmitting(true);
@@ -275,6 +317,70 @@ export function EventsPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const uploadEventImageFromDataUrl = async (dataUrl: string): Promise<string> => {
+    const parsed = parseImageDataUrl(dataUrl);
+    if (!parsed) {
+      throw new Error("Invalid event image data. Please re-select the image.");
+    }
+    const uploaded = await api<{ image_url: string }>("/events/image", {
+      method: "POST",
+      body: JSON.stringify({
+        filename: "event-gallery-image",
+        mime_type: parsed.mimeType,
+        data_base64: parsed.base64,
+      }),
+    });
+    return uploaded.image_url;
+  };
+
+  const handleCompletionImagesSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    if (!editing?.is_done) {
+      setFormError("Mark the event as done first, then upload completion gallery images.");
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        setFormError("Only JPG, PNG, and WEBP files are allowed.");
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        setFormError("Each gallery image must be 3MB or less.");
+        return;
+      }
+    }
+
+    setIsUploadingImages(true);
+    setFormError("");
+    try {
+      const uploadedUrls = await Promise.all(
+        files.map(async (file) => {
+          const dataUrl = await fileToDataUrl(file);
+          return uploadEventImageFromDataUrl(dataUrl);
+        }),
+      );
+      setForm((current) => ({
+        ...current,
+        completionImageUrls: Array.from(new Set([...current.completionImageUrls, ...uploadedUrls])),
+      }));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to upload event gallery images.");
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const removeCompletionImageAt = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      completionImageUrls: current.completionImageUrls.filter((_, imageIndex) => imageIndex !== index),
+    }));
   };
 
   const confirmDelete = async () => {
@@ -487,11 +593,31 @@ export function EventsPage() {
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
               <p className="post-details__line"><strong>Slug:</strong> {selected.slug}</p>
               <p className="post-details__line"><strong>Description:</strong> {selected.description || "N/A"}</p>
+              <p className="post-details__line"><strong>Post / Detail:</strong> {selected.post_body || "N/A"}</p>
               <p className="post-details__line"><strong>Location:</strong> {selected.location || "N/A"}</p>
               <p className="post-details__line"><strong>Starts:</strong> {formatDateTime(selected.starts_at)}</p>
               <p className="post-details__line"><strong>Ends:</strong> {selected.ends_at ? formatDateTime(selected.ends_at) : "N/A"}</p>
               <p className="post-details__line"><strong>Published:</strong> {selected.is_published ? "Yes" : "No"}</p>
               <p className="post-details__line"><strong>Done:</strong> {selected.is_done ? "Yes" : "No"}</p>
+              {selected.is_done && Array.isArray(selected.completion_image_urls) && selected.completion_image_urls.length ? (
+                <div className="post-details__line">
+                  <strong>Completion Gallery:</strong>
+                  <div className="event-gallery-grid">
+                    {selected.completion_image_urls.map((imageUrl, index) => {
+                      const resolved = resolveEventImageUrl(imageUrl);
+                      if (!resolved) return null;
+                      return (
+                        <img
+                          key={`${selected.id}-gallery-${index}`}
+                          src={resolved}
+                          alt={`${selected.title} completion ${index + 1}`}
+                          className="event-gallery-thumb"
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={() => { openEdit(selected); setSelected(null); }}>Edit</button>
@@ -512,15 +638,54 @@ export function EventsPage() {
               <label className="field"><span className="field__label">Title</span><input className="field__control" type="text" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></label>
               <label className="field"><span className="field__label">Slug</span><input className="field__control" type="text" value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} placeholder="Leave blank to auto-generate from title" /></label>
               <label className="field"><span className="field__label">Description</span><textarea className="textarea-control" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
+              <label className="field"><span className="field__label">Post / Detail</span><textarea className="textarea-control" rows={6} value={form.postBody} onChange={(event) => setForm((current) => ({ ...current, postBody: event.target.value }))} placeholder="Use this content on the website event details page." /></label>
               <label className="field"><span className="field__label">Location</span><input className="field__control" type="text" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} /></label>
               <div className="event-form-grid">
                 <label className="field"><span className="field__label">Starts At</span><input className="field__control" type="datetime-local" value={form.startsAt} onChange={(event) => setForm((current) => ({ ...current, startsAt: event.target.value }))} /></label>
                 <label className="field"><span className="field__label">Ends At</span><input className="field__control" type="datetime-local" value={form.endsAt} onChange={(event) => setForm((current) => ({ ...current, endsAt: event.target.value }))} /></label>
                 <label className="field event-form-switch"><span className="field__label">Published</span><input type="checkbox" checked={form.isPublished} onChange={(event) => setForm((current) => ({ ...current, isPublished: event.target.checked }))} /></label>
               </div>
+
+              <label className="field">
+                <span className="field__label">Completion Gallery Images</span>
+                <input
+                  className="field__control"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple
+                  onChange={(event) => void handleCompletionImagesSelect(event)}
+                  disabled={!editing?.is_done || isSubmitting || isUploadingImages}
+                />
+                <span className="dh-field-help">
+                  {editing?.is_done
+                    ? "Upload JPG, PNG, or WEBP images (max 3MB each)."
+                    : "Available after the event is marked done."}
+                </span>
+              </label>
+
+              {form.completionImageUrls.length ? (
+                <div className="event-gallery-grid">
+                  {form.completionImageUrls.map((imageUrl, index) => {
+                    const resolved = resolveEventImageUrl(imageUrl);
+                    return (
+                      <div className="event-gallery-item" key={`form-gallery-${index}`}>
+                        {resolved ? <img src={resolved} alt={`Completion ${index + 1}`} className="event-gallery-thumb" /> : null}
+                        <button
+                          className="btn btn--danger btn--sm dh-btn"
+                          type="button"
+                          onClick={() => removeCompletionImageAt(index)}
+                          disabled={isSubmitting || isUploadingImages}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
             {formError ? <p className="alert alert--error">{formError}</p> : null}
-            <div className="modal-actions"><button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting}>Cancel</button><button className="btn btn--primary" type="button" onClick={saveEvent} disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save"}</button></div>
+            <div className="modal-actions"><button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting || isUploadingImages}>Cancel</button><button className="btn btn--primary" type="button" onClick={saveEvent} disabled={isSubmitting || isUploadingImages}>{isSubmitting ? "Saving..." : isUploadingImages ? "Uploading..." : "Save"}</button></div>
           </div>
         </div>
       ) : null}

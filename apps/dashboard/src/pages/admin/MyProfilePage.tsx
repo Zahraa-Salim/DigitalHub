@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
@@ -268,13 +268,13 @@ export function MyProfilePage() {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   };
 
-  const fetchAdminsList = async (): Promise<AdminProfile[]> => {
+  const fetchAdminsList = useCallback(async (): Promise<AdminProfile[]> => {
     try {
       return await api<AdminProfile[]>("/api/admins");
     } catch {
       return await api<AdminProfile[]>("/auth/admins");
     }
-  };
+  }, []);
 
   const updateMyProfile = async (payload: Record<string, unknown>): Promise<AdminProfile> => {
     try {
@@ -304,15 +304,15 @@ export function MyProfilePage() {
     }
   };
 
-  const fetchMyProfile = async (): Promise<AdminProfile> => {
+  const fetchMyProfile = useCallback(async (): Promise<AdminProfile> => {
     try {
       return await api<AdminProfile>("/api/admins/me");
     } catch {
       return await api<AdminProfile>("/auth/me");
     }
-  };
+  }, []);
 
-  const loadMyProfile = async (includeAdmins: boolean) => {
+  const loadMyProfile = useCallback(async (includeAdmins: boolean) => {
     const me = await fetchMyProfile();
     setProfile(me);
     setForm(toFormState(me));
@@ -325,7 +325,7 @@ export function MyProfilePage() {
         setAdmins([]);
       }
     }
-  };
+  }, [fetchAdminsList, fetchMyProfile]);
 
   useEffect(() => {
     let active = true;
@@ -360,7 +360,7 @@ export function MyProfilePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadMyProfile]);
 
   const saveProfile = async () => {
     const payload: Record<string, unknown> = {
@@ -1186,3 +1186,5 @@ export function MyProfilePage() {
     </PageShell>
   );
 }
+
+

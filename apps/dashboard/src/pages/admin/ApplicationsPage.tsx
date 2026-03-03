@@ -116,6 +116,14 @@ function buildAnswerEntries(value: unknown): Array<{ key: string; value: string 
   return [];
 }
 
+function applicantDisplayName(row: Pick<ApplicationRow, "full_name" | "email">): string {
+  return row.full_name?.trim() || row.email?.trim() || "Unnamed applicant";
+}
+
+function cohortDisplayName(row: Pick<ApplicationRow, "cohort_name">): string {
+  return row.cohort_name?.trim() || "Unassigned cohort";
+}
+
 export function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
@@ -167,8 +175,9 @@ export function ApplicationsPage() {
   };
 
   useEffect(() => {
+    const timers = toastTimersRef.current;
     return () => {
-      Object.values(toastTimersRef.current).forEach((timeoutId) => {
+      Object.values(timers).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
     };
@@ -737,7 +746,7 @@ export function ApplicationsPage() {
                     {groupedApprovedRows.length
                       ? groupedApprovedRows
                           .slice(0, 3)
-                          .map((row) => row.full_name || `#${row.id}`)
+                          .map((row) => applicantDisplayName(row))
                           .join(", ")
                       : "No applications grouped yet."}
                   </p>
@@ -757,7 +766,7 @@ export function ApplicationsPage() {
                     {groupedRejectedRows.length
                       ? groupedRejectedRows
                           .slice(0, 3)
-                          .map((row) => row.full_name || `#${row.id}`)
+                          .map((row) => applicantDisplayName(row))
                           .join(", ")
                       : "No applications grouped yet."}
                   </p>
@@ -794,7 +803,7 @@ export function ApplicationsPage() {
                     render: (row) => (
                       <input
                         type="checkbox"
-                        aria-label={`Select application ${row.id}`}
+                        aria-label={`Select ${applicantDisplayName(row)}`}
                         checked={selectedIds.includes(row.id)}
                         onChange={() => toggleRowSelection(row.id)}
                         disabled={row.status !== "pending" || isActionLoading}
@@ -807,14 +816,14 @@ export function ApplicationsPage() {
                     className: "table-cell-strong",
                     render: (row) => (
                       <button className="program-title-btn" type="button" onClick={() => setSelected(row)}>
-                        {row.full_name || "Unnamed applicant"}
+                        {applicantDisplayName(row)}
                       </button>
                     ),
                   },
                   {
                     key: "cohort",
                     label: "Cohort",
-                    render: (row) => row.cohort_name || `#${row.cohort_id}`,
+                    render: (row) => cohortDisplayName(row),
                   },
                   {
                     key: "group",
@@ -892,17 +901,17 @@ export function ApplicationsPage() {
                   <div className="application-mobile-item__head">
                     <input
                       type="checkbox"
-                      aria-label={`Select application ${row.id}`}
+                      aria-label={`Select ${applicantDisplayName(row)}`}
                       checked={selectedIds.includes(row.id)}
                       onChange={() => toggleRowSelection(row.id)}
                       disabled={row.status !== "pending" || isActionLoading}
                     />
                     <button className="program-mobile-item__title" type="button" onClick={() => setSelected(row)}>
-                      {row.full_name || "Unnamed applicant"}
+                      {applicantDisplayName(row)}
                     </button>
                   </div>
                   <p className="info-text application-mobile-item__meta">
-                    <strong>Cohort:</strong> {row.cohort_name || `#${row.cohort_id}`}
+                    <strong>Cohort:</strong> {cohortDisplayName(row)}
                   </p>
                   <p className="info-text application-mobile-item__meta">
                     <strong>Submitted:</strong> {formatDateTime(row.submitted_at)}
@@ -974,13 +983,13 @@ export function ApplicationsPage() {
           >
             <header className="modal-header">
               <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
-              <h3 className="modal-title">Application Details</h3>
+              <h3 className="modal-title">{applicantDisplayName(selected)}</h3>
             </header>
+            <p className="post-details__line">
+              {selected.email || "N/A"} • {cohortDisplayName(selected)}
+            </p>
 
             <div className="post-details applications-details-grid">
-              <p className="post-details__line">
-                <strong>Applicant:</strong> {selected.full_name || "Unnamed applicant"}
-              </p>
               <p className="post-details__line">
                 <strong>Email:</strong> {selected.email || "N/A"}
               </p>
@@ -988,7 +997,7 @@ export function ApplicationsPage() {
                 <strong>Phone:</strong> {selected.phone || "N/A"}
               </p>
               <p className="post-details__line">
-                <strong>Cohort:</strong> {selected.cohort_name || `#${selected.cohort_id}`}
+                <strong>Cohort:</strong> {cohortDisplayName(selected)}
               </p>
               <p className="post-details__line">
                 <strong>Status:</strong> {selected.status}
@@ -1000,19 +1009,13 @@ export function ApplicationsPage() {
                 <strong>Reviewed At:</strong> {selected.reviewed_at ? formatDateTime(selected.reviewed_at) : "Not reviewed yet"}
               </p>
               <p className="post-details__line">
-                <strong>Reviewed By:</strong> {selected.reviewed_by ?? "N/A"}
-              </p>
-              <p className="post-details__line">
                 <strong>Review Message:</strong> {selected.review_message || "N/A"}
-              </p>
-              <p className="post-details__line">
-                <strong>Applicant ID:</strong> {selected.applicant_id ?? "N/A"}
               </p>
             </div>
 
             <div className="post-details application-json-block">
               <p className="post-details__line">
-                <strong>Submission Answers</strong>
+                <strong>Submitted Information</strong>
               </p>
               {selectedAnswerEntries.length ? (
                 <div className="applications-answers-list">
@@ -1064,10 +1067,10 @@ export function ApplicationsPage() {
             </header>
             <p className="post-details__line">
               Send {reviewModal.action === "approve" ? "acceptance" : "rejection"} message for{" "}
-              <strong>{reviewModal.targets.length === 1 ? (reviewModal.targets[0].full_name || "this applicant") : `${reviewModal.targets.length} grouped applications`}</strong>
+              <strong>{reviewModal.targets.length === 1 ? applicantDisplayName(reviewModal.targets[0]) : `${reviewModal.targets.length} grouped applications`}</strong>
               {reviewModal.targets.length === 1 ? (
                 <>
-                  {" "}for <strong>{reviewModal.targets[0].cohort_name || `#${reviewModal.targets[0].cohort_id}`}</strong>
+                  {" "}for <strong>{cohortDisplayName(reviewModal.targets[0])}</strong>
                 </>
               ) : null}
               ?

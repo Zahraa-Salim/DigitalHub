@@ -8,7 +8,9 @@ import {
   createInstructorProfileService,
   getPublicStudentProfile,
   getStudentProfile,
+  listStudentProfilesAdminService,
   listProfilesService,
+  patchStudentStatusService,
   patchProfileService,
   patchProfileVisibilityService,
   setInstructorActivationService,
@@ -33,12 +35,10 @@ function createVisibilityHandler(tableName) {
         sendSuccess(res, data, "Profile visibility updated successfully.");
     };
 }
-export const getStudentProfiles = createListHandler("student_profiles", [
-    "user_id",
-    "full_name",
-    "featured_rank",
-    "created_at",
-]);
+export async function getStudentProfiles(req, res) {
+    const result = await listStudentProfilesAdminService(req.query);
+    sendList(res, result.data, result.pagination);
+}
 export const patchStudentProfile = createPatchHandler("student_profiles", [
     "full_name",
     "avatar_url",
@@ -55,6 +55,15 @@ export const patchStudentProfile = createPatchHandler("student_profiles", [
     "company_work_for",
 ]);
 export const patchStudentVisibility = createVisibilityHandler("student_profiles");
+export async function patchStudentStatus(req, res) {
+    const data = await patchStudentStatusService(
+      req.user.id,
+      req.user.role,
+      Number(req.params.userId),
+      req.body,
+    );
+    sendSuccess(res, data, "Student status updated successfully.");
+}
 export const getInstructorProfiles = createListHandler("instructor_profiles", [
     "user_id",
     "full_name",

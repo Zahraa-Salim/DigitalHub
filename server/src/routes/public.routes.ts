@@ -12,8 +12,25 @@ import {
   rescheduleInterviewByToken,
   rescheduleInterviewByTokenLink,
 } from "../controllers/applications.controller.js";
-import { getPublicAnnouncements, getPublicCohorts, getPublicEvents, getPublicHome, getPublicInstructors, getPublicManagers, getPublicPrograms, getPublicStudentBySlug, getPublicStudents, getPublicTheme, submitPublicApply, } from "../controllers/public.controller.js";
+import {
+  getPublicAnnouncements,
+  getPublicApplyForm,
+  getPublicCohortApplicationForm,
+  getPublicCohorts,
+  getPublicEventBySlug,
+  getPublicEvents,
+  getPublicHome,
+  getPublicInstructors,
+  getPublicManagers,
+  getPublicPrograms,
+  getPublicStudentBySlug,
+  getPublicStudents,
+  getPublicTheme,
+  submitPublicApply,
+} from "../controllers/public.controller.js";
 import { validateRequest } from "../middleware/validateRequest.js";
+import { idParamsSchema } from "../schemas/programs.schemas.js";
+import { eventSlugParamsSchema } from "../schemas/events.schemas.js";
 import {
   interviewTokenParamsSchema,
   publicApplyBodySchema,
@@ -25,10 +42,17 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 const publicRouter = Router();
 publicRouter.get("/theme", asyncHandler(getPublicTheme));
 publicRouter.get("/home", asyncHandler(getPublicHome));
+publicRouter.get("/apply/form", asyncHandler(getPublicApplyForm));
 publicRouter.post("/apply", validateRequest({ body: publicApplyBodySchema }), asyncHandler(submitPublicApply));
 publicRouter.get("/programs", asyncHandler(getPublicPrograms));
 publicRouter.get("/cohorts", asyncHandler(getPublicCohorts));
+publicRouter.get(
+  "/cohorts/:id/form",
+  validateRequest({ params: idParamsSchema }),
+  asyncHandler(getPublicCohortApplicationForm),
+);
 publicRouter.get("/events", asyncHandler(getPublicEvents));
+publicRouter.get("/events/:slug", validateRequest({ params: eventSlugParamsSchema }), asyncHandler(getPublicEventBySlug));
 publicRouter.get("/announcements", asyncHandler(getPublicAnnouncements));
 publicRouter.get("/managers", asyncHandler(getPublicManagers));
 publicRouter.get("/instructors", asyncHandler(getPublicInstructors));

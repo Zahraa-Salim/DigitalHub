@@ -25,7 +25,7 @@ export const applicationStatusSchema = z.enum([
 ]);
 export const applicationCreateSchema = z
     .object({
-    cohort_id: z.number().int().positive(),
+    cohort_id: z.coerce.number().int().positive(),
     applicant: z
         .object({
         full_name: z.string().trim().min(1).optional(),
@@ -36,7 +36,7 @@ export const applicationCreateSchema = z
         message: "At least one of email or phone is required.",
     })
         .strict(),
-    form_id: z.number().int().positive().optional(),
+    form_id: z.coerce.number().int().positive().optional(),
     answers: z.record(z.string(), z.unknown()).optional(),
 })
     .strict();
@@ -115,7 +115,17 @@ export const decisionBodySchema = z
   .strict();
 
 export const participationConfirmBodySchema = z.object({}).strict();
-export const createUserBodySchema = z.object({}).strict();
+export const createUserBodySchema = z
+  .object({
+    channels: z
+      .object({
+        email: z.boolean().optional(),
+        sms: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 export const messageCreateBodySchema = z
   .object({
@@ -165,5 +175,4 @@ export const publicApplyBodySchema = z
     answers: z.record(z.string(), z.unknown()),
   })
   .strict();
-
 

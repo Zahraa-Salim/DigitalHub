@@ -1,10 +1,11 @@
 ﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "../../components/Card";
+import type { ChangeEvent } from "react";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
-import { ApiError, api, apiList } from "../../utils/api";
+import { API_URL, ApiError, api, apiList } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 
@@ -15,11 +16,19 @@ type ProgramRow = {
   summary: string | null;
   description: string | null;
   requirements: string | null;
+  image_url: string | null;
   default_capacity: number | null;
   is_published: boolean;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+};
+
+type ProgramCardStyle = "modern" | "classic";
+
+type CmsSiteSettingsRow = {
+  id: number;
+  contact_info: Record<string, unknown> | null;
 };
 
 type ProgramFormState = {
@@ -28,6 +37,7 @@ type ProgramFormState = {
   summary: string;
   description: string;
   requirements: string;
+  imageUrl: string;
   defaultCapacity: string;
 };
 
@@ -39,8 +49,50 @@ const initialForm: ProgramFormState = {
   summary: "",
   description: "",
   requirements: "",
+  imageUrl: "",
   defaultCapacity: "",
 };
+
+function resolveProgramImageUrl(imageUrl: string | null): string | null {
+  if (!imageUrl) {
+    return null;
+  }
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:")) {
+    return imageUrl;
+  }
+  const normalizedPath = imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`;
+  try {
+    const api = new URL(API_URL);
+    return `${api.origin}${normalizedPath}`;
+  } catch {
+    return `${API_URL.replace(/\/$/, "")}${normalizedPath}`;
+  }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseImageDataUrl(value: string): { mimeType: string; base64: string } | null {
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i.exec(value);
+  if (!match) {
+    return null;
+  }
+  return { mimeType: match[1].toLowerCase(), base64: match[2] };
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toProgramCardStyle(value: unknown): ProgramCardStyle {
+  return value === "classic" ? "classic" : "modern";
+}
 
 function slugify(value: string): string {
   return value
@@ -61,6 +113,7 @@ function toFormState(program: ProgramRow | null): ProgramFormState {
     summary: program.summary ?? "",
     description: program.description ?? "",
     requirements: program.requirements ?? "",
+    imageUrl: program.image_url ?? "",
     defaultCapacity: program.default_capacity === null ? "" : String(program.default_capacity),
   };
 }
@@ -84,8 +137,15 @@ export function ProgramsPage() {
   const [form, setForm] = useState<ProgramFormState>(initialForm);
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProgramRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [programCardStyle, setProgramCardStyle] = useState<ProgramCardStyle>("modern");
+  const [siteContactInfo, setSiteContactInfo] = useState<Record<string, unknown>>({});
+  const [programStyleNotice, setProgramStyleNotice] = useState("");
+  const [programStyleError, setProgramStyleError] = useState("");
+  const [isSavingProgramStyle, setIsSavingProgramStyle] = useState(false);
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
 
@@ -145,16 +205,46 @@ export function ProgramsPage() {
     };
   }, [debouncedSearch, refreshKey, sortBy, sortOrder]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadProgramCardStyle = async () => {
+      try {
+        const settings = await api<CmsSiteSettingsRow>("/cms/site-settings");
+        if (!active) return;
+
+        const contactInfo = isObjectRecord(settings.contact_info) ? settings.contact_info : {};
+        setSiteContactInfo(contactInfo);
+        setProgramCardStyle(toProgramCardStyle(contactInfo.program_card_style));
+      } catch {
+        if (!active) return;
+        setProgramCardStyle("modern");
+      }
+    };
+
+    void loadProgramCardStyle();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const totalPrograms = programs.length;
   const lastUpdated = programs[0]?.updated_at ?? "";
   const formTitle = formMode === "create" ? "Add Program" : "Edit Program";
+  const formImageSrc = useMemo(() => resolveProgramImageUrl(form.imageUrl || null), [form.imageUrl]);
 
   const rows = useMemo(() => programs, [programs]);
+
+  useEffect(() => {
+    setImagePreviewFailed(false);
+  }, [formImageSrc]);
 
   const openCreate = () => {
     setFormMode("create");
     setEditing(null);
     setForm(initialForm);
+    setImagePreviewFailed(false);
     setFormError("");
     setSuccess("");
   };
@@ -163,12 +253,13 @@ export function ProgramsPage() {
     setFormMode("edit");
     setEditing(program);
     setForm(toFormState(program));
+    setImagePreviewFailed(false);
     setFormError("");
     setSuccess("");
   };
 
   const closeForm = () => {
-    if (isSubmitting) {
+    if (isSubmitting || isUploadingImage) {
       return;
     }
 
@@ -189,6 +280,55 @@ export function ProgramsPage() {
     }
 
     return parsed;
+  };
+
+  const uploadProgramImageFromDataUrl = async (dataUrl: string): Promise<string> => {
+    const parsed = parseImageDataUrl(dataUrl);
+    if (!parsed) {
+      throw new Error("Invalid program image data. Please re-select the image.");
+    }
+
+    const uploaded = await api<{ image_url: string }>("/programs/image", {
+      method: "POST",
+      body: JSON.stringify({
+        filename: "program-image",
+        mime_type: parsed.mimeType,
+        data_base64: parsed.base64,
+      }),
+    });
+
+    return uploaded.image_url;
+  };
+
+  const handleProgramImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setFormError("Only JPG, PNG, and WEBP files are allowed.");
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      setFormError("Program image must be 3MB or less.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setFormError("");
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm((current) => ({ ...current, imageUrl: dataUrl }));
+      setImagePreviewFailed(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to process image.");
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSave = async () => {
@@ -224,6 +364,7 @@ export function ProgramsPage() {
       summary: form.summary.trim(),
       description: form.description.trim(),
       requirements: form.requirements.trim(),
+      image_url: form.imageUrl.trim(),
     };
 
     if (defaultCapacity !== undefined) {
@@ -235,6 +376,13 @@ export function ProgramsPage() {
     setError("");
 
     try {
+      const imageInput = String(payload.image_url || "");
+      if (imageInput.startsWith("data:image/")) {
+        const uploadedImage = await uploadProgramImageFromDataUrl(imageInput);
+        payload.image_url = uploadedImage;
+        setForm((current) => ({ ...current, imageUrl: uploadedImage }));
+      }
+
       if (formMode === "create") {
         await api<ProgramRow>("/programs", {
           method: "POST",
@@ -263,6 +411,39 @@ export function ProgramsPage() {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const saveProgramCardStyle = async () => {
+    setProgramStyleNotice("");
+    setProgramStyleError("");
+    setIsSavingProgramStyle(true);
+
+    try {
+      const nextContactInfo: Record<string, unknown> = {
+        ...siteContactInfo,
+        program_card_style: programCardStyle,
+      };
+
+      const updated = await api<CmsSiteSettingsRow>("/cms/site-settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          contact_info: nextContactInfo,
+        }),
+      });
+
+      const updatedContactInfo = isObjectRecord(updated.contact_info) ? updated.contact_info : {};
+      setSiteContactInfo(updatedContactInfo);
+      setProgramCardStyle(toProgramCardStyle(updatedContactInfo.program_card_style));
+      setProgramStyleNotice("Program card style saved. Website cards now use this style.");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setProgramStyleError(err.message || "Failed to save program card style.");
+      } else {
+        setProgramStyleError("Failed to save program card style.");
+      }
+    } finally {
+      setIsSavingProgramStyle(false);
     }
   };
 
@@ -392,6 +573,44 @@ export function ProgramsPage() {
             hint="Most recently changed"
           />
         </div>
+
+        <Card className="card--compact-row">
+          <div>
+            <h3 className="section-title">Website Program Card Style</h3>
+            <p className="info-text">
+              Choose the card design used on the public home and programs pages.
+            </p>
+          </div>
+          <div className="dh-program-style-controls">
+            <label className="field">
+              <span className="field__label">Card Style</span>
+              <select
+                className="field__control"
+                value={programCardStyle}
+                onChange={(event) => setProgramCardStyle(event.target.value as ProgramCardStyle)}
+                disabled={isSavingProgramStyle}
+              >
+                <option value="modern">Modern Gradient</option>
+                <option value="classic">Classic Minimal</option>
+              </select>
+            </label>
+            <button className="btn btn--primary dh-btn" type="button" onClick={saveProgramCardStyle} disabled={isSavingProgramStyle}>
+              {isSavingProgramStyle ? "Saving..." : "Save Style"}
+            </button>
+          </div>
+        </Card>
+
+        {programStyleNotice ? (
+          <Card>
+            <p className="alert alert--success dh-alert dh-alert--success">{programStyleNotice}</p>
+          </Card>
+        ) : null}
+
+        {programStyleError ? (
+          <Card>
+            <p className="alert alert--error dh-alert">{programStyleError}</p>
+          </Card>
+        ) : null}
 
         <div className="dh-filters">
           <div className="dh-filters-desktop-panel">
@@ -555,6 +774,15 @@ export function ProgramsPage() {
               <h3 className="modal-title">Program Details</h3>
             </header>
             <div className="post-details">
+              {resolveProgramImageUrl(selected.image_url) ? (
+                <p className="post-details__line">
+                  <img
+                    src={resolveProgramImageUrl(selected.image_url) || ""}
+                    alt={`${selected.title} preview`}
+                    style={{ width: "100%", maxWidth: "360px", borderRadius: "12px", border: "1px solid var(--border)" }}
+                  />
+                </p>
+              ) : null}
               <p className="post-details__line">
                 <strong>Title:</strong> {selected.title}
               </p>
@@ -569,6 +797,9 @@ export function ProgramsPage() {
               </p>
               <p className="post-details__line">
                 <strong>Requirements:</strong> {selected.requirements || "N/A"}
+              </p>
+              <p className="post-details__line">
+                <strong>Image URL:</strong> {selected.image_url || "N/A"}
               </p>
               <p className="post-details__line">
                 <strong>Default Capacity:</strong> {selected.default_capacity ?? "N/A"}
@@ -614,6 +845,48 @@ export function ProgramsPage() {
             </header>
 
             <div className="form-stack">
+              <label className="field">
+                <span className="field__label">Program Image Preview</span>
+                <div style={{ minHeight: "132px", display: "flex", alignItems: "center" }}>
+                  {formImageSrc && !imagePreviewFailed ? (
+                    <img
+                      src={formImageSrc}
+                      alt="Program preview"
+                      onError={() => setImagePreviewFailed(true)}
+                      style={{ width: "100%", maxWidth: "380px", borderRadius: "12px", border: "1px solid var(--border)" }}
+                    />
+                  ) : (
+                    <span className="dh-field-help">No image selected.</span>
+                  )}
+                </div>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Upload Image</span>
+                <input
+                  className="field__control"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={(event) => void handleProgramImageSelect(event)}
+                  disabled={isSubmitting || isUploadingImage}
+                />
+                <span className="dh-field-help">
+                  Accepted: JPG, PNG, WEBP up to 3MB. Image uploads when you click Save.
+                </span>
+              </label>
+
+              <label className="field">
+                <span className="field__label">Image URL</span>
+                <input
+                  className="field__control"
+                  type="url"
+                  value={form.imageUrl}
+                  onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
+                  placeholder="https://... or /uploads/programs/..."
+                  disabled={isSubmitting || isUploadingImage}
+                />
+              </label>
+
               <label className="field">
                 <span className="field__label">Title</span>
                 <input
@@ -682,11 +955,11 @@ export function ProgramsPage() {
             {formError ? <p className="alert alert--error">{formError}</p> : null}
 
             <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting}>
+              <button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting || isUploadingImage}>
                 Cancel
               </button>
-              <button className="btn btn--primary" type="button" onClick={handleSave} disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save"}
+              <button className="btn btn--primary" type="button" onClick={handleSave} disabled={isSubmitting || isUploadingImage}>
+                {isSubmitting ? "Saving..." : isUploadingImage ? "Processing Image..." : "Save"}
               </button>
             </div>
           </div>
@@ -769,7 +1042,3 @@ export function ProgramsPage() {
     </PageShell>
   );
 }
-
-
-
-

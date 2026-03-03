@@ -292,7 +292,9 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
 
     let sentCount = 0;
     let skippedCount = 0;
+    let failedCount = 0;
     const skippedUsers = [];
+    const failedUsers = [];
 
     for (const user of users) {
         if (payload.channel === "email") {
@@ -305,12 +307,22 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
                 });
                 continue;
             }
-            await sendDigitalHubEmail({
-                to: toValue,
-                subject,
-                body,
-            });
-            sentCount += 1;
+            try {
+                await sendDigitalHubEmail({
+                    to: toValue,
+                    subject,
+                    body,
+                });
+                sentCount += 1;
+            }
+            catch (error) {
+                failedCount += 1;
+                failedUsers.push({
+                    id: user.id,
+                    reason: "send_failed",
+                    error: String(error?.message || error),
+                });
+            }
             continue;
         }
 
@@ -323,11 +335,21 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
             });
             continue;
         }
-        await sendDigitalHubWhatsApp({
-            to: phone,
-            body,
-        });
-        sentCount += 1;
+        try {
+            await sendDigitalHubWhatsApp({
+                to: phone,
+                body,
+            });
+            sentCount += 1;
+        }
+        catch (error) {
+            failedCount += 1;
+            failedUsers.push({
+                id: user.id,
+                reason: "send_failed",
+                error: String(error?.message || error),
+            });
+        }
     }
 
     await logAdminAction({
@@ -341,10 +363,12 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
             requested_user_ids: uniqueIds,
             sent_count: sentCount,
             skipped_count: skippedCount,
+            failed_count: failedCount,
             skipped_users: skippedUsers,
+            failed_users: failedUsers,
         },
         title: "User Message Sent",
-        body: `${sentCount} ${payload.channel.toUpperCase()} message(s) sent${skippedCount ? `, ${skippedCount} skipped.` : "."}`,
+        body: `${sentCount} ${payload.channel.toUpperCase()} message(s) sent${skippedCount ? `, ${skippedCount} skipped` : ""}${failedCount ? `${skippedCount ? "," : ""} ${failedCount} failed` : ""}.`,
     });
 
     return {
@@ -352,7 +376,9 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
         requested_count: uniqueIds.length,
         sent_count: sentCount,
         skipped_count: skippedCount,
+        failed_count: failedCount,
         skipped_users: skippedUsers,
+        failed_users: failedUsers,
     };
 }
 

@@ -17,11 +17,15 @@ import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 import { countProfiles, listProfiles, updateProfile, updateProfileVisibility, } from "../repositories/profiles.repo.js";
 import { createInstructorProfile, createInstructorUser, getInstructorProfileByUserId, setInstructorActiveByUserId, } from "../repositories/profiles.repo.js";
 import {
+  countStudentProfilesForAdmin,
+  getStudentEnrollments,
   getPublicStudentProfileBySlug,
   getPublicStudentProjects,
+  listStudentProfilesForAdmin,
   getStudentProfileWithUser,
   getStudentProjects,
   isPublicSlugUnique,
+  updateStudentAdminStatus,
   updateStudentProfile,
   getUserById,
 } from "../repositories/profiles.repository.js";
@@ -322,6 +326,7 @@ function toStudentProfileResponse(userRow, profileRow, projects) {
       id: userRow.id,
       email: userRow.email ?? null,
       phone: userRow.phone ?? null,
+      is_active: Boolean(userRow.is_active),
       is_student: Boolean(userRow.is_student),
       is_instructor: Boolean(userRow.is_instructor),
       is_admin: Boolean(userRow.is_admin),
@@ -341,6 +346,10 @@ function toStudentProfileResponse(userRow, profileRow, projects) {
       is_working: Boolean(profileRow.is_working),
       open_to_work: Boolean(profileRow.open_to_work),
       company_work_for: profileRow.company_work_for ?? null,
+      admin_status: profileRow.admin_status ?? (userRow.is_active ? "active" : "dropout"),
+      dropout_reason: profileRow.dropout_reason ?? null,
+      status_updated_at: profileRow.status_updated_at ?? null,
+      status_updated_by: profileRow.status_updated_by ?? null,
     },
     projects: projects.map((p) => ({
       id: p.id,
@@ -351,6 +360,9 @@ function toStudentProfileResponse(userRow, profileRow, projects) {
       live_url: p.live_url ?? null,
       is_public: Boolean(p.is_public),
     })),
+    cohorts: Array.isArray(profileRow.cohorts)
+      ? profileRow.cohorts
+      : [],
   };
 }
 
@@ -400,11 +412,24 @@ export async function getStudentProfile(userId) {
   }
 
   // Fetch projects
-  const projectsResult = await getStudentProjects(userId);
+  const [projectsResult, enrollmentsResult] = await Promise.all([
+    getStudentProjects(userId),
+    getStudentEnrollments(userId),
+  ]);
   const projects = projectsResult.rows || [];
+  const cohorts = (enrollmentsResult.rows || []).map((entry) => ({
+    enrollment_id: entry.id,
+    cohort_id: entry.cohort_id,
+    cohort_name: entry.cohort_name ?? null,
+    cohort_status: entry.cohort_status ?? null,
+    program_id: entry.program_id,
+    program_title: entry.program_title ?? null,
+    enrollment_status: entry.status ?? null,
+    enrolled_at: entry.enrolled_at ?? null,
+  }));
 
   const userRow = userResult.rows[0];
-  return toStudentProfileResponse(userRow, userRow, projects);
+  return toStudentProfileResponse(userRow, { ...userRow, cohorts }, projects);
 }
 
 /**
@@ -509,4 +534,148 @@ export async function updateStudentProfileAdmin(adminUserId, targetUserId, paylo
   } finally {
     client.release();
   }
+}
+
+export async function listStudentProfilesAdminService(query) {
+  const list = parseListQuery(query, ["user_id", "full_name", "created_at", "status"], "created_at");
+  const isActive = parseQueryBoolean(query?.is_active, "is_active");
+  const statusFilter = String(list.status || "").trim().toLowerCase();
+  const params = [];
+  const where = [];
+
+  if (list.search) {
+    params.push(`%${list.search}%`);
+    where.push(
+      buildSearchClause(
+        [
+          "COALESCE(sp.full_name, '')",
+          "COALESCE(u.email, '')",
+          "COALESCE(u.phone, '')",
+        ],
+        params.length,
+      ),
+    );
+  }
+
+  if (list.isPublic !== undefined) {
+    params.push(list.isPublic);
+    where.push(`sp.is_public = $${params.length}`);
+  }
+
+  if (isActive !== undefined) {
+    params.push(isActive);
+    where.push(`u.is_active = $${params.length}`);
+  }
+
+  if (statusFilter) {
+    if (!["active", "dropout"].includes(statusFilter)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Unsupported status filter. Use 'active' or 'dropout'.");
+    }
+    params.push(statusFilter);
+    where.push(`COALESCE(NULLIF(sp.admin_status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'dropout' END) = $${params.length}`);
+  }
+
+  if (list.cohortId !== undefined) {
+    params.push(list.cohortId);
+    where.push(
+      `EXISTS (
+        SELECT 1
+        FROM enrollments e2
+        WHERE e2.student_user_id = sp.user_id
+          AND e2.cohort_id = $${params.length}
+      )`,
+    );
+  }
+
+  const sortMap = {
+    user_id: "sp.user_id",
+    full_name: "COALESCE(sp.full_name, '')",
+    created_at: "sp.created_at",
+    status: "COALESCE(NULLIF(sp.admin_status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'dropout' END)",
+  };
+  const sortBy = sortMap[list.sortBy] || "sp.created_at";
+
+  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const [countResult, dataResult] = await Promise.all([
+    countStudentProfilesForAdmin(whereClause, params),
+    listStudentProfilesForAdmin(whereClause, sortBy, list.order, params, list.limit, list.offset),
+  ]);
+
+  const total = Number(countResult.rows[0]?.total ?? 0);
+  return {
+    data: dataResult.rows,
+    pagination: buildPagination(list.page, list.limit, total),
+  };
+}
+
+export async function patchStudentStatusService(actorUserId, actorRole, userId, payload) {
+  if (actorRole !== "admin" && actorRole !== "super_admin") {
+    throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
+  }
+
+  const nextStatus = String(payload.status || "").trim().toLowerCase();
+  if (!["active", "dropout"].includes(nextStatus)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid status value.");
+  }
+
+  const reason = nextStatus === "dropout" ? String(payload.reason || "").trim() : "";
+  if (nextStatus === "dropout" && !reason) {
+    throw new AppError(400, "VALIDATION_ERROR", "Dropout reason is required.");
+  }
+
+  return withTransaction(async (client) => {
+    const existingResult = await getStudentProfileWithUser(userId, client);
+    if (!existingResult.rowCount) {
+      throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
+    }
+
+    const updateResult = await updateStudentAdminStatus(
+      userId,
+      nextStatus,
+      reason || null,
+      actorUserId,
+      nextStatus === "active",
+      client,
+    );
+    if (!updateResult.rowCount) {
+      throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
+    }
+
+    await logAdminAction(
+      {
+        actorUserId,
+        action: "update student status",
+        entityType: "student_profiles",
+        entityId: userId,
+        message: `Student status updated to ${nextStatus} for user ${userId}.`,
+        metadata: {
+          status: nextStatus,
+          dropout_reason: reason || null,
+          user_active: nextStatus === "active",
+        },
+        title: "Student Status Updated",
+        body: `Student #${userId} status set to ${nextStatus}.`,
+      },
+      client,
+    );
+
+    const [freshResult, projectsResult, enrollmentsResult] = await Promise.all([
+      getStudentProfileWithUser(userId, client),
+      getStudentProjects(userId, client),
+      getStudentEnrollments(userId, client),
+    ]);
+
+    const freshRow = freshResult.rows[0];
+    const cohorts = (enrollmentsResult.rows || []).map((entry) => ({
+      enrollment_id: entry.id,
+      cohort_id: entry.cohort_id,
+      cohort_name: entry.cohort_name ?? null,
+      cohort_status: entry.cohort_status ?? null,
+      program_id: entry.program_id,
+      program_title: entry.program_title ?? null,
+      enrollment_status: entry.status ?? null,
+      enrolled_at: entry.enrolled_at ?? null,
+    }));
+    return toStudentProfileResponse(freshRow, { ...freshRow, cohorts }, projectsResult.rows || []);
+  });
 }

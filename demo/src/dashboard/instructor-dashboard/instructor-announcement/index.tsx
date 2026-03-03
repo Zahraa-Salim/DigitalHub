@@ -1,0 +1,17 @@
+import FooterOne from '@/layouts/footers/FooterOne'
+import HeaderOne from '@/layouts/headers/HeaderOne'
+import InstructorAnnouncementArea from './InstructorAnnouncementArea'
+
+const InstructorAnnouncement = () => {
+   return (
+      <>
+         <HeaderOne />
+         <main className="main-area fix">
+            <InstructorAnnouncementArea />
+         </main>
+         <FooterOne />
+      </>
+   )
+}
+
+export default InstructorAnnouncement

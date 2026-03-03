@@ -117,3 +117,13 @@ export const updateStudentProfileBodySchema = z.object({
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field is required.",
   });
+
+export const studentStatusPatchSchema = z.object({
+  status: z.enum(["active", "dropout"]),
+  reason: z.string().trim().max(2000).optional(),
+})
+  .strict()
+  .refine((payload) => payload.status !== "dropout" || Boolean(String(payload.reason || "").trim()), {
+    message: "Dropout reason is required.",
+    path: ["reason"],
+  });

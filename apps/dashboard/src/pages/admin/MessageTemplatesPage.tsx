@@ -87,7 +87,8 @@ export function MessageTemplatesPage() {
     setError("");
     setSuccess("");
     try {
-      const data = await listMessageTemplates({ include_inactive: true });
+      const result = await listMessageTemplates({ include_inactive: true, limit: 100, sortBy: "sort_order", order: "asc" });
+      const data = result.data;
       setTemplates(data);
       setDraftsByKey(
         data.reduce<Record<string, TemplateDraft>>((accumulator, template) => {

@@ -206,9 +206,11 @@ async function sendAccountCredentialsMessageForProgramApplication(
   application,
   actorUserId,
   generatedPassword,
+  deliveryChannels,
   client,
 ) {
-  const templateResult = await getMessageTemplateByKey("account_credentials", client);
+  const templateKey = generatedPassword ? "account_credentials" : "account_existing_reminder";
+  const templateResult = await getMessageTemplateByKey(templateKey, client);
   const template = templateResult.rows[0] ?? null;
   const signInUrl = buildLearnerSignInUrl();
   const bodyTokens = {
@@ -219,25 +221,34 @@ async function sendAccountCredentialsMessageForProgramApplication(
     sign_in_url: signInUrl,
   };
   const subject = renderTemplateString(
-    template?.subject || "Your Digital Hub Account Details",
+    template?.subject || (generatedPassword ? "Your Digital Hub Account Details" : "Your Digital Hub Account Access"),
     bodyTokens,
   );
   const body = renderTemplateString(
     template?.body ||
-      "Hello {name},\n\nYour account has been created.\nEmail: {email}\nPassword: {generated_password}\nSign in: {sign_in_url}\n",
+      (generatedPassword
+        ? "Hello {name},\n\nYour account has been created.\nEmail: {email}\nPassword: {generated_password}\nSign in: {sign_in_url}\n"
+        : "Hello {name},\n\nYour account is active.\nEmail: {email}\nSign in: {sign_in_url}\nIf you forgot your password, use Forgot Password on the sign-in page.\n"),
     bodyTokens,
   );
 
   const emailValue = String(application.applicant_email || "").trim();
   const phoneValue = String(application.applicant_phone || "").trim();
-  const useEmail = Boolean(emailValue) && !emailValue.endsWith("@digitalhub.local");
-  const useWhatsApp = !useEmail && Boolean(phoneValue);
+  const allowEmail = deliveryChannels?.email !== false;
+  const allowWhatsApp = (deliveryChannels?.whatsapp ?? deliveryChannels?.sms) !== false;
+  const useEmail = allowEmail && Boolean(emailValue) && !emailValue.endsWith("@digitalhub.local");
+  const useWhatsApp = allowWhatsApp && Boolean(phoneValue);
 
   const sentMessages = [];
   const failedMessages = [];
 
+  if (!allowEmail && !allowWhatsApp) {
+    return { sentMessages, failedMessages, skipped: true, reason: "channels_disabled" };
+  }
+
   if (!useEmail && !useWhatsApp) {
-    return { sentMessages, failedMessages, skipped: true };
+    const reason = !emailValue && !phoneValue ? "no_contact_channel" : "no_supported_destination";
+    return { sentMessages, failedMessages, skipped: true, reason };
   }
 
   if (useEmail) {
@@ -1065,7 +1076,7 @@ export async function confirmProgramApplicationParticipationService(programAppli
   });
 }
 
-export async function createUserFromProgramApplicationService(programApplicationId, actorUserId) {
+export async function createUserFromProgramApplicationService(programApplicationId, actorUserId, options = {}) {
   return withTransaction(async (client) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
@@ -1074,13 +1085,30 @@ export async function createUserFromProgramApplicationService(programApplication
     }
 
     const application = applicationResult.rows[0];
+    const requestedChannels = options?.channels ?? {};
+    const deliveryChannels = {
+      email: requestedChannels.email !== false,
+      sms: (requestedChannels.whatsapp ?? requestedChannels.sms) !== false,
+      whatsapp: (requestedChannels.whatsapp ?? requestedChannels.sms) !== false,
+    };
 
     if (application.created_user_id) {
+      const onboardingMessage = await sendAccountCredentialsMessageForProgramApplication(
+        programApplicationId,
+        application,
+        actorUserId,
+        null,
+        deliveryChannels,
+        client,
+      );
+
       return {
         program_application: application,
         user_id: application.created_user_id,
         enrollment: null,
         generated_password: null,
+        existing_user: true,
+        onboarding_message: onboardingMessage,
       };
     }
 
@@ -1138,6 +1166,7 @@ export async function createUserFromProgramApplicationService(programApplication
       application,
       actorUserId,
       generatedPassword,
+      deliveryChannels,
       client,
     );
 
@@ -1165,6 +1194,7 @@ export async function createUserFromProgramApplicationService(programApplication
       user_id: userId,
       enrollment,
       generated_password: generatedPassword,
+      existing_user: generatedPassword ? false : true,
       onboarding_message: onboardingMessage,
     };
   });

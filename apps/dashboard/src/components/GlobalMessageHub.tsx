@@ -132,8 +132,9 @@ export function GlobalMessageHub() {
     let active = true;
     const loadTemplates = async () => {
       try {
-        const data = await listMessageTemplates();
+        const result = await listMessageTemplates({ limit: 100, sortBy: "sort_order", order: "asc" });
         if (!active) return;
+        const data = result.data;
         setTemplates(data.length ? data : FALLBACK_MESSAGE_TEMPLATES);
       } catch {
         if (!active) return;

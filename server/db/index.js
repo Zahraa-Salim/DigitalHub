@@ -18,7 +18,7 @@ export const pool = new Pool({
   database: process.env.PGDATABASE,
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
-  ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
+  ssl: sslEnabled ? { rejectUnauthorized: false, sslmode: 'verify-full' } : undefined,
 });
 
 export async function withTransaction(handler) {

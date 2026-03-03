@@ -20,6 +20,13 @@ function buildZodFieldErrors(error) {
     return { fieldErrors };
 }
 export function errorHandler(error, _req, res, _next) {
+    const rawCode = typeof error === "object" && error !== null && "code" in error
+      ? String(error.code).toUpperCase()
+      : "";
+    const rawMessage = typeof error === "object" && error !== null && "message" in error
+      ? String(error.message).toLowerCase()
+      : "";
+
     if (error instanceof ZodError) {
         sendError(res, 400, "VALIDATION_ERROR", "Invalid request data", buildZodFieldErrors(error));
         return;
@@ -51,6 +58,20 @@ export function errorHandler(error, _req, res, _next) {
       return;
     }
   }
+
+    if (
+      rawCode === "ENOTFOUND" ||
+      rawCode === "EAI_AGAIN" ||
+      rawCode === "ETIMEDOUT" ||
+      rawCode === "ECONNRESET" ||
+      rawMessage.includes("connection timeout") ||
+      rawMessage.includes("connection terminated unexpectedly") ||
+      rawMessage.includes("getaddrinfo")
+    ) {
+      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+      return;
+    }
+
     // Log unexpected errors for easier operational debugging.
     console.error("Unhandled error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "Internal server error");

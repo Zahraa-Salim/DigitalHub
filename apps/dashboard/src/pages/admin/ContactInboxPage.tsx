@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -127,18 +127,17 @@ export function ContactInboxPage() {
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [toastId, setToastId] = useState(1);
+  const toastIdRef = useRef(1);
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
 
-  const pushToast = (tone: ToastTone, message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
+  const pushToast = useCallback((tone: ToastTone, message: string) => {
+    const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3200);
-  };
+  }, []);
 
   const dismissToast = (id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -203,7 +202,7 @@ export function ContactInboxPage() {
     return () => {
       active = false;
     };
-  }, [debouncedSearch, kindFilter, page, refreshKey, sortBy, sortOrder, statusFilter]);
+  }, [debouncedSearch, kindFilter, page, pushToast, refreshKey, sortBy, sortOrder, statusFilter]);
 
   const filteredRows = useMemo(() => {
     if (kindFilter === "all") {
@@ -916,3 +915,4 @@ export function ContactInboxPage() {
     </PageShell>
   );
 }
+

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
@@ -76,18 +76,17 @@ export function ActivityLogsPage() {
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [toastId, setToastId] = useState(1);
+  const toastIdRef = useRef(1);
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
 
-  const pushToast = (tone: ToastTone, message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
+  const pushToast = useCallback((tone: ToastTone, message: string) => {
+    const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3200);
-  };
+  }, []);
 
   const dismissToast = (id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -155,7 +154,7 @@ export function ActivityLogsPage() {
     return () => {
       active = false;
     };
-  }, [action, actorUserId, dateFrom, dateTo, debouncedSearch, entityType, page, sortBy, sortOrder]);
+  }, [action, actorUserId, dateFrom, dateTo, debouncedSearch, entityType, page, pushToast, sortBy, sortOrder]);
 
   const openMobileFilters = () => {
     setShowFiltersMobile(true);
@@ -511,6 +510,10 @@ export function ActivityLogsPage() {
     </PageShell>
   );
 }
+
+
+
+
 
 
 

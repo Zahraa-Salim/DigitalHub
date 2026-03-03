@@ -781,7 +781,11 @@
             max-width: 90%;
         }
         & .main-img {
-            max-width: inherit;
+            display: block;
+            width: 100%;
+            max-width: 560px;
+            height: auto;
+            margin-left: auto;
             @media #{$xl} {
                 max-width: 100%;
             }

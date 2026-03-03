@@ -56,8 +56,8 @@ const About = () => {
   useEffect(() => {
     const readList = async <T,>(path: string): Promise<T[]> => {
       const res = await fetch(`${API_BASE_URL}${path}`, {
-        credentials: "include",
         cache: "no-store",
+        credentials: "omit",
       });
       if (!res.ok) return [];
       const json = (await res.json()) as unknown;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -102,17 +102,16 @@ export function AdminManagementPage() {
   const [activationNext, setActivationNext] = useState<boolean | null>(null);
   const [isUpdatingActivation, setIsUpdatingActivation] = useState(false);
 
-  const [toastId, setToastId] = useState(1);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = useRef(1);
 
-  const pushToast = (tone: "success" | "error", message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
+  const pushToast = useCallback((tone: "success" | "error", message: string) => {
+    const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3000);
-  };
+  }, []);
 
   const dismissToast = (id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -171,7 +170,7 @@ export function AdminManagementPage() {
     return () => {
       active = false;
     };
-  }, [activeFilter, debouncedSearch, page, refreshKey, roleFilter, sortBy]);
+  }, [activeFilter, debouncedSearch, page, pushToast, refreshKey, roleFilter, sortBy]);
 
   const activeCount = rows.filter((row) => row.is_active).length;
   const superCount = rows.filter((row) => row.admin_profile.admin_role === "super_admin").length;
@@ -584,3 +583,5 @@ export function AdminManagementPage() {
     </PageShell>
   );
 }
+
+

@@ -17,10 +17,14 @@ function isTransientDatabaseError(error) {
         code === "08006" ||
         code === "08001" ||
         code === "57P01" ||
+        code === "ENOTFOUND" ||
+        code === "EAI_AGAIN" ||
         code === "ETIMEDOUT" ||
         code === "ECONNRESET" ||
         code === "EPIPE" ||
         message.includes("authentication timed out") ||
+        message.includes("getaddrinfo") ||
+        message.includes("name or service not known") ||
         message.includes("connection terminated unexpectedly"));
 }
 

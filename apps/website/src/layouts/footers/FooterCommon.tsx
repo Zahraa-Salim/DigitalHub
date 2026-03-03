@@ -74,7 +74,7 @@ const FooterCommon = () => {
   };
 
   useEffect(() => {
-    fetch(`${API_BASE}/public/home`, { cache: "no-store" })
+    fetch(`${API_BASE}/public/home`, { cache: "no-store", credentials: "omit" })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload: PublicHomeResponse | null) => {
         if (!payload?.data?.site_settings) return;

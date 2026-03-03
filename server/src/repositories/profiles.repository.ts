@@ -19,6 +19,7 @@ export async function getStudentProfileWithUser(userId, db = pool) {
       u.id,
       u.email,
       u.phone,
+      u.is_active,
       u.is_student,
       u.is_instructor,
       u.is_admin,
@@ -37,6 +38,10 @@ export async function getStudentProfileWithUser(userId, db = pool) {
       sp.is_working,
       sp.open_to_work,
       sp.company_work_for,
+      sp.admin_status,
+      sp.dropout_reason,
+      sp.status_updated_at,
+      sp.status_updated_by,
       sp.created_at as profile_created_at
     FROM users u
     JOIN student_profiles sp ON sp.user_id = u.id
@@ -282,5 +287,153 @@ export async function getUserById(userId, db = pool) {
     WHERE id = $1
     `,
     [userId]
+  );
+}
+
+export async function getStudentEnrollments(userId, db = pool) {
+  return db.query(
+    `
+    SELECT
+      e.id,
+      e.student_user_id,
+      e.cohort_id,
+      e.application_id,
+      e.status,
+      e.enrolled_at,
+      c.name AS cohort_name,
+      CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS cohort_status,
+      p.id AS program_id,
+      p.title AS program_title
+    FROM enrollments e
+    LEFT JOIN cohorts c ON c.id = e.cohort_id AND c.deleted_at IS NULL
+    LEFT JOIN programs p ON p.id = c.program_id AND p.deleted_at IS NULL
+    WHERE e.student_user_id = $1
+    ORDER BY e.enrolled_at DESC NULLS LAST, e.id DESC
+    `,
+    [userId],
+  );
+}
+
+export async function countStudentProfilesForAdmin(whereClause, params, db = pool) {
+  return db.query(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM student_profiles sp
+      JOIN users u ON u.id = sp.user_id
+      ${whereClause}
+    `,
+    params,
+  );
+}
+
+export async function listStudentProfilesForAdmin(whereClause, sortBy, order, params, limit, offset, db = pool) {
+  return db.query(
+    `
+      SELECT
+        sp.user_id,
+        sp.full_name,
+        sp.avatar_url,
+        sp.bio,
+        sp.linkedin_url,
+        sp.github_url,
+        sp.portfolio_url,
+        sp.is_public,
+        sp.featured,
+        sp.featured_rank,
+        sp.public_slug,
+        sp.is_graduated,
+        sp.is_working,
+        sp.open_to_work,
+        sp.company_work_for,
+        COALESCE(NULLIF(sp.admin_status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'dropout' END) AS admin_status,
+        sp.dropout_reason,
+        sp.status_updated_at,
+        sp.status_updated_by,
+        sp.created_at,
+        u.email,
+        u.phone,
+        u.is_active,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'enrollment_id', e.id,
+              'cohort_id', c.id,
+              'cohort_name', c.name,
+              'cohort_status', CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END,
+              'program_id', p.id,
+              'program_title', p.title,
+              'enrollment_status', e.status,
+              'enrolled_at', e.enrolled_at
+            )
+          ) FILTER (WHERE e.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS cohorts
+      FROM student_profiles sp
+      JOIN users u ON u.id = sp.user_id
+      LEFT JOIN enrollments e ON e.student_user_id = sp.user_id
+      LEFT JOIN cohorts c ON c.id = e.cohort_id AND c.deleted_at IS NULL
+      LEFT JOIN programs p ON p.id = c.program_id AND p.deleted_at IS NULL
+      ${whereClause}
+      GROUP BY
+        sp.user_id,
+        sp.full_name,
+        sp.avatar_url,
+        sp.bio,
+        sp.linkedin_url,
+        sp.github_url,
+        sp.portfolio_url,
+        sp.is_public,
+        sp.featured,
+        sp.featured_rank,
+        sp.public_slug,
+        sp.is_graduated,
+        sp.is_working,
+        sp.open_to_work,
+        sp.company_work_for,
+        sp.admin_status,
+        sp.dropout_reason,
+        sp.status_updated_at,
+        sp.status_updated_by,
+        sp.created_at,
+        u.email,
+        u.phone,
+        u.is_active
+      ORDER BY ${sortBy} ${order}
+      LIMIT $${params.length + 1}
+      OFFSET $${params.length + 2}
+    `,
+    [...params, limit, offset],
+  );
+}
+
+export async function updateStudentAdminStatus(
+  userId,
+  status,
+  reason,
+  actorUserId,
+  isActive,
+  db = pool,
+) {
+  await db.query(
+    `
+      UPDATE users
+      SET is_active = $1,
+          updated_at = NOW()
+      WHERE id = $2
+    `,
+    [isActive, userId],
+  );
+
+  return db.query(
+    `
+      UPDATE student_profiles
+      SET admin_status = $1,
+          dropout_reason = $2,
+          status_updated_at = NOW(),
+          status_updated_by = $3
+      WHERE user_id = $4
+      RETURNING *
+    `,
+    [status, reason, actorUserId, userId],
   );
 }

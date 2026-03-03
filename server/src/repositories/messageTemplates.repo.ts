@@ -70,7 +70,17 @@ export async function insertDefaultMessageTemplate(input, db = pool) {
   );
 }
 
-export async function listMessageTemplates(includeInactive = false, db = pool) {
+export async function countMessageTemplates(includeInactive = false, db = pool) {
+  return db.query(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM message_templates
+      ${includeInactive ? "" : "WHERE is_active = TRUE"}
+    `,
+  );
+}
+
+export async function listMessageTemplates(includeInactive = false, sortBy = "sort_order", order = "asc", limit = 10, offset = 0, db = pool) {
   return db.query(
     `
       SELECT
@@ -89,8 +99,11 @@ export async function listMessageTemplates(includeInactive = false, db = pool) {
         updated_at
       FROM message_templates
       ${includeInactive ? "" : "WHERE is_active = TRUE"}
-      ORDER BY sort_order ASC, key ASC
+      ORDER BY ${sortBy} ${order}, key ASC
+      LIMIT $1
+      OFFSET $2
     `,
+    [limit, offset],
   );
 }
 

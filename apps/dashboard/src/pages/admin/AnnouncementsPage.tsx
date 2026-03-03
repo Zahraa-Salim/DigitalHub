@@ -126,8 +126,9 @@ export function AnnouncementsPage() {
   };
 
   useEffect(() => {
+    const timers = toastTimersRef.current;
     return () => {
-      Object.values(toastTimersRef.current).forEach((timeoutId) => {
+      Object.values(timers).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
     };

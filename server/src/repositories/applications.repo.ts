@@ -432,6 +432,25 @@ export async function markApplicationMessageSent(
     `, [applicationId, messageId, renderedSubject, renderedBody]);
 }
 
+export async function markApplicationMessageFailed(
+    applicationId,
+    messageId,
+    renderedSubject = null,
+    renderedBody = null,
+    db = pool,
+) {
+    return db.query(`
+      UPDATE application_messages
+      SET status = 'failed',
+          subject = COALESCE($3, subject),
+          body = COALESCE($4, body),
+          sent_at = NULL
+      WHERE id = $2
+        AND application_id = $1
+      RETURNING *
+    `, [applicationId, messageId, renderedSubject, renderedBody]);
+}
+
 export async function updateApplicationStageAndStatus(applicationId, stage, status, reviewerId, reviewMessage, db = pool) {
     return db.query(`
       UPDATE applications

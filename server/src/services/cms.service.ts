@@ -18,7 +18,7 @@ export async function getCmsSiteSettings() {
     return result.rows[0];
 }
 export async function patchCmsSiteSettings(adminId, payload) {
-    return withTransaction(async (client) => {
+    const updated = await withTransaction(async (client) => {
         const allowedColumns = ["site_name", "default_event_location", "contact_info", "social_links"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         await ensureSiteSettingsRow(adminId, client);
@@ -37,6 +37,8 @@ export async function patchCmsSiteSettings(adminId, payload) {
         }, client);
         return result.rows[0];
     });
+    await cacheDel("public:home");
+    return updated;
 }
 export async function listCmsPages(query) {
     const list = parseListQuery(query, ["id", "key", "title", "updated_at"], "updated_at");

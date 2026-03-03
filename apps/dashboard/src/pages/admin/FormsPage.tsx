@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -859,7 +859,7 @@ export function FormsPage() {
     </div>
   );
 
-  const saveGeneralForm = async (
+  const saveGeneralForm = useCallback(async (
     draftOverride?: FieldDraft[],
     formOverride?: FormConfig,
     showSuccess = true,
@@ -903,9 +903,9 @@ export function FormsPage() {
     } finally {
       setSavingGeneral(false);
     }
-  };
+  }, [generalFieldsDraft, generalForm]);
 
-  const saveCohortForm = async (
+  const saveCohortForm = useCallback(async (
     modeOverride?: "general" | "custom",
     customFormOverride?: FormConfig | null,
     customDraftsOverride?: FieldDraft[],
@@ -968,7 +968,7 @@ export function FormsPage() {
     } finally {
       setSavingCohort(false);
     }
-  };
+  }, [cohortDetail, cohortMode, customFieldsDraft, customForm, selectedCohortId]);
 
   const saveGeneralFields = async (nextDrafts: FieldDraft[], showSuccess = true): Promise<boolean> => {
     const snapshot = generalForm;
@@ -995,7 +995,7 @@ export function FormsPage() {
       setGeneralMetaDirty(false);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [generalMetaDirty, generalForm, generalFieldsDraft, loadingGeneral]);
+  }, [generalMetaDirty, generalForm, generalFieldsDraft, loadingGeneral, saveGeneralForm]);
 
   useEffect(() => {
     if (!customMetaDirty || !customForm || loadingCohortForm || cohortMode !== "custom" || !selectedCohortId) {
@@ -1006,7 +1006,7 @@ export function FormsPage() {
       setCustomMetaDirty(false);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [customMetaDirty, customForm, customFieldsDraft, loadingCohortForm, cohortMode, selectedCohortId]);
+  }, [customMetaDirty, customForm, customFieldsDraft, loadingCohortForm, cohortMode, selectedCohortId, saveCohortForm]);
 
   const resetCustomFromGeneral = () => {
     if (!cohortDetail) {
@@ -1269,3 +1269,4 @@ export function FormsPage() {
     </PageShell>
   );
 }
+

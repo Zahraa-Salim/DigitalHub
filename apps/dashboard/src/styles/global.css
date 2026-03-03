@@ -1294,6 +1294,15 @@ html.dark .btn--primary {
   background: var(--secondary-hover);
 }
 
+.btn--success {
+  background: #0f8a5b;
+  color: #fff;
+}
+
+.btn--success:hover {
+  background: #0b6f49;
+}
+
 .btn--glass-blue {
   border: 1px solid rgba(96, 165, 250, 0.48);
   background:
@@ -2256,6 +2265,27 @@ select.field__control {
   grid-template-columns: 1fr;
 }
 
+.event-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.event-gallery-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-gallery-thumb {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
 .announcement-form-switch,
 .event-form-switch,
 .event-upcoming-toggle {
@@ -2378,6 +2408,40 @@ select.field__control {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr;
+}
+
+.cohort-attendance-days {
+  grid-column: 1 / -1;
+}
+
+.cohort-attendance-days__options {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cohort-attendance-days__option {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cohort-attendance-days__option input {
+  margin: 0;
 }
 
 .cohort-status-cell {
@@ -2804,6 +2868,201 @@ select.field__control {
   color: var(--text);
 }
 
+.student-cohort-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-cohort-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.student-cohort-item__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.student-cohort-item__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.student-attendance-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.student-attendance-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.student-attendance-item__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.student-attendance-item__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.filters-grid--students-one-line {
+  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(150px, 1fr));
+  overflow-x: auto;
+}
+
+.profiles-students-table-card {
+  overflow: auto;
+}
+
+.profiles-students-table-card .table-wrap {
+  overflow: auto;
+  max-height: min(62vh, 680px);
+}
+
+.attendance-page__overview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.attendance-controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.attendance-controls__meta {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.attendance-meta__line {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.attendance-meta__line strong {
+  color: var(--text);
+}
+
+.attendance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attendance-actions__bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attendance-table .field__control {
+  min-height: 36px;
+}
+
+.attendance-student__name {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.attendance-student__meta {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.attendance-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.attendance-status-btn {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  min-height: 30px;
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.attendance-status-btn--present.is-active {
+  border-color: #15803d;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.attendance-status-btn--absent.is-active {
+  border-color: #b91c1c;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.attendance-status-btn--late.is-active {
+  border-color: #c2410c;
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.attendance-note__placeholder {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1100px) {
+  .attendance-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .attendance-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-actions {
+    align-items: stretch;
+  }
+
+  .attendance-actions__bulk {
+    width: 100%;
+  }
+}
+
 .metadata-block {
   margin: 0;
   background: var(--surface);
@@ -2881,6 +3140,17 @@ select.field__control {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.dh-program-style-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dh-program-style-controls .field {
+  min-width: 220px;
 }
 
 .home-sections-list {
@@ -4556,6 +4826,40 @@ select.field__control {
   overflow: auto;
   display: grid;
   gap: 12px;
+}
+
+.admx-channel-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admx-channel-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+}
+
+.admx-channel-option input {
+  margin-top: 2px;
+}
+
+.admx-channel-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.admx-channel-option strong {
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.admx-channel-option small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
 }
 
 .admx-recipient-list {

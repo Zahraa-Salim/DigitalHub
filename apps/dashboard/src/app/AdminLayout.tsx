@@ -22,7 +22,12 @@ export function AdminLayout() {
   }, [isDark]);
 
   useEffect(() => {
-    setMobileOpen(false);
+    const closeTimer = window.setTimeout(() => {
+      setMobileOpen(false);
+    }, 0);
+    return () => {
+      window.clearTimeout(closeTimer);
+    };
   }, [location.pathname]);
 
   useEffect(() => {

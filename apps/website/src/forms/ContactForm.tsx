@@ -1,26 +1,17 @@
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
+import { notifyError, notifySuccess } from "@/lib/feedbackToast";
 import React, { useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-type ContactFormState = {
-  success: boolean;
-  error: string | null;
-};
-
 export default function ContactForm() {
   const [pending, setPending] = useState(false);
-  const [state, setState] = useState<ContactFormState>({
-    success: false,
-    error: null,
-  });
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPending(true);
-    setState({ success: false, error: null });
 
     try {
       const formData = new FormData(e.currentTarget);
@@ -35,6 +26,7 @@ export default function ContactForm() {
 
       const res = await fetch(`${API_BASE_URL}/contact`, {
         method: "POST",
+        credentials: "omit",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -50,13 +42,13 @@ export default function ContactForm() {
         throw new Error(message);
       }
 
-      setState({ success: true, error: null });
+      notifySuccess("Message sent successfully.", { id: "contact-form-success" });
       e.currentTarget.reset();
     } catch (error) {
-      setState({
-        success: false,
-        error: error instanceof Error ? error.message : "Unable to send message right now. Please try again.",
-      });
+      notifyError(
+        error instanceof Error ? error.message : "Unable to send message right now. Please try again.",
+        { id: "contact-form-error" }
+      );
     } finally {
       setPending(false);
     }
@@ -95,9 +87,6 @@ export default function ContactForm() {
       <button type="submit" className="btn btn-two arrow-btn" disabled={pending}>
         {pending ? "Sending..." : "Submit Now"} <BtnArrow />
       </button>
-
-      {state.success && <p className="text-success mt-2">Message sent successfully.</p>}
-      {state.error && <p className="text-danger mt-2">Error: {state.error}</p>}
     </form>
   );
 }

@@ -7,7 +7,8 @@
     "dev": "npm run build && node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "seed:admin": "npm run build && node dist/scripts/seedAdmin.js"
+    "seed:admin": "npm run build && node dist/scripts/seedAdmin.js",
+    "seed:events": "npm run build && node dist/scripts/seedEventsDemo.js"
   },
   "keywords": [],
   "author": "",

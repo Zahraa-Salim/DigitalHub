@@ -4,7 +4,22 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { getPublicHomeService, getPublicStudentDetailService, getPublicThemeService, listPublicAnnouncementsService, listPublicCohortsService, listPublicEventsService, listPublicInstructorsService, listPublicManagersService, listPublicProgramsService, listPublicStudentsService, submitPublicApplyService, } from "../services/public.service.js";
+import {
+    getPublicCohortApplicationFormService,
+    getPublicEventBySlugService,
+    getPublicApplyFormService,
+    getPublicHomeService,
+    getPublicStudentDetailService,
+    getPublicThemeService,
+    listPublicAnnouncementsService,
+    listPublicCohortsService,
+    listPublicEventsService,
+    listPublicInstructorsService,
+    listPublicManagersService,
+    listPublicProgramsService,
+    listPublicStudentsService,
+    submitPublicApplyService,
+} from "../services/public.service.js";
 export async function getPublicPrograms(req, res) {
     const result = await listPublicProgramsService(req.query);
     sendList(res, result.data, result.pagination);
@@ -13,9 +28,21 @@ export async function getPublicCohorts(req, res) {
     const result = await listPublicCohortsService(req.query);
     sendList(res, result.data, result.pagination);
 }
+export async function getPublicCohortApplicationForm(req, res) {
+    const data = await getPublicCohortApplicationFormService(Number(req.params.id));
+    sendSuccess(res, data);
+}
+export async function getPublicApplyForm(req, res) {
+    const data = await getPublicApplyFormService();
+    sendSuccess(res, data);
+}
 export async function getPublicEvents(req, res) {
     const result = await listPublicEventsService(req.query);
     sendList(res, result.data, result.pagination);
+}
+export async function getPublicEventBySlug(req, res) {
+    const data = await getPublicEventBySlugService(req.params.slug);
+    sendSuccess(res, data);
 }
 export async function getPublicAnnouncements(req, res) {
     const result = await listPublicAnnouncementsService(req.query);

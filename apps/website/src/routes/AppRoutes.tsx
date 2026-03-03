@@ -38,7 +38,12 @@ const pageRoutes = Object.entries(pageModules)
 
 const AppRoutes = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         {pageRoutes.map(({ routePath, Page }) => (
           <Route key={routePath} path={routePath} element={<Page />} />

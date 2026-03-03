@@ -3,7 +3,7 @@
 // Purpose: Maps validated HTTP input to service calls and sends standardized responses.
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
-import { sendSuccess } from "../utils/httpResponse.js";
+import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   createMessageTemplateService,
   listMessageTemplatesService,
@@ -11,8 +11,8 @@ import {
 } from "../services/messageTemplates.service.js";
 
 export async function listMessageTemplates(req, res) {
-  const data = await listMessageTemplatesService(req.query);
-  sendSuccess(res, data);
+  const result = await listMessageTemplatesService(req.query);
+  sendList(res, result.data, result.pagination);
 }
 
 export async function patchMessageTemplate(req, res) {

@@ -4,10 +4,10 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { Router } from "express";
-import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentProfile, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile } from "../controllers/profiles.controller.js";
+import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile } from "../controllers/profiles.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
+import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentStatusPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const profilesRouter = Router();
 
@@ -28,6 +28,7 @@ profilesRouter.get("/students/:userId", validateRequest({ params: studentUserIdP
 
 // Admin only: PATCH /profiles/students/:userId - Update student profile (with transaction, logging)
 profilesRouter.patch("/students/:userId", validateRequest({ params: studentUserIdParamsSchema, body: updateStudentProfileBodySchema }), asyncHandler(updateStudentProfileHandler));
+profilesRouter.patch("/students/:userId/status", validateRequest({ params: studentUserIdParamsSchema, body: studentStatusPatchSchema }), asyncHandler(patchStudentStatus));
 
 // ===================================
 // GENERIC PROFILE ROUTES
@@ -45,9 +46,6 @@ profilesRouter.post("/instructors/:userId/activate", validateRequest({ params: u
 profilesRouter.get("/managers", asyncHandler(getManagerProfiles));
 profilesRouter.patch("/managers/:userId", validateRequest({ params: userIdParamsSchema, body: managerPatchSchema }), asyncHandler(patchManagerProfile));
 profilesRouter.patch("/managers/:userId/visibility", validateRequest({ params: userIdParamsSchema, body: visibilitySchema }), asyncHandler(patchManagerVisibility));
-
-// STUDENT-specific endpoints (with transaction, logging, projects)
-profilesRouter.patch("/students/:userId", validateRequest({ params: userIdParamsSchema, body: studentPatchSchema }), asyncHandler(patchStudentProfile));
 profilesRouter.patch("/students/:userId/visibility", validateRequest({ params: userIdParamsSchema, body: visibilitySchema }), asyncHandler(patchStudentVisibility));
 
 export { profilesRouter };

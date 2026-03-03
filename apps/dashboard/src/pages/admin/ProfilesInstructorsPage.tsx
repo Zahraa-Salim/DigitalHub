@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
@@ -193,8 +193,8 @@ export function ProfilesInstructorsPage() {
   const [sortBy, setSortBy] = useState<"created_at" | "full_name" | "user_id">("created_at");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
-  const [toastId, setToastId] = useState(1);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = useRef(1);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<InstructorFormState>(initialForm);
@@ -215,12 +215,11 @@ export function ProfilesInstructorsPage() {
   const [activationNext, setActivationNext] = useState<boolean | null>(null);
   const [savingAction, setSavingAction] = useState(false);
 
-  const pushToast = (tone: "success" | "error", message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
+  const pushToast = useCallback((tone: "success" | "error", message: string) => {
+    const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), 3200);
-  };
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -266,7 +265,7 @@ export function ProfilesInstructorsPage() {
     return () => {
       active = false;
     };
-  }, [page, debouncedSearch, visibility, status, sortBy, sortOrder, refreshKey]);
+  }, [page, debouncedSearch, visibility, status, sortBy, sortOrder, pushToast, refreshKey]);
 
   const publicCount = useMemo(() => rows.filter((row) => row.is_public).length, [rows]);
   const activeCount = useMemo(() => rows.filter((row) => row.is_active).length, [rows]);
@@ -759,3 +758,4 @@ export function ProfilesInstructorsPage() {
     </PageShell>
   );
 }
+

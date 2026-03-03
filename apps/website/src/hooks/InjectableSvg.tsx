@@ -20,29 +20,29 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchAndInjectSvg = async () => {
-      if (!imgRef.current) return;
+      const currentImg = imgRef.current;
+      if (!currentImg) return;
 
       // ✅ ضمان المسار يكون ROOT absolute
       const safeSrc = src.startsWith("/") ? src : `/${src}`;
 
       try {
         const response = await fetch(safeSrc);
-        if (!response.ok) return;
+        if (!response.ok || cancelled) return;
 
         const svgText = await response.text();
         const div = document.createElement("div");
         div.innerHTML = svgText;
 
         const svgElement = div.querySelector("svg");
-        if (!svgElement) return;
+        if (!svgElement || cancelled || !currentImg.isConnected) return;
 
-        svgElement.setAttribute(
-          "class",
-          imgRef.current.getAttribute("class") || ""
-        );
+        svgElement.setAttribute("class", currentImg.getAttribute("class") || "");
 
-        imgRef.current.replaceWith(svgElement);
+        currentImg.replaceWith(svgElement);
 
         const vivus = new Vivus(svgElement as any, {
           duration: 80,
@@ -58,6 +58,10 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
     };
 
     fetchAndInjectSvg();
+
+    return () => {
+      cancelled = true;
+    };
   }, [src]);
 
   // ✅ img src آمن

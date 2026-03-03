@@ -7,6 +7,10 @@ import { z } from "zod";
 
 export const messageTemplatesListQuerySchema = z
   .object({
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).optional(),
+    sortBy: z.enum(["sort_order", "key", "label", "created_at", "updated_at"]).optional(),
+    order: z.enum(["asc", "desc"]).optional(),
     include_inactive: z.coerce.boolean().optional().default(false),
   })
   .strict();

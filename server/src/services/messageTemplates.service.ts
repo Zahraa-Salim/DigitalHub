@@ -6,6 +6,7 @@
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import {
+  countMessageTemplates,
   createMessageTemplate,
   ensureMessageTemplatesTable,
   getMessageTemplateByKey,
@@ -16,6 +17,7 @@ import {
 } from "../repositories/messageTemplates.repo.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
+import { buildPagination, parseListQuery, parseQueryBoolean } from "../utils/pagination.js";
 import { buildUpdateQuery } from "../utils/sql.js";
 
 const DEFAULT_MESSAGE_TEMPLATES = [
@@ -124,6 +126,13 @@ const DEFAULT_MESSAGE_TEMPLATES = [
 const MESSAGE_TEMPLATES_ENSURE_LOCK_KEY = 42100421;
 let defaultsEnsured = false;
 let defaultsEnsurePromise = null;
+const MESSAGE_TEMPLATE_SORT_COLUMN_MAP = {
+  sort_order: "sort_order",
+  key: "key",
+  label: "label",
+  created_at: "created_at",
+  updated_at: "updated_at",
+};
 
 function normalizeOptionalText(value) {
   if (value === undefined) return undefined;
@@ -169,9 +178,18 @@ async function ensureDefaults(client) {
 export async function listMessageTemplatesService(query) {
   return withTransaction(async (client) => {
     await ensureDefaults(client);
-    const includeInactive = Boolean(query?.include_inactive);
-    const result = await listMessageTemplates(includeInactive, client);
-    return result.rows;
+    const includeInactive = parseQueryBoolean(query?.include_inactive, "include_inactive") ?? false;
+    const list = parseListQuery(query, Object.keys(MESSAGE_TEMPLATE_SORT_COLUMN_MAP), "sort_order");
+    const sortBy = MESSAGE_TEMPLATE_SORT_COLUMN_MAP[list.sortBy];
+    const order = query?.order === undefined ? "asc" : list.order;
+
+    const countResult = await countMessageTemplates(includeInactive, client);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const result = await listMessageTemplates(includeInactive, sortBy, order, list.limit, list.offset, client);
+    return {
+      data: result.rows,
+      pagination: buildPagination(list.page, list.limit, total),
+    };
   });
 }
 

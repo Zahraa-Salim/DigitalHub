@@ -7,9 +7,9 @@ import { pool } from "../db/index.js";
 export async function createProgram(input, db = pool) {
     return db.query(`
       INSERT INTO programs
-        (slug, title, summary, description, requirements, default_capacity, is_published, created_by, created_at, updated_at)
+        (slug, title, summary, description, requirements, image_url, default_capacity, is_published, created_by, created_at, updated_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       RETURNING *
     `, [
         input.slug,
@@ -17,6 +17,7 @@ export async function createProgram(input, db = pool) {
         input.summary ?? null,
         input.description ?? null,
         input.requirements ?? null,
+        input.image_url ?? null,
         input.default_capacity ?? null,
         input.is_published,
         input.created_by,
@@ -29,7 +30,7 @@ export async function countPrograms(whereClause, params, db = pool) {
 export async function listPrograms(whereClause, sortBy, order, params, limit, offset, db = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
-      SELECT id, slug, title, summary, description, requirements, default_capacity, is_published, created_by, created_at, updated_at
+      SELECT id, slug, title, summary, description, requirements, image_url, default_capacity, is_published, created_by, created_at, updated_at
       FROM programs
       ${scopedWhere}
       ORDER BY ${sortBy} ${order}
@@ -75,9 +76,24 @@ export async function findActiveProgramById(programId, db = pool) {
 export async function createCohort(input, db = pool) {
     return db.query(`
       INSERT INTO cohorts
-        (program_id, name, status, allow_applications, capacity, enrollment_open_at, enrollment_close_at, start_date, end_date, created_at, updated_at)
+        (
+          program_id,
+          name,
+          status,
+          allow_applications,
+          capacity,
+          enrollment_open_at,
+          enrollment_close_at,
+          start_date,
+          end_date,
+          attendance_days,
+          attendance_start_time,
+          attendance_end_time,
+          created_at,
+          updated_at
+        )
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
       RETURNING *
     `, [
         input.program_id,
@@ -89,6 +105,9 @@ export async function createCohort(input, db = pool) {
         input.enrollment_close_at ?? null,
         input.start_date ?? null,
         input.end_date ?? null,
+        input.attendance_days ?? null,
+        input.attendance_start_time ?? null,
+        input.attendance_end_time ?? null,
     ]);
 }
 export async function countCohorts(whereClause, params, db = pool) {
@@ -119,6 +138,9 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
         c.enrollment_close_at,
         c.start_date,
         c.end_date,
+        c.attendance_days,
+        c.attendance_start_time,
+        c.attendance_end_time,
         c.created_at,
         c.updated_at
       FROM cohorts c
@@ -140,7 +162,10 @@ export async function getCohortStatusById(id, db = pool) {
         c.enrollment_open_at,
         c.enrollment_close_at,
         c.start_date,
-        c.end_date
+        c.end_date,
+        c.attendance_days,
+        c.attendance_start_time,
+        c.attendance_end_time
       FROM cohorts c
       JOIN programs p ON p.id = c.program_id
       WHERE c.id = $1

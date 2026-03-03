@@ -5,6 +5,9 @@
 // @ts-nocheck
 import { withTransaction } from "../db/index.js";
 import { createAnnouncement } from "../repositories/announcements.repo.js";
+import { randomBytes } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
@@ -32,6 +35,24 @@ import {
 } from "../repositories/programs.repo.js";
 
 const COHORT_STATUSES = ["coming_soon", "open", "running", "completed", "cancelled"];
+
+const PROGRAM_IMAGE_MIME_TO_EXT = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+const MAX_PROGRAM_IMAGE_BYTES = 3 * 1024 * 1024;
+
+function sanitizeFilenamePart(value) {
+  return String(value || "program-image")
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48) || "program-image";
+}
 
 function normalizeCohortStatus(status) {
   if (!status) {
@@ -162,6 +183,7 @@ async function createComingSoonAnnouncement(adminId, cohort, dbClient) {
 export async function createProgramService(adminId, payload) {
   const result = await createProgram({
     ...payload,
+    image_url: payload.image_url === "" ? null : payload.image_url ?? null,
     is_published: payload.is_published ?? true,
     created_by: adminId,
   });
@@ -214,9 +236,13 @@ export async function listProgramsService(query) {
 }
 
 export async function patchProgramService(id, adminId, payload) {
+  const normalizedPayload = {
+    ...payload,
+    image_url: payload.image_url === "" ? null : payload.image_url,
+  };
   const { setClause, values } = buildUpdateQuery(
-    payload,
-    ["slug", "title", "summary", "description", "requirements", "default_capacity", "is_published"],
+    normalizedPayload,
+    ["slug", "title", "summary", "description", "requirements", "image_url", "default_capacity", "is_published"],
     1,
   );
 
@@ -231,12 +257,67 @@ export async function patchProgramService(id, adminId, payload) {
     entityType: "programs",
     entityId: id,
     message: `Program ${id} was updated.`,
-    metadata: { updated_fields: Object.keys(payload) },
+    metadata: { updated_fields: Object.keys(normalizedPayload) },
     title: "Program Updated",
     body: `Program #${id} was edited.`,
   });
 
   return result.rows[0];
+}
+
+export async function uploadProgramImageService(actorUserId, payload) {
+  const mimeType = String(payload.mime_type || "").trim().toLowerCase();
+  const extension = PROGRAM_IMAGE_MIME_TO_EXT[mimeType];
+  if (!extension) {
+    throw new AppError(400, "VALIDATION_ERROR", "Unsupported program image mime type.");
+  }
+
+  const base64Raw = String(payload.data_base64 || "").trim();
+  if (!base64Raw) {
+    throw new AppError(400, "VALIDATION_ERROR", "Program image data is required.");
+  }
+
+  const normalizedBase64 = base64Raw.replace(/\s+/g, "");
+  let fileBuffer = null;
+  try {
+    fileBuffer = Buffer.from(normalizedBase64, "base64");
+  } catch (_error) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid program image payload.");
+  }
+
+  if (!fileBuffer || !fileBuffer.length) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid program image payload.");
+  }
+
+  if (fileBuffer.length > MAX_PROGRAM_IMAGE_BYTES) {
+    throw new AppError(400, "VALIDATION_ERROR", "Program image must be 3MB or less.");
+  }
+
+  const safeBase = sanitizeFilenamePart(payload.filename);
+  const fileName = `${actorUserId}-${Date.now()}-${randomBytes(8).toString("hex")}-${safeBase}.${extension}`;
+  const programsDir = path.resolve(process.cwd(), "uploads", "programs");
+  const filePath = path.join(programsDir, fileName);
+
+  await fs.promises.mkdir(programsDir, { recursive: true });
+  await fs.promises.writeFile(filePath, fileBuffer);
+
+  const imageUrl = `/uploads/programs/${fileName}`;
+  await logAdminAction({
+    actorUserId,
+    action: "program image uploaded",
+    entityType: "programs",
+    entityId: actorUserId,
+    message: `Program image uploaded by admin ${actorUserId}.`,
+    metadata: {
+      mime_type: mimeType,
+      bytes: fileBuffer.length,
+      image_url: imageUrl,
+    },
+    title: "Program Image Uploaded",
+    body: "Program image uploaded successfully.",
+  });
+
+  return { image_url: imageUrl };
 }
 
 export async function deleteProgramService(id, adminId) {
@@ -284,6 +365,9 @@ export async function createCohortService(adminId, payload) {
       enrollment_close_at: payload.enrollment_close_at ?? null,
       start_date: payload.start_date ?? null,
       end_date: payload.end_date ?? null,
+      attendance_days: payload.attendance_days ?? null,
+      attendance_start_time: payload.attendance_start_time ?? null,
+      attendance_end_time: payload.attendance_end_time ?? null,
     };
 
     const result = await createCohort(createPayload, client);
@@ -385,6 +469,9 @@ export async function patchCohortService(id, adminId, payload) {
         "enrollment_close_at",
         "start_date",
         "end_date",
+        "attendance_days",
+        "attendance_start_time",
+        "attendance_end_time",
       ],
       1,
     );

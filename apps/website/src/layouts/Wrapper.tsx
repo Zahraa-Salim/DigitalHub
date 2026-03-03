@@ -4,6 +4,7 @@
 "use client";
 import { ReactNode, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
+import { Slide } from "react-toastify";
 import ScrollToTop from "@/components/common/ScrollToTop";
 import AOS from "aos";
 import MotionAnimation from "@/hooks/MotionAnimation";
@@ -24,7 +25,16 @@ const Wrapper = ({ children }: WrapperProps) => {
     return <>
         {children}
         <ScrollToTop />
-        <ToastContainer position="top-center" />
+        <ToastContainer
+            position="top-right"
+            newestOnTop
+            closeOnClick
+            pauseOnHover
+            draggable={false}
+            limit={4}
+            transition={Slide}
+            className="dh-toast-container"
+        />
     </>;
 }
 

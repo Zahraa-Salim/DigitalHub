@@ -32,6 +32,7 @@ import {
   listApplicationMessageDrafts,
   listApplications,
   markApplicationApproved,
+  markApplicationMessageFailed,
   markApplicationMessageSent,
   markInterviewCompletedByApplicationId,
   rejectPendingApplication,
@@ -372,9 +373,11 @@ async function sendAccountCredentialsMessageForApplication(
   applicationId,
   actorUserId,
   generatedPassword,
+  deliveryChannels,
   client,
 ) {
-  const templateResult = await getMessageTemplateByKey("account_credentials", client);
+  const templateKey = generatedPassword ? "account_credentials" : "account_existing_reminder";
+  const templateResult = await getMessageTemplateByKey(templateKey, client);
   const template = templateResult.rows[0] ?? null;
   const signInUrl = buildLearnerSignInUrl();
 
@@ -387,26 +390,35 @@ async function sendAccountCredentialsMessageForApplication(
   };
 
   const subject = renderTemplateString(
-    template?.subject || "Your Digital Hub Account Details",
+    template?.subject || (generatedPassword ? "Your Digital Hub Account Details" : "Your Digital Hub Account Access"),
     tokens,
   );
   const body = renderTemplateString(
     template?.body ||
-      "Hello {name},\n\nYour account has been created.\nEmail: {email}\nPassword: {generated_password}\nSign in: {sign_in_url}\n",
+      (generatedPassword
+        ? "Hello {name},\n\nYour account has been created.\nEmail: {email}\nPassword: {generated_password}\nSign in: {sign_in_url}\n"
+        : "Hello {name},\n\nYour account is active.\nEmail: {email}\nSign in: {sign_in_url}\nIf you forgot your password, use Forgot Password on the sign-in page.\n"),
     tokens,
   );
 
   const sentMessages = [];
   const failedMessages = [];
+  const allowEmail = deliveryChannels?.email !== false;
+  const allowSms = deliveryChannels?.sms !== false;
 
   const emailValue = String(application.email || "").trim();
   const phoneValue = String(application.phone || "").trim();
 
-  const sendEmail = Boolean(emailValue) && !emailValue.endsWith("@digitalhub.local");
-  const sendWhatsApp = !sendEmail && Boolean(phoneValue);
+  if (!allowEmail && !allowSms) {
+    return { sentMessages, failedMessages, skipped: true, reason: "channels_disabled" };
+  }
+
+  const sendEmail = allowEmail && Boolean(emailValue) && !emailValue.endsWith("@digitalhub.local");
+  const sendWhatsApp = allowSms && Boolean(phoneValue);
 
   if (!sendEmail && !sendWhatsApp) {
-    return { sentMessages, failedMessages, skipped: true };
+    const reason = !emailValue && !phoneValue ? "no_contact_channel" : "no_supported_destination";
+    return { sentMessages, failedMessages, skipped: true, reason };
   }
 
   if (sendEmail) {
@@ -1226,7 +1238,7 @@ export async function confirmApplicationParticipationService(applicationId, acto
   });
 }
 
-export async function createUserFromApplicationService(applicationId, actorUserId) {
+export async function createUserFromApplicationService(applicationId, actorUserId, options = {}) {
   return withTransaction(async (client) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
@@ -1234,7 +1246,20 @@ export async function createUserFromApplicationService(applicationId, actorUserI
     }
 
     const application = applicationResult.rows[0];
+    const deliveryChannels = {
+      email: options?.channels?.email !== false,
+      sms: options?.channels?.sms !== false,
+    };
     if (application.created_user_id) {
+      const onboardingMessage = await sendAccountCredentialsMessageForApplication(
+        { ...application, id: applicationId },
+        applicationId,
+        actorUserId,
+        null,
+        deliveryChannels,
+        client,
+      );
+
       return {
         application_id: applicationId,
         stage: application.stage,
@@ -1242,10 +1267,8 @@ export async function createUserFromApplicationService(applicationId, actorUserI
         student_user_id: application.created_user_id,
         enrollment_id: null,
         generated_password: null,
-        onboarding_message: {
-          skipped: true,
-          reason: "user_already_created",
-        },
+        existing_user: true,
+        onboarding_message: onboardingMessage,
       };
     }
 
@@ -1253,7 +1276,7 @@ export async function createUserFromApplicationService(applicationId, actorUserI
       throw new AppError(
         409,
         "INVALID_STAGE",
-        "User can only be created after acceptance.",
+        "User can only be created when the application is in 'accepted' or 'participation_confirmed' stage.",
       );
     }
 
@@ -1270,6 +1293,7 @@ export async function createUserFromApplicationService(applicationId, actorUserI
       applicationId,
       actorUserId,
       enrollmentMeta.generatedPassword,
+      deliveryChannels,
       client,
     );
 
@@ -1298,6 +1322,7 @@ export async function createUserFromApplicationService(applicationId, actorUserI
       student_user_id: enrollmentMeta.studentUserId,
       enrollment_id: enrollmentMeta.enrollment.id,
       generated_password: enrollmentMeta.generatedPassword,
+      existing_user: enrollmentMeta.generatedPassword ? false : true,
       onboarding_message: onboardingMessage,
     };
   });
@@ -1382,52 +1407,91 @@ export async function sendApplicationMessageService(applicationId, messageId, ac
     }
 
     const draft = draftResult.rows[0];
+    if (!["draft", "failed"].includes(String(draft.status || "draft"))) {
+      throw new AppError(409, "VALIDATION_ERROR", "Only draft or failed messages can be sent.");
+    }
     const tokens = await buildApplicationMessageTokens(applicationId, client);
     const renderedSubject = renderTemplateString(draft.subject || "Digital Hub Message", tokens);
     const renderedBody = renderTemplateString(draft.body, tokens);
-    if (draft.channel === "email") {
-      await sendDigitalHubEmail({
-        to: draft.to_value,
+    try {
+      if (draft.channel === "email") {
+        await sendDigitalHubEmail({
+          to: draft.to_value,
+          subject: renderedSubject,
+          body: renderedBody,
+        });
+      } else if (draft.channel === "sms") {
+        await sendDigitalHubWhatsApp({
+          to: draft.to_value,
+          body: renderedBody,
+        });
+      }
+
+      const messageResult = await markApplicationMessageSent(
+        applicationId,
+        messageId,
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+      const message = {
+        ...(messageResult.rows[0] ?? draft),
         subject: renderedSubject,
         body: renderedBody,
-      });
-    } else if (draft.channel === "sms") {
-      await sendDigitalHubWhatsApp({
-        to: draft.to_value,
-        body: renderedBody,
-      });
-    }
-
-    const messageResult = await markApplicationMessageSent(
-      applicationId,
-      messageId,
-      renderedSubject,
-      renderedBody,
-      client,
-    );
-    const message = {
-      ...(messageResult.rows[0] ?? draft),
-      subject: renderedSubject,
-      body: renderedBody,
-    };
-    await logAdminAction(
-      {
-        actorUserId,
-        action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
-        entityType: "application_messages",
-        entityId: message.id,
-        message: `Message ${message.id} marked as sent for application ${applicationId}.`,
-        metadata: {
-          application_id: applicationId,
-          channel: message.channel,
+      };
+      await logAdminAction(
+        {
+          actorUserId,
+          action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
+          entityType: "application_messages",
+          entityId: message.id,
+          message: `Message ${message.id} marked as sent for application ${applicationId}.`,
+          metadata: {
+            application_id: applicationId,
+            channel: message.channel,
+          },
+          title: "Application Message Sent",
+          body: `A ${message.channel} message for application #${applicationId} was marked as sent.`,
         },
-        title: "Application Message Sent",
-        body: `A ${message.channel} message for application #${applicationId} was marked as sent.`,
-      },
-      client,
-    );
+        client,
+      );
 
-    return message;
+      return message;
+    } catch (error) {
+      const failedResult = await markApplicationMessageFailed(
+        applicationId,
+        messageId,
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+      const failedMessage = {
+        ...(failedResult.rows[0] ?? draft),
+        subject: renderedSubject,
+        body: renderedBody,
+      };
+
+      await logAdminAction(
+        {
+          actorUserId,
+          action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
+          entityType: "application_messages",
+          entityId: failedMessage.id,
+          message: `Message ${failedMessage.id} failed to send for application ${applicationId}.`,
+          metadata: {
+            application_id: applicationId,
+            channel: failedMessage.channel,
+            status: "failed",
+            error: String(error?.message || error),
+          },
+          title: "Application Message Failed",
+          body: `A ${failedMessage.channel} message failed for application #${applicationId}.`,
+        },
+        client,
+      );
+
+      return failedMessage;
+    }
   });
 }
 

@@ -64,6 +64,17 @@ export async function getPublicStudentBySlug(publicSlug, db = pool) {
     `, [publicSlug]);
 }
 
+export async function getPublicEventBySlug(slug, db = pool) {
+    return db.query(`
+      SELECT e.id, e.slug, e.title, e.description, e.post_body, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.completion_image_urls, e.created_at, e.updated_at
+      FROM events e
+      WHERE e.is_published = TRUE
+        AND e.deleted_at IS NULL
+        AND e.slug = $1
+      LIMIT 1
+    `, [slug]);
+}
+
 export async function programApplicationsTableExists(db = pool) {
     const result = await db.query(`
       SELECT to_regclass('public.program_applications') IS NOT NULL AS exists
@@ -73,12 +84,28 @@ export async function programApplicationsTableExists(db = pool) {
 
 export async function getGeneralApplyForm(db = pool) {
     return db.query(`
-      SELECT id, key, title, description, is_active
+      SELECT id, key, title, description, is_active, updated_at
       FROM forms
-      WHERE key IN ('general_apply', 'cohort_application')
+      WHERE key IN ('program_application', 'general_apply', 'cohort_application')
         AND is_active = TRUE
-      ORDER BY CASE key WHEN 'general_apply' THEN 0 ELSE 1 END, id ASC
+      ORDER BY
+        CASE key
+          WHEN 'program_application' THEN 0
+          WHEN 'general_apply' THEN 1
+          ELSE 2
+        END,
+        id ASC
       LIMIT 1
+    `);
+}
+
+export async function listPublishedProgramOptions(db = pool) {
+    return db.query(`
+      SELECT id, title, slug
+      FROM programs
+      WHERE is_published = TRUE
+        AND deleted_at IS NULL
+      ORDER BY title ASC
     `);
 }
 

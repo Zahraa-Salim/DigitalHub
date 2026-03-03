@@ -12,6 +12,7 @@ import { CohortsPage } from "../pages/admin/CohortsPage";
 import { ContactInboxPage } from "../pages/admin/ContactInboxPage";
 import { EventsPage } from "../pages/admin/EventsPage";
 import { FormsPage } from "../pages/admin/FormsPage";
+import { AttendancePage } from "../pages/admin/AttendancePage";
 import { AdminManagementPage } from "../pages/admin/AdminManagementPage";
 import { MyProfilePage } from "../pages/admin/MyProfilePage";
 import { MessageTemplatesPage } from "../pages/admin/MessageTemplatesPage";
@@ -52,6 +53,7 @@ export const navConfig: NavItem[] = [
   {
     label: "Operations",
     children: [
+      { label: "Attendance", path: "/admin/attendance" },
       { label: "Cohorts", path: "/admin/cohorts" },
       { label: "Programs", path: "/admin/programs" },
       { label: "Events", path: "/admin/events" },
@@ -67,7 +69,13 @@ export const navConfig: NavItem[] = [
       { label: "Theme Tokens", path: "/admin/cms/theme" },
     ],
   },
-  { label: "Instructors Profiles", path: "/admin/profiles/instructors" },
+  {
+    label: "Profiles",
+    children: [
+      { label: "Instructors", path: "/admin/profiles/instructors" },
+      { label: "Students", path: "/admin/profiles/students" },
+    ],
+  },
   { label: "Contact Inbox", path: "/admin/contact" },
   { label: "Activity Logs", path: "/admin/logs" },
   { label: "Admin Management", path: "/admin/admins", requiresSuperAdmin: true },
@@ -102,6 +110,7 @@ export const adminRoutes: AdminRoute[] = [
   { path: "general-apply", element: <GeneralApplyPage /> },
   { path: "forms", element: <FormsPage /> },
   { path: "message-templates", element: <MessageTemplatesPage /> },
+  { path: "attendance", element: <AttendancePage /> },
   { path: "cohorts", element: <CohortsPage /> },
   { path: "programs", element: <ProgramsPage /> },
   { path: "cms/site-settings", element: <CmsSiteSettingsPage /> },

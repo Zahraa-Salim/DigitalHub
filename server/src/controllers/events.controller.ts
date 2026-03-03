@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { createEventService, deleteEventService, listEventsService, markEventDoneService, patchEventService, } from "../services/events.service.js";
+import { createEventService, deleteEventService, listEventsService, markEventDoneService, patchEventService, uploadEventImageService, } from "../services/events.service.js";
 export async function createEvent(req, res) {
     const data = await createEventService(req.user.id, req.body);
     sendSuccess(res, data, "Event created successfully.", 201);
@@ -24,6 +24,10 @@ export async function deleteEvent(req, res) {
 export async function markEventDone(req, res) {
     const data = await markEventDoneService(Number(req.params.id), req.user.id);
     sendSuccess(res, data, "Event marked as done.");
+}
+export async function postEventImage(req, res) {
+    const data = await uploadEventImageService(req.user.id, req.body);
+    sendSuccess(res, data, "Event image uploaded successfully.", 201);
 }
 
 

@@ -8,6 +8,7 @@ export type OnboardingSummary = {
   sentCount: number;
   failedCount: number;
   skipped: boolean;
+  reason: string;
   firstFailure: string;
 };
 
@@ -38,6 +39,12 @@ export function summarizeOnboardingMessage(payload: unknown): OnboardingSummary 
   const sentEntries = toSendEntries(onboarding?.sentMessages);
   const failedEntries = toSendEntries(onboarding?.failedMessages);
   const skipped = Boolean(onboarding?.skipped);
+  const reason =
+    typeof onboarding?.reason === "string"
+      ? onboarding.reason
+      : typeof onboarding?.skip_reason === "string"
+        ? onboarding.skip_reason
+        : "";
 
   const firstFailed = failedEntries[0];
   const channel = typeof firstFailed?.channel === "string" ? firstFailed.channel.toUpperCase() : "MESSAGE";
@@ -52,7 +59,22 @@ export function summarizeOnboardingMessage(payload: unknown): OnboardingSummary 
     sentCount: sentEntries.length,
     failedCount: failedEntries.length,
     skipped,
+    reason,
     firstFailure: firstFailureText ? `${channel}: ${firstFailureText}` : "",
   };
 }
 
+export function onboardingSkipReasonText(reason: string): string {
+  switch (reason) {
+    case "channels_disabled":
+      return "Delivery was skipped because all channels were turned off.";
+    case "no_contact_channel":
+      return "No email or phone was available for delivery.";
+    case "no_supported_destination":
+      return "No supported destination was available for delivery.";
+    case "user_already_created":
+      return "Account already existed.";
+    default:
+      return "Delivery was skipped.";
+  }
+}

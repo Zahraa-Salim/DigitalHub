@@ -63,6 +63,14 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
           <path d="M4 5.5V21M8 7h8M8 11h8" />
         </>,
       );
+    case "/admin/attendance":
+      return icon(
+        <>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M8 3v4M16 3v4M3 10h18" />
+          <path d="m9 15 2 2 4-4" />
+        </>,
+      );
     case "Operations":
       return icon(
         <>

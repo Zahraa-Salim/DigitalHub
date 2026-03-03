@@ -5,6 +5,7 @@
 // @ts-nocheck
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
+import { getCohortFormService } from "./forms.service.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
@@ -15,14 +16,52 @@ import {
     createApplicantForPublicApply,
     findApplicantByEmailNorm,
     findApplicantByPhoneNorm,
+    getPublicEventBySlug,
     getGeneralApplyForm,
     getPublishedProgramById,
+    listPublishedProgramOptions,
     listEnabledFormFieldsByFormId,
     programApplicationsTableExists,
     upsertProgramApplication,
     upsertProgramApplicationByPhone,
 } from "../repositories/public.repo.js";
 import { listPublicProjectsByStudentUserId } from "../repositories/projects.repository.js";
+
+function isTransientDatabaseError(error) {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+    const code = String(error.code || "").toUpperCase();
+    const message = String(error.message || "").toLowerCase();
+    return (code === "08P01" ||
+        code === "08006" ||
+        code === "08001" ||
+        code === "57P01" ||
+        code === "ENOTFOUND" ||
+        code === "EAI_AGAIN" ||
+        code === "ETIMEDOUT" ||
+        code === "ECONNRESET" ||
+        code === "EPIPE" ||
+        message.includes("authentication timed out") ||
+        message.includes("getaddrinfo") ||
+        message.includes("name or service not known") ||
+        message.includes("connection timeout") ||
+        message.includes("connection terminated unexpectedly"));
+}
+
+async function withDbRetry(handler, retries = 1) {
+    try {
+        return await handler();
+    }
+    catch (error) {
+        if (!isTransientDatabaseError(error) || retries <= 0) {
+            throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return withDbRetry(handler, retries - 1);
+    }
+}
+
 async function listPublicResource(query, config) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
     const params = [];
@@ -36,9 +75,9 @@ async function listPublicResource(query, config) {
         where.push(`${config.featuredFilterColumn} = $${params.length}`);
     }
     const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    const countResult = await countPublicResources(config.resourceConfig.tableExpression, whereClause, params);
+    const countResult = await withDbRetry(() => countPublicResources(config.resourceConfig.tableExpression, whereClause, params));
     const total = Number(countResult.rows[0]?.total ?? 0);
-    const dataResult = await listPublicResources(config.resourceConfig, whereClause, list.sortBy, list.order, params, list.limit, list.offset);
+    const dataResult = await withDbRetry(() => listPublicResources(config.resourceConfig, whereClause, list.sortBy, list.order, params, list.limit, list.offset));
     return {
         data: dataResult.rows,
         pagination: buildPagination(list.page, list.limit, total),
@@ -51,7 +90,7 @@ const programsConfig = {
     extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL"],
     resourceConfig: {
         tableExpression: "programs p",
-        selectFields: "p.id, p.slug, p.title, p.summary, p.description, p.requirements, p.default_capacity, p.created_at, p.updated_at",
+        selectFields: "p.id, p.slug, p.title, p.summary, p.description, p.requirements, p.image_url, p.default_capacity, p.created_at, p.updated_at",
         sortPrefix: "p",
     },
 };
@@ -62,7 +101,7 @@ const cohortsConfig = {
     extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL", "c.deleted_at IS NULL", "c.status <> 'cancelled'"],
     resourceConfig: {
         tableExpression: "cohorts c JOIN programs p ON p.id = c.program_id",
-        selectFields: "c.id, c.program_id, p.title AS program_title, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
+        selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
         sortPrefix: "c",
     },
 };
@@ -73,7 +112,7 @@ const eventsConfig = {
     extraWhere: ["e.is_published = TRUE", "e.deleted_at IS NULL"],
     resourceConfig: {
         tableExpression: "events e",
-        selectFields: "e.id, e.slug, e.title, e.description, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.created_at, e.updated_at",
+        selectFields: "e.id, e.slug, e.title, e.description, e.post_body, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.completion_image_urls, e.created_at, e.updated_at",
         sortPrefix: "e",
     },
 };
@@ -117,7 +156,7 @@ const studentsConfig = {
     extraWhere: ["sp.is_public = TRUE"],
     resourceConfig: {
         tableExpression: "student_profiles sp",
-        selectFields: "sp.user_id, sp.full_name, sp.avatar_url, sp.bio, sp.linkedin_url, sp.github_url, sp.portfolio_url, sp.featured, sp.featured_rank, sp.public_slug",
+        selectFields: "sp.user_id, sp.full_name, sp.avatar_url, sp.bio, sp.linkedin_url, sp.github_url, sp.portfolio_url, sp.featured, sp.featured_rank, sp.public_slug, sp.is_graduated, sp.is_working, sp.open_to_work, sp.company_work_for",
         sortPrefix: "sp",
     },
     featuredFilterColumn: "sp.featured",
@@ -128,8 +167,27 @@ export function listPublicProgramsService(query) {
 export function listPublicCohortsService(query) {
     return listPublicResource(query, cohortsConfig);
 }
+export async function getPublicCohortApplicationFormService(cohortId) {
+    const data = await getCohortFormService(cohortId);
+    return {
+        cohort: data.cohort,
+        resolved_form: data.resolved_form,
+        form_source: data.cohort?.use_general_form || !data.custom_form ? "general" : "custom",
+    };
+}
 export function listPublicEventsService(query) {
     return listPublicResource(query, eventsConfig);
+}
+export async function getPublicEventBySlugService(slug) {
+    const normalizedSlug = String(slug || "").trim();
+    if (!normalizedSlug) {
+        throw new AppError(400, "VALIDATION_ERROR", "Event slug is required.");
+    }
+    const result = await withDbRetry(() => getPublicEventBySlug(normalizedSlug));
+    if (!result.rowCount) {
+        throw new AppError(404, "NOT_FOUND", "Event not found.");
+    }
+    return result.rows[0];
 }
 export function listPublicAnnouncementsService(query) {
     return listPublicResource(query, announcementsConfig);
@@ -183,6 +241,58 @@ export async function getPublicHomeService() {
     await cacheSetJson(cacheKey, data, 60);
     return data;
 }
+
+export async function getPublicApplyFormService() {
+    return withTransaction(async (client) => {
+        const formResult = await getGeneralApplyForm(client);
+        if (!formResult.rowCount) {
+            throw new AppError(404, "FORM_NOT_FOUND", "General apply form is not configured.");
+        }
+
+        const form = formResult.rows[0];
+        const [fieldsResult, programsResult] = await Promise.all([
+            listEnabledFormFieldsByFormId(form.id, client),
+            listPublishedProgramOptions(client),
+        ]);
+
+        const programOptions = programsResult.rows.map((row) => ({
+            id: Number(row.id),
+            title: row.title,
+            slug: row.slug,
+        }));
+
+        const fields = fieldsResult.rows.map((field) => {
+            if (field.name !== "program_id" || field.type !== "select") {
+                return field;
+            }
+
+            const hasOptions = Array.isArray(field.options) && field.options.length > 0;
+            if (hasOptions) return field;
+
+            return {
+                ...field,
+                options: programOptions.map((program) => ({
+                    label: program.title,
+                    value: String(program.id),
+                })),
+            };
+        });
+
+        return {
+            form: {
+                id: Number(form.id),
+                key: form.key,
+                title: form.title,
+                description: form.description,
+                is_active: Boolean(form.is_active),
+                updated_at: form.updated_at,
+            },
+            fields,
+            programs: programOptions,
+        };
+    });
+}
+
 function normalizeEmail(value) {
     if (typeof value !== "string")
         return null;
@@ -232,6 +342,13 @@ export async function submitPublicApplyService(payload) {
         const requiredFields = fieldsResult.rows.filter((field) => field.required);
         const fieldErrors = {};
         for (const field of requiredFields) {
+            if (field.name === "program_id") {
+                if (!payload.program_id) {
+                    fieldErrors[field.name] = `${field.label || field.name} is required`;
+                }
+                continue;
+            }
+
             if (isMissingRequiredAnswer(answers[field.name])) {
                 fieldErrors[field.name] = `${field.label || field.name} is required`;
             }

@@ -11,6 +11,18 @@ import { buildQueryString } from "../../utils/query";
 
 type CohortStatus = "coming_soon" | "open" | "running" | "completed" | "cancelled";
 type SortBy = "updated_at" | "created_at" | "name" | "start_date" | "status";
+type AttendanceDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+
+const DEFAULT_ATTENDANCE_DAYS: AttendanceDay[] = ["monday", "tuesday", "wednesday", "thursday"];
+const ATTENDANCE_DAY_OPTIONS: Array<{ value: AttendanceDay; label: string }> = [
+  { value: "monday", label: "Mon" },
+  { value: "tuesday", label: "Tue" },
+  { value: "wednesday", label: "Wed" },
+  { value: "thursday", label: "Thu" },
+  { value: "friday", label: "Fri" },
+  { value: "saturday", label: "Sat" },
+  { value: "sunday", label: "Sun" },
+];
 
 type CohortRow = {
   id: number;
@@ -23,6 +35,9 @@ type CohortRow = {
   enrollment_close_at: string | null;
   start_date: string | null;
   end_date: string | null;
+  attendance_days?: string[] | null;
+  attendance_start_time?: string | null;
+  attendance_end_time?: string | null;
   use_general_form?: boolean;
   application_form_id?: number | null;
   created_at: string;
@@ -45,6 +60,9 @@ type CohortFormState = {
   enrollmentCloseAt: string;
   startDate: string;
   endDate: string;
+  attendanceDays: AttendanceDay[];
+  attendanceStartTime: string;
+  attendanceEndTime: string;
 };
 
 type ProgramInlineFormState = {
@@ -62,6 +80,9 @@ type CohortSavePayload = {
   enrollment_close_at: string | null;
   start_date: string | null;
   end_date: string | null;
+  attendance_days: AttendanceDay[];
+  attendance_start_time: string | null;
+  attendance_end_time: string | null;
 };
 
 type ComingSoonPrompt =
@@ -92,6 +113,9 @@ const initialCohortForm: CohortFormState = {
   enrollmentCloseAt: "",
   startDate: "",
   endDate: "",
+  attendanceDays: DEFAULT_ATTENDANCE_DAYS,
+  attendanceStartTime: "",
+  attendanceEndTime: "",
 };
 
 const initialInlineProgramForm: ProgramInlineFormState = {
@@ -116,6 +140,25 @@ function toDateInputValue(value: string | null): string {
 
   const normalized = value.trim();
   return normalized.length >= 10 ? normalized.slice(0, 10) : normalized;
+}
+
+function normalizeAttendanceDays(days: string[] | null | undefined): AttendanceDay[] {
+  if (!Array.isArray(days) || !days.length) {
+    return [...DEFAULT_ATTENDANCE_DAYS];
+  }
+  const normalized = days
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter((entry): entry is AttendanceDay =>
+      ATTENDANCE_DAY_OPTIONS.some((option) => option.value === entry),
+    );
+  return normalized.length ? [...new Set(normalized)] as AttendanceDay[] : [...DEFAULT_ATTENDANCE_DAYS];
+}
+
+function toTimeInputValue(value: string | null | undefined): string {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const match = text.match(/^([01]\d|2[0-3]):[0-5]\d/);
+  return match ? match[0] : "";
 }
 
 function toDateTimeInputValue(value: string | null): string {
@@ -158,6 +201,9 @@ function toCohortFormState(cohort: CohortRow | null): CohortFormState {
     enrollmentCloseAt: toDateTimeInputValue(cohort.enrollment_close_at),
     startDate: toDateInputValue(cohort.start_date),
     endDate: toDateInputValue(cohort.end_date),
+    attendanceDays: normalizeAttendanceDays(cohort.attendance_days),
+    attendanceStartTime: toTimeInputValue(cohort.attendance_start_time),
+    attendanceEndTime: toTimeInputValue(cohort.attendance_end_time),
   };
 }
 
@@ -603,6 +649,25 @@ export function CohortsPage() {
       return null;
     }
 
+    const attendanceDays = form.attendanceDays.length ? form.attendanceDays : DEFAULT_ATTENDANCE_DAYS;
+    const attendanceStartTime = form.attendanceStartTime.trim() || null;
+    const attendanceEndTime = form.attendanceEndTime.trim() || null;
+
+    if (attendanceStartTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(attendanceStartTime)) {
+      setFormError("Attendance start time must be in HH:MM format.");
+      return null;
+    }
+
+    if (attendanceEndTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(attendanceEndTime)) {
+      setFormError("Attendance end time must be in HH:MM format.");
+      return null;
+    }
+
+    if (attendanceStartTime && attendanceEndTime && attendanceEndTime <= attendanceStartTime) {
+      setFormError("Attendance end time must be after start time.");
+      return null;
+    }
+
     return {
       program_id: programId,
       name: cohortName,
@@ -611,6 +676,9 @@ export function CohortsPage() {
       enrollment_close_at: enrollmentCloseAt,
       start_date: form.startDate || null,
       end_date: form.endDate || null,
+      attendance_days: attendanceDays,
+      attendance_start_time: attendanceStartTime,
+      attendance_end_time: attendanceEndTime,
     };
   };
 
@@ -1339,6 +1407,62 @@ export function CohortsPage() {
                     type="date"
                     value={form.endDate}
                     onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="cohort-form-grid">
+                <label className="field cohort-attendance-days">
+                  <span className="field__label">Attendance Days</span>
+                  <div className="cohort-attendance-days__options">
+                    {ATTENDANCE_DAY_OPTIONS.map((option) => {
+                      const checked = form.attendanceDays.includes(option.value);
+                      return (
+                        <label key={option.value} className="cohort-attendance-days__option">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              setForm((current) => {
+                                const currentDays = current.attendanceDays;
+                                const nextDays = event.target.checked
+                                  ? [...currentDays, option.value]
+                                  : currentDays.filter((entry) => entry !== option.value);
+                                return {
+                                  ...current,
+                                  attendanceDays: nextDays.length ? nextDays : [...DEFAULT_ATTENDANCE_DAYS],
+                                };
+                              });
+                            }}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </label>
+
+                <label className="field">
+                  <span className="field__label">Attendance Start</span>
+                  <input
+                    className="field__control"
+                    type="time"
+                    value={form.attendanceStartTime}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, attendanceStartTime: event.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span className="field__label">Attendance End</span>
+                  <input
+                    className="field__control"
+                    type="time"
+                    value={form.attendanceEndTime}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, attendanceEndTime: event.target.value }))
+                    }
                   />
                 </label>
               </div>

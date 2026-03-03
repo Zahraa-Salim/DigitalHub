@@ -302,6 +302,13 @@ export async function scheduleApplicationInterview(
   });
 }
 
+export async function markApplicationInterviewCompleted(id: number): Promise<Record<string, unknown>> {
+  return api(`/applications/${id}/interview/mark-completed`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export async function sendApplicationMessage(
   id: number,
   messageId: number,
@@ -312,10 +319,18 @@ export async function sendApplicationMessage(
   });
 }
 
-export async function createUserFromApplication(id: number): Promise<Record<string, unknown>> {
+export async function createUserFromApplication(
+  id: number,
+  payload?: {
+    channels?: {
+      email?: boolean;
+      sms?: boolean;
+    };
+  },
+): Promise<Record<string, unknown>> {
   return api(`/applications/${id}/create-user`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(payload ?? {}),
   });
 }
 
@@ -373,10 +388,19 @@ export async function confirmProgramApplicationParticipation(
   });
 }
 
-export async function createUserFromProgramApplication(id: number): Promise<Record<string, unknown>> {
+export async function createUserFromProgramApplication(
+  id: number,
+  payload?: {
+    channels?: {
+      email?: boolean;
+      sms?: boolean;
+      whatsapp?: boolean;
+    };
+  },
+): Promise<Record<string, unknown>> {
   return api(`/program-applications/${id}/create-user`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(payload ?? {}),
   });
 }
 
@@ -400,7 +424,9 @@ export async function sendMessagingUsers(payload: {
   requested_count: number;
   sent_count: number;
   skipped_count: number;
+  failed_count?: number;
   skipped_users: Array<{ id: number; reason: string }>;
+  failed_users?: Array<{ id: number; reason: string; error?: string }>;
 }> {
   return api("/auth/users/messages", {
     method: "POST",
@@ -409,9 +435,13 @@ export async function sendMessagingUsers(payload: {
 }
 
 export async function listMessageTemplates(params?: {
+  page?: number;
+  limit?: number;
+  sortBy?: "sort_order" | "key" | "label" | "created_at" | "updated_at";
+  order?: "asc" | "desc";
   include_inactive?: boolean;
-}): Promise<MessageTemplate[]> {
-  return api(`/message-templates${buildQueryString(params ?? {})}`);
+}): Promise<{ data: MessageTemplate[]; pagination: PaginationMeta }> {
+  return apiList<MessageTemplate>(`/message-templates${buildQueryString(params ?? {})}`);
 }
 
 export async function updateMessageTemplate(
@@ -468,4 +498,108 @@ export async function retryAdminOverviewFailedMessages(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export type AttendanceStatus = "present" | "absent" | "late";
+export type AttendanceLocationType = "remote" | "on_site";
+
+export type AttendanceCohort = {
+  id: number;
+  name: string;
+  program_id: number;
+  program_title: string | null;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  attendance_days: string[];
+  attendance_start_time: string | null;
+  attendance_end_time: string | null;
+};
+
+export type AttendanceStudentSheetRow = {
+  student_user_id: number;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  enrollment_status: string | null;
+  attendance_status: AttendanceStatus;
+  note: string;
+};
+
+export type AttendanceSheet = {
+  cohort: AttendanceCohort;
+  session: {
+    id: number | null;
+    attendance_date: string;
+    location_type: AttendanceLocationType;
+    submitted_at: string | null;
+    submitted_by: number | null;
+  };
+  students: AttendanceStudentSheetRow[];
+};
+
+export type StudentAttendanceHistory = {
+  student_user_id: number;
+  summary: {
+    present: number;
+    absent: number;
+    late: number;
+    total: number;
+  };
+  entries: Array<{
+    id: number;
+    session_id: number;
+    attendance_date: string;
+    location_type: AttendanceLocationType;
+    attendance_status: AttendanceStatus;
+    note: string | null;
+    marked_at: string | null;
+    cohort_id: number | null;
+    cohort_name: string | null;
+    program_id: number | null;
+    program_title: string | null;
+  }>;
+};
+
+export async function listRunningAttendanceCohorts(): Promise<{ cohorts: AttendanceCohort[] }> {
+  return api("/attendance/cohorts/running");
+}
+
+export async function getAttendanceSheet(params: { cohort_id: number; date?: string }): Promise<AttendanceSheet> {
+  return api(`/attendance/sheet${buildQueryString(params)}`);
+}
+
+export async function saveAttendanceSheet(payload: {
+  cohort_id: number;
+  attendance_date: string;
+  location_type: AttendanceLocationType;
+  records: Array<{
+    student_user_id: number;
+    status: AttendanceStatus;
+    note?: string;
+  }>;
+}): Promise<{
+  session: {
+    id: number;
+    cohort_id: number;
+    attendance_date: string;
+    location_type: AttendanceLocationType;
+    submitted_at: string | null;
+    submitted_by: number | null;
+  };
+  totals: {
+    present: number;
+    absent: number;
+    late: number;
+  };
+  records_count: number;
+}> {
+  return api("/attendance/sheet", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getStudentAttendanceHistory(userId: number, params?: { limit?: number }): Promise<StudentAttendanceHistory> {
+  return api(`/attendance/students/${userId}${buildQueryString(params ?? {})}`);
 }

@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, } from "../services/programs.service.js";
+import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, uploadProgramImageService, } from "../services/programs.service.js";
 export async function createProgram(req, res) {
     const data = await createProgramService(req.user.id, req.body);
     sendSuccess(res, data, "Program created successfully.", 201);
@@ -53,6 +53,10 @@ export async function assignCohortInstructor(req, res) {
     const body = req.body;
     const data = await assignInstructorService(Number(req.params.id), req.user.id, body);
     sendSuccess(res, data, "Instructor assigned successfully.", 201);
+}
+export async function postProgramImage(req, res) {
+    const data = await uploadProgramImageService(req.user.id, req.body);
+    sendSuccess(res, data, "Program image uploaded successfully.", 201);
 }
 
 

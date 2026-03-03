@@ -57,6 +57,11 @@ const menuData: MenuItem[] = [
   },
   {
     id: 5,
+    title: "Hire Talent",
+    link: "/hire-talent",
+  },
+  {
+    id: 6,
     title: "Contact",
     link: "/contact",
   },

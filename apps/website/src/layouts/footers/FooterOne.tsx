@@ -73,7 +73,7 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
   const currentYear = new Date().getFullYear().toString();
 
   useEffect(() => {
-    fetch(`${API_BASE}/public/home`, { cache: "no-store" })
+    fetch(`${API_BASE}/public/home`, { cache: "no-store", credentials: "omit" })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload: PublicHomeResponse | null) => {
         const socials = normalizeSocialLinks(payload?.data?.site_settings?.social_links);

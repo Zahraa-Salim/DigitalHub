@@ -5,6 +5,7 @@ import { useGlobalMessagingContext } from "../../components/GlobalMessagingConte
 import { PageShell } from "../../components/PageShell";
 import {
   createApplicationMessage,
+  markApplicationInterviewCompleted,
   createUserFromApplication,
   listMessageTemplates,
   scheduleApplicationInterview,
@@ -16,7 +17,7 @@ import {
   FALLBACK_MESSAGE_TEMPLATES,
   filterTemplatesForChannel,
 } from "../../lib/messageTemplates";
-import { summarizeOnboardingMessage } from "../../lib/onboardingMessage";
+import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, api, apiList } from "../../utils/api";
 import { buildQueryString } from "../../utils/query";
 import "./GeneralApplyPage.css";
@@ -53,6 +54,7 @@ type ApiApplicationRow = {
   id: number;
   cohort_id: number;
   cohort_name: string | null;
+  created_user_id?: number | null;
   status: string;
   stage: string | null;
   reviewed_by: number | null;
@@ -74,6 +76,7 @@ type ApplicationPipelineResponse = {
 type Applicant = {
   id: string;
   applicationId: number;
+  createdUserId: number | null;
   cohortName: string;
   name: string;
   email: string;
@@ -85,6 +88,11 @@ type Applicant = {
   reviewedAt: string | null;
   reviewedBy: number | null;
   reviewMessage: string | null;
+};
+
+type CreateUserDeliveryChannels = {
+  email: boolean;
+  sms: boolean;
 };
 
 const PAGE_SIZE = 10;
@@ -145,6 +153,27 @@ function formatUnknownValue(value: unknown): string {
   }
 }
 
+function toSubmittedLabel(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function hasSubmittedValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some((item) => hasSubmittedValue(item));
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).some((item) => hasSubmittedValue(item));
+  }
+  return true;
+}
+
+function hasDeliverableEmail(value: string): boolean {
+  const trimmed = value.trim();
+  return Boolean(trimmed) && trimmed !== "No email" && !trimmed.endsWith("@digitalhub.local");
+}
+
 function normalizeStatus(value: string | null | undefined): ApplicationStatus {
   const status = String(value ?? "").toLowerCase();
   if (status === "pending") return "applied";
@@ -170,8 +199,9 @@ function mapRowToApplicant(row: ApiApplicationRow): Applicant {
   return {
     id: String(row.id),
     applicationId: row.id,
-    cohortName: row.cohort_name ?? `Cohort #${row.cohort_id}`,
-    name: row.full_name?.trim() || `Applicant #${row.id}`,
+    createdUserId: typeof row.created_user_id === "number" ? row.created_user_id : null,
+    cohortName: row.cohort_name?.trim() || "Unassigned cohort",
+    name: row.full_name?.trim() || row.email?.trim() || "Unnamed applicant",
     email: row.email?.trim() || "No email",
     phone: row.phone?.trim() || "",
     appliedDate: row.submitted_at,
@@ -227,6 +257,43 @@ function funnelStatusLabel(status: ApplicationStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function toFriendlyCreateUserError(error: unknown, fallbackName = "This applicant"): string {
+  if (!(error instanceof ApiError)) {
+    return "We couldn't create a user account right now. Please try again.";
+  }
+
+  if (error.code === "INVALID_STAGE") {
+    return `${fallbackName} is not ready for account creation yet. Move the status to Accepted or Participation Confirmed, then try again.`;
+  }
+
+  if (error.code === "APPLICATION_NOT_FOUND") {
+    return "This application could not be found. Refresh the page and try again.";
+  }
+
+  return error.message || "We couldn't create a user account right now. Please try again.";
+}
+
+function buildInterviewScheduleFeedback(applicantName: string, hasEmail: boolean, hasPhone: boolean): string {
+  if (hasEmail && hasPhone) {
+    return `Interview scheduled for ${applicantName}. Email and WhatsApp drafts were created (drafts are not sent automatically).`;
+  }
+  if (hasEmail) {
+    return `Interview scheduled for ${applicantName}. An email draft was created (drafts are not sent automatically).`;
+  }
+  if (hasPhone) {
+    return `Interview scheduled for ${applicantName}. A WhatsApp draft was created (drafts are not sent automatically).`;
+  }
+  return `Interview scheduled for ${applicantName}. No email or phone is available, so no message draft was created.`;
+}
+
+function toFriendlyDeliveryFailure(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("badcredentials") || normalized.includes("invalid login") || normalized.includes("535-5.7.8")) {
+    return "SMTP authentication failed. Update SMTP_USER and SMTP_PASS (for Gmail use a 16-character App Password).";
+  }
+  return message;
+}
+
 function MessageIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -270,6 +337,7 @@ type RowProps = {
   isSelected: boolean;
   isUpdating: boolean;
   isCreatingUser: boolean;
+  isUserCreated: boolean;
   onSelect: (id: string) => void;
   onStatusChange: (id: string, status: ApplicationStatus) => void;
   onCreateUser: (applicant: Applicant) => void;
@@ -281,6 +349,7 @@ function ApplicantRow({
   isSelected,
   isUpdating,
   isCreatingUser,
+  isUserCreated,
   onSelect,
   onStatusChange,
   onCreateUser,
@@ -327,10 +396,10 @@ function ApplicantRow({
           <button
             className="btn btn--secondary btn--sm admx-create-user-btn"
             type="button"
-            disabled={isCreatingUser || isUpdating}
+            disabled={isCreatingUser || isUpdating || isUserCreated}
             onClick={() => onCreateUser(applicant)}
           >
-            {isCreatingUser ? "Creating..." : "Create User"}
+            {isUserCreated ? "User Created" : isCreatingUser ? "Creating..." : "Create User"}
           </button>
         </div>
       </td>
@@ -339,7 +408,6 @@ function ApplicantRow({
 }
 
 type ComposerProps = {
-  open: boolean;
   onClose: () => void;
   preselected: Applicant | null;
   applicants: Applicant[];
@@ -356,7 +424,6 @@ type ComposerProps = {
 };
 
 type InterviewSchedulerProps = {
-  open: boolean;
   applicant: Applicant | null;
   busy: boolean;
   error: string;
@@ -375,21 +442,13 @@ type InterviewSchedulerProps = {
   }) => void;
 };
 
-function InterviewSchedulerModal({ open, applicant, busy, error, initial, onClose, onSubmit }: InterviewSchedulerProps) {
+function InterviewSchedulerModal({ applicant, busy, error, initial, onClose, onSubmit }: InterviewSchedulerProps) {
   const [scheduledAt, setScheduledAt] = useState(initial.scheduled_at);
   const [durationMinutes, setDurationMinutes] = useState(initial.duration_minutes);
   const [locationType, setLocationType] = useState<InterviewLocationType>(initial.location_type);
   const [locationDetails, setLocationDetails] = useState(initial.location_details);
 
-  useEffect(() => {
-    if (!open) return;
-    setScheduledAt(initial.scheduled_at);
-    setDurationMinutes(initial.duration_minutes);
-    setLocationType(initial.location_type);
-    setLocationDetails(initial.location_details);
-  }, [open, initial]);
-
-  if (!open || !applicant) return null;
+  if (!applicant) return null;
 
   return (
     <div className="admx-modal" role="presentation">
@@ -461,7 +520,7 @@ function InterviewSchedulerModal({ open, applicant, busy, error, initial, onClos
               location_details: locationDetails.trim(),
             })}
           >
-            {busy ? "Scheduling..." : "Schedule & Set Invited"}
+            {busy ? "Scheduling interview..." : "Schedule Interview"}
           </button>
         </footer>
       </div>
@@ -469,25 +528,13 @@ function InterviewSchedulerModal({ open, applicant, busy, error, initial, onClos
   );
 }
 
-function MessageComposer({ open, onClose, preselected, applicants, selectedIds, templates, busy, error, onSend }: ComposerProps) {
+function MessageComposer({ onClose, preselected, applicants, selectedIds, templates, busy, error, onSend }: ComposerProps) {
   const [group, setGroup] = useState<RecipientGroup>(preselected ? "individual" : selectedIds.length ? "selected" : "all");
   const [single, setSingle] = useState<Applicant | null>(preselected);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [channel, setChannel] = useState<"email" | "sms">("email");
   const [showTemplates, setShowTemplates] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    if (preselected) {
-      setSingle(preselected);
-      setGroup("individual");
-    } else if (selectedIds.length > 0) {
-      setGroup("selected");
-    } else {
-      setGroup("all");
-    }
-  }, [open, preselected, selectedIds.length]);
 
   const recipients = useMemo(() => {
     if (group === "individual") return single ? [single] : [];
@@ -498,8 +545,6 @@ function MessageComposer({ open, onClose, preselected, applicants, selectedIds, 
   const visibleTemplates = useMemo(() => filterTemplatesForChannel(templates, channel), [templates, channel]);
 
   const canSend = recipients.length > 0 && body.trim() && (channel === "sms" || subject.trim());
-
-  if (!open) return null;
 
   return (
     <div className="admx-modal" role="presentation">
@@ -586,21 +631,146 @@ function MessageComposer({ open, onClose, preselected, applicants, selectedIds, 
   );
 }
 
+type CreateUserDeliveryModalProps = {
+  open: boolean;
+  label: string;
+  recipients: Applicant[];
+  initialChannels: CreateUserDeliveryChannels;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (channels: CreateUserDeliveryChannels) => void;
+};
+
+function CreateUserDeliveryModal({
+  open,
+  label,
+  recipients,
+  initialChannels,
+  busy,
+  onClose,
+  onSubmit,
+}: CreateUserDeliveryModalProps) {
+  const [emailEnabled, setEmailEnabled] = useState(initialChannels.email);
+  const [smsEnabled, setSmsEnabled] = useState(initialChannels.sms);
+
+  if (!open) return null;
+
+  const emailCount = recipients.filter((entry) => hasDeliverableEmail(entry.email)).length;
+  const phoneCount = recipients.filter((entry) => entry.phone.trim().length > 0).length;
+  const canSubmit = emailEnabled || smsEnabled;
+
+  return (
+    <div className="admx-modal" role="presentation">
+      <div className="admx-modal__backdrop" onClick={busy ? undefined : onClose} />
+      <div className="admx-modal__card" role="dialog" aria-modal="true">
+        <header className="admx-modal__header">
+          <div>
+            <h3>Create User</h3>
+            <p>{label}</p>
+          </div>
+        </header>
+        <div className="admx-modal__body">
+          <p className="admx-subtext">
+            Select how credentials should be delivered after account creation.
+          </p>
+          <div className="admx-channel-list">
+            <label className="admx-channel-option">
+              <input
+                type="checkbox"
+                checked={emailEnabled}
+                onChange={(event) => setEmailEnabled(event.target.checked)}
+                disabled={busy}
+              />
+              <span>
+                <strong>Email</strong>
+                <small>{emailCount} recipient{emailCount === 1 ? "" : "s"} with valid email</small>
+              </span>
+            </label>
+            <label className="admx-channel-option">
+              <input
+                type="checkbox"
+                checked={smsEnabled}
+                onChange={(event) => setSmsEnabled(event.target.checked)}
+                disabled={busy}
+              />
+              <span>
+                <strong>WhatsApp</strong>
+                <small>{phoneCount} recipient{phoneCount === 1 ? "" : "s"} with phone number</small>
+              </span>
+            </label>
+          </div>
+          {!canSubmit ? (
+            <p className="admx-inline-error">Select at least one delivery channel.</p>
+          ) : null}
+        </div>
+        <footer className="admx-modal__footer">
+          <button className="btn btn--secondary btn--sm" type="button" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            className="btn btn--primary btn--sm"
+            type="button"
+            disabled={!canSubmit || busy}
+            onClick={() => onSubmit({ email: emailEnabled, sms: smsEnabled })}
+          >
+            {busy ? "Creating..." : "Create User"}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 type DetailsProps = {
   open: boolean;
   applicant: Applicant | null;
   pipeline: ApplicationPipelineResponse | null;
   loading: boolean;
+  savingReviewMessage: boolean;
+  reviewMessageDraft: string;
   error: string;
+  onMessageApplicant: (applicant: Applicant) => void;
+  onReviewMessageDraftChange: (value: string) => void;
+  onSaveReviewMessage: (applicant: Applicant, message: string) => void;
   onClose: () => void;
 };
 
-function DetailsModal({ open, applicant, pipeline, loading, error, onClose }: DetailsProps) {
+function DetailsModal({
+  open,
+  applicant,
+  pipeline,
+  loading,
+  savingReviewMessage,
+  reviewMessageDraft,
+  error,
+  onMessageApplicant,
+  onReviewMessageDraftChange,
+  onSaveReviewMessage,
+  onClose,
+}: DetailsProps) {
+  const app = pipeline?.application;
+  const reviewMessage = String(app?.review_message || applicant?.reviewMessage || "").trim();
+
   if (!open || !applicant) return null;
 
-  const app = pipeline?.application;
-  const answers = toRecord(app?.submission_answers) || applicant.answers;
-  const rows = Object.entries(answers);
+  const pipelineAnswers = toRecord(app?.submission_answers);
+  const answers = Object.keys(pipelineAnswers).length ? pipelineAnswers : applicant.answers;
+  const submittedEntries = Object.entries(answers)
+    .filter(([, value]) => hasSubmittedValue(value))
+    .map(([key, value]) => ({
+      key,
+      label: toSubmittedLabel(key),
+      value: formatUnknownValue(value),
+    }));
+  const applicantName = applicant.name || "Applicant";
+  const applicantEmail = app?.email || applicant.email || "N/A";
+  const cohortName = app?.cohort_name || applicant.cohortName || "Unassigned cohort";
+  const currentStatus = normalizeStatus(app?.status || app?.stage || applicant.status);
+  const applicantPhone = String(app?.phone || applicant.phone || "").trim();
+  const reviewedAt = app?.reviewed_at;
+
+  const trimmedDraft = reviewMessageDraft.trim();
+  const canSaveReviewMessage = !loading && !savingReviewMessage && trimmedDraft.length > 0 && trimmedDraft !== reviewMessage;
 
   return (
     <div className="admx-modal" role="presentation">
@@ -608,24 +778,58 @@ function DetailsModal({ open, applicant, pipeline, loading, error, onClose }: De
       <div className="admx-modal__card" role="dialog" aria-modal="true">
         <header className="admx-modal__header">
           <div>
-            <h3>Application Details</h3>
-            <p>{applicant.name}</p>
+            <h3>{applicantName}</h3>
+            <p>{applicantEmail} • {cohortName}</p>
           </div>
-          <button className="btn btn--secondary btn--sm" type="button" onClick={onClose}>Close</button>
+          <div className="admx-modal__header-actions">
+            <button className="btn btn--secondary btn--sm" type="button" onClick={() => onMessageApplicant(applicant)}>
+              Message Applicant
+            </button>
+            <button className="btn btn--secondary btn--sm" type="button" onClick={onClose}>Close</button>
+          </div>
         </header>
         <div className="admx-modal__body">
-          {loading ? <p className="admx-subtext">Loading...</p> : null}
+          {loading ? <p className="admx-subtext">Loading application details...</p> : null}
           {error ? <p className="admx-inline-error">{error}</p> : null}
-          <p className="admx-details-line"><strong>Email:</strong> {app?.email || applicant.email}</p>
-          <p className="admx-details-line"><strong>Phone:</strong> {app?.phone || applicant.phone || "N/A"}</p>
-          <p className="admx-details-line"><strong>Cohort:</strong> {app?.cohort_name || applicant.cohortName}</p>
+
+          <p className="admx-details-title">Application Summary</p>
+          <p className="admx-details-line"><strong>Email:</strong> {applicantEmail}</p>
+          {applicantPhone ? <p className="admx-details-line"><strong>Phone:</strong> {applicantPhone}</p> : null}
+          <p className="admx-details-line"><strong>Status:</strong> {statusLabel(currentStatus)}</p>
           <p className="admx-details-line"><strong>Submitted:</strong> {formatDate(app?.submitted_at || applicant.appliedDate)}</p>
-          <p className="admx-details-line"><strong>Status:</strong> {normalizeStatus(app?.status || app?.stage || applicant.status)}</p>
-          <p className="admx-details-line"><strong>Review Message:</strong> {app?.review_message || "N/A"}</p>
-          <p className="admx-details-title">Submitted Answers</p>
-          {rows.length > 0 ? rows.map(([key, value]) => (
-            <p key={key} className="admx-details-line"><strong>{key.replace(/_/g, " ")}:</strong> {formatUnknownValue(value)}</p>
-          )) : <p className="admx-subtext">No answers available.</p>}
+          <p className="admx-details-line"><strong>Reviewed:</strong> {reviewedAt ? formatDate(reviewedAt) : "Not reviewed yet"}</p>
+          <div className="admx-inline-head">
+            <p className="admx-details-title">Review Message</p>
+            <button
+              className="btn btn--secondary btn--sm"
+              type="button"
+              disabled={!canSaveReviewMessage}
+              onClick={() => onSaveReviewMessage(applicant, trimmedDraft)}
+            >
+              {savingReviewMessage ? "Saving..." : "Save"}
+            </button>
+          </div>
+          <textarea
+            className="textarea-control"
+            rows={3}
+            value={reviewMessageDraft}
+            onChange={(event) => onReviewMessageDraftChange(event.target.value)}
+            placeholder="Add review feedback for this application."
+          />
+
+          {!loading && submittedEntries.length ? (
+            <>
+              <p className="admx-details-title">Submitted Information</p>
+              <div className="popapply-submitted-list">
+                {submittedEntries.map((entry) => (
+                  <div key={entry.key} className="popapply-submitted-item">
+                    <p className="popapply-submitted-label">{entry.label}</p>
+                    <p className="popapply-submitted-value">{entry.value}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -670,11 +874,20 @@ export function AdmissionsPage() {
     location_type: "online" as InterviewLocationType,
     location_details: "",
   });
+  const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [createUserTargets, setCreateUserTargets] = useState<Applicant[]>([]);
+  const [createUserLabel, setCreateUserLabel] = useState("");
+  const [createUserInitialChannels, setCreateUserInitialChannels] = useState<CreateUserDeliveryChannels>({
+    email: true,
+    sms: true,
+  });
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsTarget, setDetailsTarget] = useState<Applicant | null>(null);
   const [detailsPipeline, setDetailsPipeline] = useState<ApplicationPipelineResponse | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [savingReviewMessage, setSavingReviewMessage] = useState(false);
+  const [detailsReviewMessageDraft, setDetailsReviewMessageDraft] = useState("");
   const [detailsError, setDetailsError] = useState("");
   const overviewNavigationRef = useRef(false);
   const overviewFallbackAttemptedRef = useRef(false);
@@ -765,8 +978,9 @@ export function AdmissionsPage() {
     let active = true;
     const load = async () => {
       try {
-        const data = await listMessageTemplates();
+        const result = await listMessageTemplates({ limit: 100, sortBy: "sort_order", order: "asc" });
         if (!active) return;
+        const data = result.data;
         setMessageTemplates(data.length ? data : FALLBACK_MESSAGE_TEMPLATES);
       } catch {
         if (!active) return;
@@ -889,6 +1103,16 @@ export function AdmissionsPage() {
   const pageEnd = Math.min(safePage * PAGE_SIZE, filtered.length);
   const allVisibleSelected = paginated.length > 0 && paginated.every((a) => selectedIds.has(a.id));
   const someSelected = selectedIds.size > 0;
+  const selectedApplicants = useMemo(
+    () => applicants.filter((entry) => selectedIds.has(entry.id)),
+    [applicants, selectedIds],
+  );
+  const selectedCreateEligibleCount = useMemo(
+    () => selectedApplicants.filter((entry) => !entry.createdUserId).length,
+    [selectedApplicants],
+  );
+  const createUserModalBusy =
+    bulkCreatingUsers || createUserTargets.some((entry) => creatingUserIds.has(entry.applicationId));
   const selectedExportRows = useMemo(
     () => filtered.filter((applicant) => selectedIds.has(applicant.id)),
     [filtered, selectedIds],
@@ -952,7 +1176,7 @@ export function AdmissionsPage() {
   }) => {
     if (!schedulerTarget) return;
 
-    const hasEmail = schedulerTarget.email && schedulerTarget.email !== "No email";
+    const hasEmail = Boolean(schedulerTarget.email && schedulerTarget.email !== "No email");
     const hasPhone = Boolean(schedulerTarget.phone?.trim());
 
     setSchedulerBusy(true);
@@ -976,6 +1200,8 @@ export function AdmissionsPage() {
       if (detailsOpen && detailsTarget?.id === schedulerTarget.id) {
         await openDetails(schedulerTarget);
       }
+      setLoadError("");
+      setLoadSuccess(buildInterviewScheduleFeedback(schedulerTarget.name, hasEmail, hasPhone));
       closeScheduler(true);
     } catch (err) {
       setSchedulerError(err instanceof ApiError ? err.message : "Failed to schedule interview.");
@@ -988,6 +1214,10 @@ export function AdmissionsPage() {
     if (status === "invited_to_interview") {
       openScheduler(applicant);
       return applicant.status;
+    }
+    if (status === "interview_confirmed") {
+      await markApplicationInterviewCompleted(applicant.applicationId);
+      return "interview_confirmed";
     }
     await api(`/applications/${applicant.applicationId}/stage`, { method: "PATCH", body: JSON.stringify({ status }) });
     return status;
@@ -1051,28 +1281,70 @@ export function AdmissionsPage() {
     }
   };
 
-  const createUserForApplicant = async (applicant: Applicant) => {
+  const openCreateUserModal = (targets: Applicant[], label: string) => {
+    const eligibleTargets = targets.filter((entry) => !entry.createdUserId);
+    if (!eligibleTargets.length) {
+      setLoadError("Selected applicant(s) already have user accounts.");
+      return;
+    }
+    const emailAvailable = eligibleTargets.some((entry) => hasDeliverableEmail(entry.email));
+    const phoneAvailable = eligibleTargets.some((entry) => entry.phone.trim().length > 0);
+    setCreateUserTargets(eligibleTargets);
+    setCreateUserLabel(label);
+    setCreateUserInitialChannels({
+      email: emailAvailable || !phoneAvailable,
+      sms: phoneAvailable,
+    });
+    setCreateUserModalOpen(true);
+  };
+
+  const closeCreateUserModal = () => {
+    if (createUserModalBusy) return;
+    setCreateUserModalOpen(false);
+    setCreateUserTargets([]);
+    setCreateUserLabel("");
+  };
+
+  const createUserForApplicant = async (
+    applicant: Applicant,
+    channels?: CreateUserDeliveryChannels,
+  ) => {
     setLoadError("");
     setLoadSuccess("");
     setCreatingUserIds((current) => new Set(current).add(applicant.applicationId));
     try {
-      const response = await createUserFromApplication(applicant.applicationId);
+      const response = await createUserFromApplication(applicant.applicationId, {
+        channels: {
+          email: channels?.email,
+          sms: channels?.sms,
+        },
+      });
+      const createdUserId = Number((response as { student_user_id?: unknown }).student_user_id);
+      if (Number.isFinite(createdUserId) && createdUserId > 0) {
+        setApplicants((current) =>
+          current.map((entry) =>
+            entry.applicationId === applicant.applicationId ? { ...entry, createdUserId } : entry,
+          ),
+        );
+      }
+      const existingUser = Boolean((response as { existing_user?: unknown }).existing_user);
       const summary = summarizeOnboardingMessage(response);
       const extras: string[] = [];
       if (summary.sentCount > 0) extras.push(`credentials sent (${summary.sentCount})`);
-      if (summary.skipped) extras.push("delivery skipped");
+      if (summary.skipped) extras.push(onboardingSkipReasonText(summary.reason));
       setLoadSuccess(
         extras.length
-          ? `User created for ${applicant.name}; ${extras.join(", ")}.`
-          : `User created for ${applicant.name}.`,
+          ? `${existingUser ? "Existing account linked" : "User created"} for ${applicant.name}; ${extras.join(", ")}.`
+          : `${existingUser ? "Existing account linked" : "User created"} for ${applicant.name}.`,
       );
       if (summary.failedCount > 0) {
+        const firstFailure = summary.firstFailure ? toFriendlyDeliveryFailure(summary.firstFailure) : "";
         setLoadError(
-          `User created, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${summary.firstFailure ? ` ${summary.firstFailure}` : ""}`,
+          `${existingUser ? "Account linked" : "User created"}, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${firstFailure ? ` ${firstFailure}` : ""}`,
         );
       }
     } catch (error) {
-      setLoadError(error instanceof ApiError ? error.message : "Failed to create user.");
+      setLoadError(toFriendlyCreateUserError(error, applicant.name));
     } finally {
       setCreatingUserIds((current) => {
         const next = new Set(current);
@@ -1082,18 +1354,41 @@ export function AdmissionsPage() {
     }
   };
 
-  const createUsersForSelected = async () => {
-    if (!selectedIds.size || bulkCreatingUsers) return;
-    const targets = applicants.filter((a) => selectedIds.has(a.id));
-    if (!targets.length) return;
+  const createUsers = async (
+    targets: Applicant[],
+    channels?: CreateUserDeliveryChannels,
+  ) => {
+    if (!targets.length || bulkCreatingUsers) return;
 
     setBulkCreatingUsers(true);
     setLoadError("");
     setLoadSuccess("");
     try {
       const results = await Promise.allSettled(
-        targets.map((applicant) => createUserFromApplication(applicant.applicationId)),
+        targets.map((applicant) =>
+          createUserFromApplication(applicant.applicationId, {
+            channels: {
+              email: channels?.email,
+              sms: channels?.sms,
+            },
+          }),
+        ),
       );
+      const createdMap = new Map<number, number>();
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        const createdUserId = Number((result.value as { student_user_id?: unknown }).student_user_id);
+        if (!Number.isFinite(createdUserId) || createdUserId <= 0) return;
+        createdMap.set(targets[index].applicationId, createdUserId);
+      });
+      if (createdMap.size > 0) {
+        setApplicants((current) =>
+          current.map((entry) => ({
+            ...entry,
+            createdUserId: createdMap.get(entry.applicationId) ?? entry.createdUserId,
+          })),
+        );
+      }
       const successCount = results.filter((result) => result.status === "fulfilled").length;
       const failed = results.filter((result) => result.status === "rejected");
       const summaries = results
@@ -1103,11 +1398,22 @@ export function AdmissionsPage() {
       const deliveryFailedCount = summaries.reduce((acc, item) => acc + item.failedCount, 0);
       const skippedCount = summaries.reduce((acc, item) => acc + (item.skipped ? 1 : 0), 0);
       const firstDeliveryFailure = summaries.find((item) => item.firstFailure)?.firstFailure || "";
+      const skippedReasonCounts = summaries.reduce<Record<string, number>>((acc, item) => {
+        if (!item.skipped) return acc;
+        const key = item.reason || "unknown";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
 
       if (successCount > 0) {
         const parts = [`Created ${successCount} user${successCount === 1 ? "" : "s"}.`];
         if (sentCount > 0) parts.push(`Credentials sent: ${sentCount}.`);
-        if (skippedCount > 0) parts.push(`Delivery skipped: ${skippedCount}.`);
+        if (skippedCount > 0) {
+          const skippedReasonText = Object.entries(skippedReasonCounts)
+            .map(([reason, count]) => `${onboardingSkipReasonText(reason)} (${count})`)
+            .join(" ");
+          parts.push(`Delivery skipped: ${skippedCount}.${skippedReasonText ? ` ${skippedReasonText}` : ""}`);
+        }
         setLoadSuccess(parts.join(" "));
       }
 
@@ -1115,12 +1421,13 @@ export function AdmissionsPage() {
         const messages: string[] = [];
         if (failed.length) {
           const firstReason = failed[0].status === "rejected" ? failed[0].reason : null;
-          const reasonText = firstReason instanceof ApiError ? firstReason.message : "Some users could not be created.";
+          const reasonText = toFriendlyCreateUserError(firstReason, "One or more selected applicants");
           messages.push(`${failed.length} user create request${failed.length === 1 ? "" : "s"} failed. ${reasonText}`);
         }
         if (deliveryFailedCount > 0) {
+          const friendlyFailure = firstDeliveryFailure ? toFriendlyDeliveryFailure(firstDeliveryFailure) : "";
           messages.push(
-            `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${firstDeliveryFailure ? ` ${firstDeliveryFailure}` : ""}`,
+            `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${friendlyFailure ? ` ${friendlyFailure}` : ""}`,
           );
         }
         setLoadError(messages.join(" "));
@@ -1128,6 +1435,16 @@ export function AdmissionsPage() {
     } finally {
       setBulkCreatingUsers(false);
     }
+  };
+
+  const submitCreateUserModal = async (channels: CreateUserDeliveryChannels) => {
+    if (!createUserTargets.length) return;
+    if (createUserTargets.length === 1) {
+      await createUserForApplicant(createUserTargets[0], channels);
+    } else {
+      await createUsers(createUserTargets, channels);
+    }
+    closeCreateUserModal();
   };
 
   const sendComposerMessage = async (payload: {
@@ -1175,15 +1492,87 @@ export function AdmissionsPage() {
     }
   };
 
+  const openMessageComposer = (target: Applicant | null = null) => {
+    setComposerError("");
+    setLoadError("");
+    setLoadSuccess("");
+    setMessageTarget(target);
+    setComposerOpen(true);
+  };
+
+  const saveReviewMessageForDetails = async (applicant: Applicant, message: string) => {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
+
+    const targetStatus = normalizeStatus(
+      detailsPipeline?.application?.status ||
+      detailsPipeline?.application?.stage ||
+      applicant.status,
+    );
+
+    setSavingReviewMessage(true);
+    setDetailsError("");
+    setLoadError("");
+    setLoadSuccess("");
+    try {
+      const updated = await api<ApiApplicationRow>(`/applications/${applicant.applicationId}/stage`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: targetStatus, message: trimmedMessage }),
+      });
+      const nextStatus = normalizeStatus(updated.status ?? updated.stage ?? targetStatus);
+      const nextReviewMessage = String(updated.review_message ?? trimmedMessage).trim();
+
+      setApplicants((current) =>
+        current.map((entry) =>
+          entry.id === applicant.id
+            ? {
+              ...entry,
+              status: nextStatus,
+              reviewMessage: nextReviewMessage || null,
+              reviewedAt: updated.reviewed_at ?? entry.reviewedAt,
+              reviewedBy: updated.reviewed_by ?? entry.reviewedBy,
+            }
+            : entry,
+        ),
+      );
+
+      setDetailsPipeline((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          application: {
+            ...current.application,
+            ...updated,
+            status: updated.status ?? current.application.status,
+            stage: updated.stage ?? current.application.stage,
+            review_message: nextReviewMessage || current.application.review_message,
+          },
+        };
+      });
+      setDetailsReviewMessageDraft(nextReviewMessage);
+
+      setLoadSuccess(`Review message saved for ${applicant.name}.`);
+    } catch (err) {
+      setDetailsError(err instanceof ApiError ? err.message : "Failed to save review message.");
+    } finally {
+      setSavingReviewMessage(false);
+    }
+  };
+
   const openDetails = async (applicant: Applicant) => {
     setDetailsOpen(true);
     setDetailsTarget(applicant);
     setDetailsPipeline(null);
     setDetailsError("");
+    setSavingReviewMessage(false);
+    setDetailsReviewMessageDraft(String(applicant.reviewMessage || "").trim());
     setDetailsLoading(true);
     try {
       const data = await api<ApplicationPipelineResponse>(`/applications/${applicant.applicationId}/pipeline`);
       setDetailsPipeline(data);
+      setDetailsReviewMessageDraft(
+        String(data.application?.review_message || applicant.reviewMessage || "").trim(),
+      );
     } catch (err) {
       setDetailsError(err instanceof ApiError ? err.message : "Failed to load details.");
     } finally {
@@ -1236,7 +1625,12 @@ export function AdmissionsPage() {
         remaining -= 1;
       });
 
-    return withRaw.map(({ raw, ...row }) => row);
+    return withRaw.map((row) => ({
+      stage: row.stage,
+      label: row.label,
+      count: row.count,
+      percent: row.percent,
+    }));
   }, [applicants]);
 
   return (
@@ -1361,14 +1755,22 @@ export function AdmissionsPage() {
                 className="btn btn--secondary btn--sm admx-create-user-btn"
                 type="button"
                 onClick={() => {
-                  if (!window.confirm(`Create user accounts and send credentials to ${selectedIds.size} selected applicant${selectedIds.size === 1 ? "" : "s"}?`)) return;
-                  void createUsersForSelected();
+                  openCreateUserModal(
+                    selectedApplicants,
+                    `${selectedApplicants.length} selected applicant${selectedApplicants.length === 1 ? "" : "s"}`,
+                  );
                 }}
-                disabled={bulkApplying || bulkCreatingUsers}
+                disabled={bulkApplying || bulkCreatingUsers || selectedCreateEligibleCount === 0}
               >
-                {bulkCreatingUsers ? "Creating..." : "Create User"}
+                {selectedCreateEligibleCount === 0
+                  ? selectedApplicants.length === 1
+                    ? "User Created"
+                    : "Users Created"
+                  : bulkCreatingUsers
+                    ? "Creating..."
+                    : "Create User"}
               </button>
-              <button className="admx-bulkbar__message" type="button" onClick={() => { setComposerError(""); setLoadSuccess(""); setMessageTarget(null); setComposerOpen(true); }} disabled={bulkApplying}>
+              <button className="admx-bulkbar__message" type="button" onClick={() => openMessageComposer()} disabled={bulkApplying}>
                 <MessageIcon />
                 Message
               </button>
@@ -1409,6 +1811,7 @@ export function AdmissionsPage() {
                         isSelected={selectedIds.has(a.id)}
                         isUpdating={updatingIds.has(a.applicationId)}
                         isCreatingUser={creatingUserIds.has(a.applicationId)}
+                        isUserCreated={Boolean(a.createdUserId)}
                         onSelect={(id) =>
                           setSelectedIds((current) => {
                             const next = new Set(current);
@@ -1419,8 +1822,7 @@ export function AdmissionsPage() {
                         }
                         onStatusChange={(id, status) => void onStatusChange(id, status)}
                         onCreateUser={(target) => {
-                          if (!window.confirm(`Create user for ${target.name} and send credentials message?`)) return;
-                          void createUserForApplicant(target);
+                          openCreateUserModal([target], target.name);
                         }}
                         onOpenDetails={(target) => void openDetails(target)}
                       />
@@ -1444,41 +1846,85 @@ export function AdmissionsPage() {
           )}
         </section>
 
-        <DetailsModal open={detailsOpen} applicant={detailsTarget} pipeline={detailsPipeline} loading={detailsLoading} error={detailsError} onClose={() => { setDetailsOpen(false); setDetailsTarget(null); setDetailsPipeline(null); setDetailsError(""); }} />
-        <InterviewSchedulerModal
-          open={schedulerOpen}
-          applicant={schedulerTarget}
-          busy={schedulerBusy}
-          error={schedulerError}
-          initial={schedulerInitial}
-          onClose={() => closeScheduler()}
-          onSubmit={(input) => void submitScheduler(input)}
-        />
-        <MessageComposer
-          open={composerOpen}
-          onClose={() => {
-            setComposerBusy(false);
-            setComposerError("");
-            setComposerOpen(false);
-            setMessageTarget(null);
+        <DetailsModal
+          open={detailsOpen}
+          applicant={detailsTarget}
+          pipeline={detailsPipeline}
+          loading={detailsLoading}
+          savingReviewMessage={savingReviewMessage}
+          reviewMessageDraft={detailsReviewMessageDraft}
+          error={detailsError}
+          onMessageApplicant={(target) => {
+            setDetailsOpen(false);
+            setDetailsPipeline(null);
+            setDetailsError("");
+            setSavingReviewMessage(false);
+            setDetailsReviewMessageDraft("");
+            openMessageComposer(target);
           }}
-          preselected={messageTarget}
-          applicants={applicants}
-          selectedIds={[...selectedIds]}
-          templates={messageTemplates}
-          busy={composerBusy}
-          error={composerError}
-          onSend={(payload) => void sendComposerMessage(payload)}
+          onReviewMessageDraftChange={setDetailsReviewMessageDraft}
+          onSaveReviewMessage={(target, message) => {
+            void saveReviewMessageForDetails(target, message);
+          }}
+          onClose={() => {
+            setDetailsOpen(false);
+            setDetailsTarget(null);
+            setDetailsPipeline(null);
+            setDetailsError("");
+            setSavingReviewMessage(false);
+            setDetailsReviewMessageDraft("");
+          }}
         />
-        <CsvExportModal<Applicant>
-          open={csvExportOpen}
-          onClose={() => setCsvExportOpen(false)}
-          title="Export Admissions CSV"
-          filename={`admissions-${selectedCohortId || "cohort"}-${new Date().toISOString().slice(0, 10)}`}
-          columns={csvColumns}
-          rowScopes={csvRowScopes}
+        <CreateUserDeliveryModal
+          key={`${createUserTargets.map((entry) => entry.applicationId).join(",")}:${String(createUserInitialChannels.email)}:${String(createUserInitialChannels.sms)}`}
+          open={createUserModalOpen}
+          label={createUserLabel}
+          recipients={createUserTargets}
+          initialChannels={createUserInitialChannels}
+          busy={createUserModalBusy}
+          onClose={closeCreateUserModal}
+          onSubmit={(channels) => {
+            void submitCreateUserModal(channels);
+          }}
         />
+        {schedulerOpen ? (
+          <InterviewSchedulerModal
+            applicant={schedulerTarget}
+            busy={schedulerBusy}
+            error={schedulerError}
+            initial={schedulerInitial}
+            onClose={() => closeScheduler()}
+            onSubmit={(input) => void submitScheduler(input)}
+          />
+        ) : null}
+        {composerOpen ? (
+          <MessageComposer
+            onClose={() => {
+              setComposerBusy(false);
+              setComposerError("");
+              setComposerOpen(false);
+              setMessageTarget(null);
+            }}
+            preselected={messageTarget}
+            applicants={applicants}
+            selectedIds={[...selectedIds]}
+            templates={messageTemplates}
+            busy={composerBusy}
+            error={composerError}
+            onSend={(payload) => void sendComposerMessage(payload)}
+          />
+        ) : null}
+        {csvExportOpen ? (
+          <CsvExportModal<Applicant>
+            onClose={() => setCsvExportOpen(false)}
+            title="Export Admissions CSV"
+            filename={`admissions-${selectedCohortId || "cohort"}-${new Date().toISOString().slice(0, 10)}`}
+            columns={csvColumns}
+            rowScopes={csvRowScopes}
+          />
+        ) : null}
       </div>
     </PageShell>
   );
 }
+

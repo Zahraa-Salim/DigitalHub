@@ -42,20 +42,39 @@ export function OverviewTab() {
   const [searchParams] = useSearchParams();
   const [state, setState] = useState<OverviewTabState>(initialState);
 
+  const fetchOverview = useCallback(async () => {
+    return getAdminOverview();
+  }, []);
+
   const load = useCallback(async () => {
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const data = await getAdminOverview();
+      const data = await fetchOverview();
       setState({ loading: false, error: "", data });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Failed to load overview data.";
       setState({ loading: false, error: message, data: null });
     }
-  }, []);
+  }, [fetchOverview]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true;
+    const loadInitial = async () => {
+      try {
+        const data = await fetchOverview();
+        if (!active) return;
+        setState({ loading: false, error: "", data });
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof ApiError ? error.message : "Failed to load overview data.";
+        setState({ loading: false, error: message, data: null });
+      }
+    };
+    void loadInitial();
+    return () => {
+      active = false;
+    };
+  }, [fetchOverview]);
 
   const currentUser = getUser();
   const isSuperAdmin = isSuperAdminUser(currentUser);
@@ -124,7 +143,7 @@ export function OverviewTab() {
   );
 
   const onMessagingRetry = useCallback(
-    (_channel: "email" | "whatsapp") => {
+    () => {
       navigate("/admin/message-templates");
     },
     [navigate],
