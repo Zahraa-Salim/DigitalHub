@@ -1,16 +1,13 @@
 // File: src/routes/AppRoutes.tsx
 // Purpose: Application routing configuration that defines route-to-page mapping.
 // If you change this file: Changing route rules can make pages unreachable or map users to incorrect screens.
-import MainLayout from "@/layouts/MainLayout";
 import NotFoundPage from "@/pages/not-found";
-import type { ComponentType } from "react";
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 type PageModule = { default: ComponentType };
 
-const pageModules = import.meta.glob<PageModule>("../pages/*.tsx", {
-  eager: true,
-});
+const pageModules = import.meta.glob<PageModule>(["../pages/*.tsx", "!../pages/not-found.tsx"]);
 
 const toRoutePath = (name: string) => {
   if (name === "home") return "/";
@@ -21,12 +18,12 @@ const toRoutePath = (name: string) => {
 };
 
 const pageRoutes = Object.entries(pageModules)
-  .map(([filePath, mod]) => {
+  .map(([filePath, loader]) => {
     const fileName = filePath.split("/").pop()?.replace(".tsx", "") ?? "";
     return {
       fileName,
       routePath: toRoutePath(fileName),
-      Page: mod.default,
+      Page: lazy(loader) as LazyExoticComponent<ComponentType>,
     };
   })
   .filter((route) => route.fileName && route.fileName !== "not-found")
@@ -46,7 +43,15 @@ const AppRoutes = () => {
     >
       <Routes>
         {pageRoutes.map(({ routePath, Page }) => (
-          <Route key={routePath} path={routePath} element={<Page />} />
+          <Route
+            key={routePath}
+            path={routePath}
+            element={
+              <Suspense fallback={null}>
+                <Page />
+              </Suspense>
+            }
+          />
         ))}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

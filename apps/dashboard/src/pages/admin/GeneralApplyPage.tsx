@@ -25,6 +25,12 @@ import {
   FALLBACK_MESSAGE_TEMPLATES,
   filterTemplatesForChannel,
 } from "../../lib/messageTemplates";
+import {
+  buildInterviewScheduleFeedback,
+  toFriendlyCreateUserError,
+  toFriendlyDeliveryFailure,
+  workflowStatusLabel,
+} from "../../lib/adminWorkflowText";
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, apiList } from "../../utils/api";
 import "./GeneralApplyPage.css";
@@ -199,61 +205,6 @@ function statusClass(status: ProgramApplicationStage): string {
     default:
       return "popapply-status--applied";
   }
-}
-
-function statusLabel(status: ProgramApplicationStage): string {
-  switch (status) {
-    case "invited_to_interview":
-      return "Invited to Interview";
-    case "interview_confirmed":
-      return "Interview Confirmed";
-    case "participation_confirmed":
-      return "Confirmed";
-    case "applied":
-      return "Applied";
-    case "reviewing":
-      return "Reviewing";
-    case "accepted":
-      return "Accepted";
-    case "rejected":
-      return "Rejected";
-    default:
-      return status;
-  }
-}
-
-function friendlyCreateUserError(error: unknown, fallbackName = "This applicant"): string {
-  if (!(error instanceof ApiError)) {
-    return "We couldn't create a user account right now. Please try again.";
-  }
-  if (error.code === "INVALID_STAGE") {
-    return `${fallbackName} is not ready for account creation yet. Move the status to Accepted or Participation Confirmed, then try again.`;
-  }
-  if (error.code === "PROGRAM_APPLICATION_NOT_FOUND") {
-    return "This application could not be found. Refresh the page and try again.";
-  }
-  return error.message || "We couldn't create a user account right now. Please try again.";
-}
-
-function buildInterviewScheduleFeedback(applicantName: string, hasEmail: boolean, hasPhone: boolean): string {
-  if (hasEmail && hasPhone) {
-    return `Interview scheduled for ${applicantName}. Email and WhatsApp drafts were created (drafts are not sent automatically).`;
-  }
-  if (hasEmail) {
-    return `Interview scheduled for ${applicantName}. An email draft was created (drafts are not sent automatically).`;
-  }
-  if (hasPhone) {
-    return `Interview scheduled for ${applicantName}. A WhatsApp draft was created (drafts are not sent automatically).`;
-  }
-  return `Interview scheduled for ${applicantName}. No email or phone is available, so no message draft was created.`;
-}
-
-function toFriendlyDeliveryFailure(message: string): string {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("badcredentials") || normalized.includes("invalid login") || normalized.includes("535-5.7.8")) {
-    return "SMTP authentication failed. Update SMTP_USER and SMTP_PASS (for Gmail use a 16-character App Password).";
-  }
-  return message;
 }
 
 function isProgramApplicationStage(value: string): value is ProgramApplicationStage {
@@ -828,7 +779,7 @@ export function GeneralApplyPage() {
       { key: "phone", label: "Phone", getValue: (row) => row.phone || "" },
       { key: "program", label: "Program", getValue: (row) => row.program_title },
       { key: "applied", label: "Applied", getValue: (row) => formatDate(row.created_at) },
-      { key: "status", label: "Status", getValue: (row) => statusLabel(toStage(row.stage)) },
+      { key: "status", label: "Status", getValue: (row) => workflowStatusLabel(toStage(row.stage), { confirmedLabel: "Confirmed" }) },
     ],
     [],
   );
@@ -1128,7 +1079,7 @@ export function GeneralApplyPage() {
           },
         });
       } catch (error) {
-        throw new Error(friendlyCreateUserError(error, safeLabel));
+        throw new Error(toFriendlyCreateUserError(error, safeLabel, "PROGRAM_APPLICATION_NOT_FOUND"));
       }
       const createdUserId = Number((response as { user_id?: unknown }).user_id);
       if (Number.isFinite(createdUserId) && createdUserId > 0) {
@@ -1219,7 +1170,7 @@ export function GeneralApplyPage() {
         const messages: string[] = [];
         if (failed.length) {
           const firstReason = failed[0].status === "rejected" ? failed[0].reason : null;
-          const reasonText = friendlyCreateUserError(firstReason, "One or more selected applicants");
+          const reasonText = toFriendlyCreateUserError(firstReason, "One or more selected applicants", "PROGRAM_APPLICATION_NOT_FOUND");
           messages.push(`${failed.length} user create request${failed.length === 1 ? "" : "s"} failed. ${reasonText}`);
         }
         if (deliveryFailedCount > 0) {
@@ -1722,7 +1673,7 @@ export function GeneralApplyPage() {
             </button>
             {STATUS_ORDER.map((status) => (
               <button key={status} type="button" className={activeFilter === status ? "popapply-stage-chip popapply-stage-chip--active" : "popapply-stage-chip"} onClick={() => setActiveFilter(status)}>
-                <span className="popapply-stage-chip__label">{statusLabel(status)}</span>
+                <span className="popapply-stage-chip__label">{workflowStatusLabel(status, { confirmedLabel: "Confirmed" })}</span>
                 <span className="popapply-stage-chip__count">{statusCounts[status]}</span>
               </button>
             ))}
@@ -1803,7 +1754,7 @@ export function GeneralApplyPage() {
                 <div className="admx-bulkbar__select-wrap">
                   <select className="admx-bulkbar__select" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as ProgramApplicationStage | "")} disabled={actionBusy}>
                     <option value="">Change status...</option>
-                    {STATUS_ORDER.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+                    {STATUS_ORDER.map((status) => <option key={status} value={status}>{workflowStatusLabel(status, { confirmedLabel: "Confirmed" })}</option>)}
                   </select>
                 </div>
                 <button
@@ -1903,7 +1854,7 @@ export function GeneralApplyPage() {
                               )
                             }
                           >
-                            {STATUS_ORDER.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+                            {STATUS_ORDER.map((status) => <option key={status} value={status}>{workflowStatusLabel(status, { confirmedLabel: "Confirmed" })}</option>)}
                           </select>
                         </td>
                         <td className="popapply-col-actions">
@@ -2030,7 +1981,7 @@ export function GeneralApplyPage() {
                                 )
                               }
                             >
-                              {statusLabel(status)}
+                              {workflowStatusLabel(status, { confirmedLabel: "Confirmed" })}
                             </button>
                           ))}
                         </div>

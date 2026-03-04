@@ -6,8 +6,7 @@ import React, { useEffect, useState } from "react";
 type Loader<TProps> = () => Promise<{ default: React.ComponentType<TProps> }>;
 
 const dynamic = <TProps extends Record<string, unknown>>(
-  loader: Loader<TProps>,
-  _options?: { ssr?: boolean }
+  loader: Loader<TProps>
 ) => {
   const DynamicComponent = (props: TProps) => {
     const [Component, setComponent] = useState<React.ComponentType<TProps> | null>(

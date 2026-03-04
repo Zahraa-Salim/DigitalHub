@@ -5,18 +5,17 @@
 import Image, { StaticImageData } from '@/components/common/Image';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation } from 'swiper/modules';
-import { useEffect, useState } from 'react';
 
 import testi_avatar1 from "@/assets/img/others/testi_author01.png"
 import testi_avatar2 from "@/assets/img/others/testi_author02.png"
 import testi_avatar3 from "@/assets/img/others/testi_author03.png"
 
-interface DataType {
+type DataType = {
    id: number;
    avatar_thumb: StaticImageData;
    avatar_name: string;
    desc: string;
-}[];
+};
 
 const testi_data: DataType[] = [
    {
@@ -81,11 +80,7 @@ const setting = {
 }
 
 const Testimonial = () => {
-
-   const [isLoop, setIsLoop] = useState(false);
-   useEffect(() => {
-      setIsLoop(true);
-   }, []);
+   const isLoop = true;
 
    return (
       <section className="testimonial__area section-py-120">

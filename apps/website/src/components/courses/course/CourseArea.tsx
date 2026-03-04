@@ -23,16 +23,13 @@ export default function CourseArea() {
   const itemsPerPage = 6;
   const [itemOffset, setItemOffset] = useState(0);
 
-  const endOffset = itemOffset + itemsPerPage;
-  const currentItems = courses.slice(itemOffset, endOffset);
+  const normalizedOffset = courses.length === 0 || itemOffset < courses.length ? itemOffset : 0;
+  const endOffset = normalizedOffset + itemsPerPage;
+  const currentItems = courses.slice(normalizedOffset, endOffset);
   const pageCount = Math.ceil(courses.length / itemsPerPage);
 
   const totalItems = courses.length;
-  const startOffset = totalItems === 0 ? 0 : itemOffset + 1;
-
-  useEffect(() => {
-    setItemOffset(0);
-  }, [courses]);
+  const startOffset = totalItems === 0 ? 0 : normalizedOffset + 1;
 
   const handlePageClick = (event: { selected: number }) => {
     if (courses.length === 0) {
@@ -176,7 +173,7 @@ export default function CourseArea() {
     <section className="all-courses-area section-py-120">
       <div className="container">
         <div className="row">
-          <CourseSidebar courses={courses} allCourses={allCourses} setCourses={setCourses} />
+          <CourseSidebar allCourses={allCourses} setCourses={setCourses} />
 
           <div className="col-xl-9 col-lg-8">
             <CourseTop
@@ -289,6 +286,7 @@ export default function CourseArea() {
                     onPageChange={handlePageClick}
                     pageRangeDisplayed={3}
                     pageCount={pageCount}
+                    forcePage={Math.floor(normalizedOffset / itemsPerPage)}
                     className="list-wrap"
                     previousLabel={
                       <i

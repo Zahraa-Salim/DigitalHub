@@ -4,19 +4,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import products from '@/data/mock/productCatalogData';
 
-interface Product {
-   id: number;
-   // Add other properties of your product here
-}
+type Product = (typeof products)[number];
 
 interface ProductState {
-   products: Product[] | any[];
-   product: Product | {};
+   products: Product[];
+   product: Product | null;
 }
 
 const initialState: ProductState = {
    products: products,
-   product: {},
+   product: null,
 };
 
 export const productSlice = createSlice({
@@ -24,7 +21,7 @@ export const productSlice = createSlice({
    initialState,
    reducers: {
       single_product: (state, action: PayloadAction<number>) => {
-         state.product = state.products.find((p) => Number(p.id) === Number(action.payload)) || {};
+         state.product = state.products.find((p) => Number(p.id) === Number(action.payload)) ?? null;
       },
    },
 });

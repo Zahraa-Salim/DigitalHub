@@ -18,12 +18,15 @@ const DEFAULT_OPTIONS: ToastOptions = {
 };
 
 const withDefaults = (options?: FeedbackOptions): ToastOptions => {
-  const toastId = options?.id;
-  const { id: _, ...rest } = options || {};
+  if (!options) {
+    return { ...DEFAULT_OPTIONS };
+  }
+
+  const { id, ...rest } = options;
   return {
     ...DEFAULT_OPTIONS,
     ...rest,
-    toastId,
+    toastId: id,
   };
 };
 

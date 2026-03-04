@@ -13,7 +13,7 @@ import shop_thumb_7 from "@/assets/img/shop/shop_img07.jpg"
 import shop_thumb_8 from "@/assets/img/shop/shop_img08.jpg"
 import shop_thumb_9 from "@/assets/img/shop/shop_img09.jpg"
 
-interface DataType {
+type DataType = {
    id: number;
    thumb: StaticImageData;
    tag?: string;
@@ -25,7 +25,7 @@ interface DataType {
    category: string;
    language: string;
    price_type: string;
-}[];
+};
 
 const product_data: DataType[] = [
    {

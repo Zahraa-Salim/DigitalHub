@@ -17,6 +17,12 @@ import {
   FALLBACK_MESSAGE_TEMPLATES,
   filterTemplatesForChannel,
 } from "../../lib/messageTemplates";
+import {
+  buildInterviewScheduleFeedback,
+  toFriendlyCreateUserError,
+  toFriendlyDeliveryFailure,
+  workflowStatusLabel,
+} from "../../lib/adminWorkflowText";
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, api, apiList } from "../../utils/api";
 import { buildQueryString } from "../../utils/query";
@@ -241,57 +247,6 @@ function overviewFocusMessage(focus: string): string {
     default:
       return "Overview shortcut applied.";
   }
-}
-
-function statusLabel(status: ApplicationStatus): string {
-  if (status === "invited_to_interview") return "Invited to Interview";
-  if (status === "interview_confirmed") return "Interview Confirmed";
-  if (status === "participation_confirmed") return "Confirmed";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function funnelStatusLabel(status: ApplicationStatus): string {
-  if (status === "invited_to_interview") return "Invited to Interview";
-  if (status === "interview_confirmed") return "Interview Confirmed";
-  if (status === "participation_confirmed") return "Participation Confirmed";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function toFriendlyCreateUserError(error: unknown, fallbackName = "This applicant"): string {
-  if (!(error instanceof ApiError)) {
-    return "We couldn't create a user account right now. Please try again.";
-  }
-
-  if (error.code === "INVALID_STAGE") {
-    return `${fallbackName} is not ready for account creation yet. Move the status to Accepted or Participation Confirmed, then try again.`;
-  }
-
-  if (error.code === "APPLICATION_NOT_FOUND") {
-    return "This application could not be found. Refresh the page and try again.";
-  }
-
-  return error.message || "We couldn't create a user account right now. Please try again.";
-}
-
-function buildInterviewScheduleFeedback(applicantName: string, hasEmail: boolean, hasPhone: boolean): string {
-  if (hasEmail && hasPhone) {
-    return `Interview scheduled for ${applicantName}. Email and WhatsApp drafts were created (drafts are not sent automatically).`;
-  }
-  if (hasEmail) {
-    return `Interview scheduled for ${applicantName}. An email draft was created (drafts are not sent automatically).`;
-  }
-  if (hasPhone) {
-    return `Interview scheduled for ${applicantName}. A WhatsApp draft was created (drafts are not sent automatically).`;
-  }
-  return `Interview scheduled for ${applicantName}. No email or phone is available, so no message draft was created.`;
-}
-
-function toFriendlyDeliveryFailure(message: string): string {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("badcredentials") || normalized.includes("invalid login") || normalized.includes("535-5.7.8")) {
-    return "SMTP authentication failed. Update SMTP_USER and SMTP_PASS (for Gmail use a 16-character App Password).";
-  }
-  return message;
 }
 
 function MessageIcon() {
@@ -795,7 +750,7 @@ function DetailsModal({
           <p className="admx-details-title">Application Summary</p>
           <p className="admx-details-line"><strong>Email:</strong> {applicantEmail}</p>
           {applicantPhone ? <p className="admx-details-line"><strong>Phone:</strong> {applicantPhone}</p> : null}
-          <p className="admx-details-line"><strong>Status:</strong> {statusLabel(currentStatus)}</p>
+          <p className="admx-details-line"><strong>Status:</strong> {workflowStatusLabel(currentStatus, { confirmedLabel: "Confirmed" })}</p>
           <p className="admx-details-line"><strong>Submitted:</strong> {formatDate(app?.submitted_at || applicant.appliedDate)}</p>
           <p className="admx-details-line"><strong>Reviewed:</strong> {reviewedAt ? formatDate(reviewedAt) : "Not reviewed yet"}</p>
           <div className="admx-inline-head">
@@ -1038,7 +993,7 @@ export function AdmissionsPage() {
                 setSelectedCohortId(String(cohort.id));
                 setLoadSuccess(
                   targetStage
-                    ? `Overview shortcut: switched to a cohort with '${statusLabel(targetStage)}' applications.`
+                    ? `Overview shortcut: switched to a cohort with '${workflowStatusLabel(targetStage, { confirmedLabel: "Confirmed" })}' applications.`
                     : "Overview shortcut: switched to a cohort with active applications.",
                 );
                 return;
@@ -1124,7 +1079,7 @@ export function AdmissionsPage() {
       { key: "phone", label: "Phone", getValue: (row) => row.phone },
       { key: "cohort", label: "Cohort", getValue: (row) => row.cohortName },
       { key: "applied_date", label: "Applied", getValue: (row) => formatDate(row.appliedDate) },
-      { key: "status", label: "Status", getValue: (row) => statusLabel(row.status) },
+      { key: "status", label: "Status", getValue: (row) => workflowStatusLabel(row.status, { confirmedLabel: "Confirmed" }) },
       { key: "location", label: "Location", getValue: (row) => row.location },
     ],
     [],
@@ -1596,7 +1551,7 @@ export function AdmissionsPage() {
     const total = applicants.length;
     const rows = STATUSES.map((stage) => ({
       stage,
-      label: funnelStatusLabel(stage),
+      label: workflowStatusLabel(stage),
       count: counts[stage],
       percent: 0,
     }));
@@ -1681,7 +1636,7 @@ export function AdmissionsPage() {
               className={tab.id === activeTab ? "popapply-stage-chip popapply-stage-chip--active" : "popapply-stage-chip"}
               onClick={() => { setActiveTab(tab.id); setCurrentPage(1); }}
             >
-              <span className="popapply-stage-chip__label">{tab.id === "All" ? "All" : statusLabel(tab.id)}</span>
+              <span className="popapply-stage-chip__label">{tab.id === "All" ? "All" : workflowStatusLabel(tab.id, { confirmedLabel: "Confirmed" })}</span>
               <span className="popapply-stage-chip__count">{tab.count}</span>
             </button>
           ))}
@@ -1744,7 +1699,7 @@ export function AdmissionsPage() {
                 <select className="admx-bulkbar__select" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as ApplicationStatus | "")} disabled={bulkApplying}>
                   <option value="">Change status...</option>
                   {STATUSES.map((status) => (
-                    <option key={status} value={status}>{statusLabel(status)}</option>
+                    <option key={status} value={status}>{workflowStatusLabel(status, { confirmedLabel: "Confirmed" })}</option>
                   ))}
                 </select>
               </div>

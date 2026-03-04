@@ -10,34 +10,23 @@ const ScrollToTop = () => {
 
    const [showScroll, setShowScroll] = useState(false);
 
-   const checkScrollTop = () => {
-      if (!showScroll && window.pageYOffset > 400) {
-         setShowScroll(true);
-      } else if (showScroll && window.pageYOffset <= 400) {
-         setShowScroll(false);
-      }
-   };
-
    const scrollTop = () => {
       window.scrollTo({ top: 0, behavior: "smooth" });
    };
 
    useEffect(() => {
-      const checkScrollTop = () => {
-         if (!showScroll && window.pageYOffset > 400) {
-            setShowScroll(true);
-         } else if (showScroll && window.pageYOffset <= 400) {
-            setShowScroll(false);
-         }
+      const handleScroll = () => {
+         setShowScroll(window.pageYOffset > 400);
       };
 
-      window.addEventListener("scroll", checkScrollTop);
-      return () => window.removeEventListener("scroll", checkScrollTop);
-   }, [checkScrollTop]);
+      handleScroll();
+      window.addEventListener("scroll", handleScroll);
+      return () => window.removeEventListener("scroll", handleScroll);
+   }, []);
 
    return (
       <>
-         <button onClick={scrollTop} className={`scroll__top scroll-to-target ${sticky ? "open" : ""}`} data-target="html">
+         <button onClick={scrollTop} className={`scroll__top scroll-to-target ${sticky || showScroll ? "open" : ""}`} data-target="html">
             <i className="tg-flaticon-arrowhead-up"></i>
          </button>
       </>

@@ -56,8 +56,105 @@ export async function getPublicStudentBySlug(publicSlug, db = pool) {
         sp.is_graduated,
         sp.is_working,
         sp.open_to_work,
-        sp.company_work_for
+        sp.company_work_for,
+        u.email,
+        u.phone,
+        lc.cohort_name,
+        lc.program_title,
+        cm.cohorts,
+        COALESCE(
+          NULLIF(lc.answers ->> 'headline', ''),
+          NULLIF(lc.answers ->> 'job_title', ''),
+          NULLIF(lc.answers ->> 'title', '')
+        ) AS headline,
+        COALESCE(
+          NULLIF(lc.answers ->> 'city', ''),
+          NULLIF(lc.answers ->> 'location_city', '')
+        ) AS city,
+        COALESCE(
+          NULLIF(lc.answers ->> 'country', ''),
+          NULLIF(lc.answers ->> 'location_country', '')
+        ) AS country,
+        COALESCE(
+          NULLIF(lc.answers ->> 'location', ''),
+          NULLIF(lc.answers ->> 'address', '')
+        ) AS location,
+        COALESCE(
+          NULLIF(lc.answers ->> 'skills', ''),
+          NULLIF(lc.answers ->> 'top_skills', ''),
+          NULLIF(lc.answers ->> 'technical_skills', '')
+        ) AS skills,
+        COALESCE(
+          NULLIF(lc.answers ->> 'experience_summary', ''),
+          NULLIF(lc.answers ->> 'experience', '')
+        ) AS experience_summary,
+        COALESCE(
+          NULLIF(lc.answers ->> 'education', ''),
+          NULLIF(lc.answers ->> 'education_level', '')
+        ) AS education,
+        COALESCE(
+          NULLIF(lc.answers ->> 'certifications', ''),
+          NULLIF(lc.answers ->> 'certificate', '')
+        ) AS certifications,
+        COALESCE(
+          NULLIF(lc.answers ->> 'cv_url', ''),
+          NULLIF(lc.answers ->> 'cv', ''),
+          NULLIF(lc.answers ->> 'resume_url', ''),
+          NULLIF(lc.answers ->> 'resume', ''),
+          NULLIF(lc.answers #>> '{cv,url}', ''),
+          NULLIF(lc.answers #>> '{resume,url}', '')
+        ) AS cv_url,
+        COALESCE(
+          NULLIF(lc.answers ->> 'cv_file_name', ''),
+          NULLIF(lc.answers ->> 'cv_name', ''),
+          NULLIF(lc.answers ->> 'resume_file_name', ''),
+          NULLIF(lc.answers #>> '{cv,name}', ''),
+          NULLIF(lc.answers #>> '{resume,name}', '')
+        ) AS cv_file_name,
+        lc.application_submitted_at AS cv_updated_at
       FROM student_profiles sp
+      LEFT JOIN users u ON u.id = sp.user_id
+      LEFT JOIN LATERAL (
+        SELECT
+          c.name AS cohort_name,
+          p.title AS program_title,
+          a.submitted_at AS application_submitted_at,
+          COALESCE(
+            NULLIF(a.submission_answers, '{}'::jsonb),
+            latest_submission.answers,
+            '{}'::jsonb
+          ) AS answers
+        FROM enrollments e
+        LEFT JOIN cohorts c ON c.id = e.cohort_id AND c.deleted_at IS NULL
+        LEFT JOIN programs p ON p.id = c.program_id AND p.deleted_at IS NULL
+        LEFT JOIN applications a ON a.id = e.application_id
+        LEFT JOIN LATERAL (
+          SELECT s.answers
+          FROM application_submissions s
+          WHERE s.application_id = a.id
+          ORDER BY s.created_at DESC, s.id DESC
+          LIMIT 1
+        ) latest_submission ON TRUE
+        WHERE e.student_user_id = sp.user_id
+        ORDER BY e.enrolled_at DESC NULLS LAST, e.id DESC
+        LIMIT 1
+      ) lc ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(
+            jsonb_agg(
+              DISTINCT jsonb_build_object(
+                'cohort_name', c.name,
+                'program_title', p.title
+              )
+            ) FILTER (WHERE c.id IS NOT NULL),
+            '[]'::jsonb
+          ) AS cohorts
+        FROM enrollments e
+        LEFT JOIN cohorts c ON c.id = e.cohort_id AND c.deleted_at IS NULL
+        LEFT JOIN programs p ON p.id = c.program_id AND p.deleted_at IS NULL
+        WHERE e.student_user_id = sp.user_id
+      ) cm ON TRUE
       WHERE sp.is_public = TRUE
         AND sp.public_slug = $1
       LIMIT 1

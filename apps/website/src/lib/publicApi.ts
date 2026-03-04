@@ -50,6 +50,38 @@ export type PublicStudent = {
   is_working?: boolean;
   open_to_work?: boolean;
   company_work_for?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  cohort_name?: string | null;
+  program_title?: string | null;
+  cohorts?: Array<{
+    cohort_name?: string | null;
+    program_title?: string | null;
+  }> | null;
+  headline?: string | null;
+  city?: string | null;
+  country?: string | null;
+  location?: string | null;
+  skills?: string | null;
+  experience_summary?: string | null;
+  education?: string | null;
+  certifications?: string | null;
+  cv_url?: string | null;
+  cv_file_name?: string | null;
+  cv_updated_at?: string | null;
+};
+
+export type PublicStudentProject = {
+  id: number;
+  title: string;
+  description?: string | null;
+  image_url?: string | null;
+  github_url?: string | null;
+  live_url?: string | null;
+};
+
+export type PublicStudentDetail = PublicStudent & {
+  projects: PublicStudentProject[];
 };
 
 export type PublicInstructor = {
@@ -281,6 +313,14 @@ export async function listPublicStudents(params?: {
     sortBy: "featured_rank",
     order: "asc",
   });
+}
+
+export async function getPublicStudentBySlug(publicSlug: string) {
+  const normalized = String(publicSlug || "").trim();
+  if (!normalized) {
+    throw new Error("Student slug is required.");
+  }
+  return getData<PublicStudentDetail>(`/public/students/${encodeURIComponent(normalized)}`);
 }
 
 export async function listPublicManagers() {

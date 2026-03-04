@@ -10,13 +10,13 @@ import instructor_thumb2 from "@/assets/img/instructor/instructor05.png"
 import instructor_thumb3 from "@/assets/img/instructor/instructor06.png"
 import instructor_thumb4 from "@/assets/img/instructor/instructor04.png"
 
-interface DataType {
+type DataType = {
    id: number;
    thumb: StaticImageData
    title: string;
    designation: string;
    rating: string;
-}[];
+};
 
 const instructor_data: DataType[] = [
    {

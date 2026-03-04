@@ -39,19 +39,25 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
 
         const svgElement = div.querySelector("svg");
         if (!svgElement || cancelled || !currentImg.isConnected) return;
+        if (!(svgElement instanceof SVGSVGElement)) return;
 
         svgElement.setAttribute("class", currentImg.getAttribute("class") || "");
+        if (!svgElement.id) {
+          svgElement.id = `injectable-vivus-${Math.random().toString(36).slice(2, 11)}`;
+        }
 
         currentImg.replaceWith(svgElement);
 
-        const vivus = new Vivus(svgElement as any, {
+        const vivus = new Vivus(svgElement.id, {
           duration: 80,
           type: "oneByOne",
         });
 
-        svgElement.addEventListener("mouseenter", () => {
+        const handleMouseEnter = () => {
           vivus.reset().play();
-        });
+        };
+
+        svgElement.addEventListener("mouseenter", handleMouseEnter);
       } catch (err) {
         console.error("SVG load failed:", err);
       }

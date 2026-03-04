@@ -3,12 +3,12 @@
 // If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 import Count from "@/components/common/Count";
 
-interface DataType {
+type DataType = {
    id: number;
    count: number;
    count_text: string;
    text: string;
-}[];
+};
 
 const count_data: DataType[] = [
    {

@@ -1,7 +1,7 @@
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
-import { notifyError, notifyInfo, notifySuccess, notifyWarning } from "@/lib/feedbackToast";
+import { notifyError, notifySuccess } from "@/lib/feedbackToast";
 import {
   API_BASE_URL,
   getPublicCohortFormResolution,
@@ -145,6 +145,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   const [loadingCohorts, setLoadingCohorts] = useState(true);
   const [verifyingSelection, setVerifyingSelection] = useState(false);
   const [cohortsLoadError, setCohortsLoadError] = useState<string | null>(null);
+  const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [answers, setAnswers] = useState<AnswersMap>({});
   const selectedCohortIdRef = useRef<number | null>(selectedCohortId);
   const selectedCohortRef = useRef<PublicCohort | null>(selectedCohort);
@@ -164,10 +165,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
     [cohorts]
   );
 
-  const showLiveNotice = (message: string) => {
-    notifyInfo(message, { id: "application-live-update" });
-  };
-
   useEffect(() => {
     selectedCohortIdRef.current = selectedCohortId;
   }, [selectedCohortId]);
@@ -183,11 +180,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   useEffect(() => {
     resolvedFormRef.current = resolvedForm;
   }, [resolvedForm]);
-
-  useEffect(() => {
-    if (!cohortsLoadError) return;
-    notifyWarning(cohortsLoadError, { id: "application-cohorts-warning" });
-  }, [cohortsLoadError]);
 
   useEffect(() => {
     if (state.success) {
@@ -299,7 +291,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           setSelectedCohortId(null);
           setResolvedForm(null);
           setAnswers({});
-          showLiveNotice("Content updated. The selected cohort is no longer open for enrollment.");
+          setLiveNotice("Cohort availability changed. Please select another open cohort before submitting.");
           setState({
             success: false,
             error: "Selected cohort is no longer open. Please choose another cohort.",
@@ -317,6 +309,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       } catch {
         if (!active) return;
         setCohortsLoadError("Unable to verify cohort availability right now. Please try again.");
+        setLiveNotice("We couldn't refresh cohort availability right now. Please recheck before submitting.");
       } finally {
         if (active) {
           setLoadingCohorts(false);
@@ -403,7 +396,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
     
     // Only notify if we had a previous snapshot and it actually changed (not on initial load)
     if (cohortSnapshotRef.current && cohortFormConfigSnapshotRef.current && cohortSnapshot && cohortSnapshotRef.current !== cohortSnapshot) {
-      showLiveNotice("Content updated. Cohort details changed while you were filling the form.");
+      setLiveNotice("Cohort details changed while you were filling this form. Please review before submitting.");
     }
     if (cohortSnapshot) {
       cohortSnapshotRef.current = cohortSnapshot;
@@ -460,7 +453,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           setAnswers(buildDefaultAnswers(resolution.resolved_form.fields, normalizedResolvedCohort || cohort || null));
         }
         if (formChanged) {
-          showLiveNotice("Content updated. Application form fields changed, please review before submitting.");
+          setLiveNotice("Application fields changed while you were filling this form. Please review before submitting.");
         }
         formSnapshotRef.current = formSnapshot;
         cohortFormConfigSnapshotRef.current = cohortFormConfigSnapshot;
@@ -556,6 +549,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       }
 
       setState({ success: true, error: null });
+      setLiveNotice(null);
       setAnswers(buildDefaultAnswers(sortedFields, selectedCohort));
     } catch (error) {
       setState({
@@ -570,8 +564,19 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
   return (
     <form onSubmit={onSubmit} id="application-form">
+      {liveNotice ? <p className="dh-live-note">{liveNotice}</p> : null}
+      <p className="application-form__legend">
+        <span className="application-form__required-mark">*</span> Required fields
+      </p>
+
       <div className="form-grp">
+        <label htmlFor="application-cohort-select" className="application-form__field-label">
+          <span className="application-form__field-label-text">
+            Cohort <span className="application-form__required-mark" aria-hidden="true">*</span>
+          </span>
+        </label>
         <select
+          id="application-cohort-select"
           name="cohort_id"
           required
           className="application-form__select"
@@ -619,13 +624,24 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
       {!showFormSkeleton &&
         sortedFields.map((field) => {
+          const fieldId = `application-field-${field.id}`;
+          const fieldLabel = field.label || field.name;
+
           if (field.type === "textarea") {
             return (
               <div className="form-grp" key={field.id}>
+                <label htmlFor={fieldId} className="application-form__field-label">
+                  <span className="application-form__field-label-text">
+                    {fieldLabel}
+                    {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                  </span>
+                </label>
                 <textarea
+                  id={fieldId}
                   name={field.name}
                   placeholder={field.placeholder || field.label}
                   required={field.required}
+                  aria-required={field.required || undefined}
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
                 ></textarea>
@@ -643,10 +659,18 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   : [];
             return (
               <div className="form-grp" key={field.id}>
+                <label htmlFor={fieldId} className="application-form__field-label">
+                  <span className="application-form__field-label-text">
+                    {fieldLabel}
+                    {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                  </span>
+                </label>
                 <select
+                  id={fieldId}
                   name={field.name}
                   className="application-form__select"
                   required={field.required}
+                  aria-required={field.required || undefined}
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
                 >
@@ -666,10 +690,18 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           if (field.type === "file") {
             return (
               <div className="form-grp" key={field.id}>
+                <label htmlFor={fieldId} className="application-form__field-label">
+                  <span className="application-form__field-label-text">
+                    {fieldLabel}
+                    {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                  </span>
+                </label>
                 <input
+                  id={fieldId}
                   name={field.name}
                   type="file"
                   required={field.required}
+                  aria-required={field.required || undefined}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     onFieldValueChange(field.name, file?.name || "");
@@ -682,14 +714,20 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           if (field.type === "checkbox") {
             return (
               <div className="form-grp" key={field.id}>
-                <label className="people-filter-check">
+                <label className="people-filter-check application-form__check-label" htmlFor={fieldId}>
                   <input
+                    id={fieldId}
                     name={field.name}
                     type="checkbox"
+                    required={field.required}
+                    aria-required={field.required || undefined}
                     checked={Boolean(answers[field.name])}
                     onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
                   />
-                  <span>{field.label}</span>
+                  <span className="application-form__field-label-text">
+                    {fieldLabel}
+                    {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                  </span>
                 </label>
               </div>
             );
@@ -697,11 +735,19 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
           return (
             <div className="form-grp" key={field.id}>
+              <label htmlFor={fieldId} className="application-form__field-label">
+                <span className="application-form__field-label-text">
+                  {fieldLabel}
+                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                </span>
+              </label>
               <input
+                id={fieldId}
                 name={field.name}
                 type={inputTypeByField[field.type] || "text"}
                 placeholder={field.placeholder || field.label}
                 required={field.required}
+                aria-required={field.required || undefined}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               />

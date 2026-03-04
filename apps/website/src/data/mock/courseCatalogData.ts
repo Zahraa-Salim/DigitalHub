@@ -16,7 +16,7 @@ import course_thumb10 from "@/assets/img/courses/course_thumb10.jpg"
 import course_thumb11 from "@/assets/img/courses/course_thumb11.jpg"
 import course_thumb12 from "@/assets/img/courses/course_thumb12.jpg"
 
-interface DataType {
+type DataType = {
    id: number;
    thumb: StaticImageData;
    category: string;
@@ -29,7 +29,7 @@ interface DataType {
    price_type: string;
    language: string;
    popular?: string;
-}[];
+};
 
 const inner_course_data: DataType[] = [
    {
@@ -666,4 +666,3 @@ const inner_course_data: DataType[] = [
 ]
 
 export default inner_course_data;
-

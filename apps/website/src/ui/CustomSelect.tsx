@@ -3,12 +3,22 @@
 // If you change this file: Changing component API or behavior can affect interaction patterns and break callers that depend on current props.
 "use client"
 import React from 'react';
-import Select from 'react-select';
+import Select, { type SingleValue } from 'react-select';
 import makeAnimated from 'react-select/animated';
 
 const animatedComponents = makeAnimated();
 
-const options = [
+type SelectOption = {
+   value: string;
+   label: string;
+};
+
+type CustomSelectProps = {
+   value: SelectOption | null;
+   onChange: (option: SingleValue<SelectOption>) => void;
+};
+
+const options: SelectOption[] = [
    { value: 'business', label: 'Business' },
    { value: 'data-science', label: 'Data Science' },
    { value: 'art-design', label: 'Art & Design' },
@@ -16,7 +26,7 @@ const options = [
    { value: 'finance', label: 'Finance' },
 ];
 
-const CustomSelect = ({ value, onChange }: any) => {
+const CustomSelect = ({ value, onChange }: CustomSelectProps) => {
    return (
       <form onSubmit={(e) => e.preventDefault()} className="tgmenu__search-form">
          <div className="select-grp">

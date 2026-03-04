@@ -2,7 +2,7 @@
 // Purpose: UI component responsible for rendering part of the interface (common/Count.tsx).
 // If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 "use client"
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import CountUp from "react-countup";
 import { InView } from "react-intersection-observer";
 
@@ -11,16 +11,15 @@ interface CountType {
 }
 
 const Count = ({ number }: CountType) => {
-  const [focus, setFocus] = useState<boolean>(false);
-
-  useEffect(() => {
-    const hasCountedBefore = localStorage.getItem("hasCountedBefore");
-
+  const [focus, setFocus] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const hasCountedBefore = window.localStorage.getItem("hasCountedBefore");
     if (!hasCountedBefore) {
-      setFocus(true);
-      localStorage.setItem("hasCountedBefore", "true");
+      window.localStorage.setItem("hasCountedBefore", "true");
+      return true;
     }
-  }, []);
+    return false;
+  });
 
   return (
     <>

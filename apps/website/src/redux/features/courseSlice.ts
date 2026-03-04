@@ -4,19 +4,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import courses from '@/data/mock/courseCatalogData';
 
-interface Course {
-  id: number;
-  // Add other properties of your courses here
-}
+type Course = (typeof courses)[number];
 
 interface CourseState {
-  courses: Course[] | any[];
-  course: Course | {};
+  courses: Course[];
+  course: Course | null;
 }
 
 const initialState: CourseState = {
   courses: courses,
-  course: {},
+  course: null,
 };
 
 export const courseSlice = createSlice({
@@ -24,7 +21,7 @@ export const courseSlice = createSlice({
   initialState,
   reducers: {
     single_course: (state, action: PayloadAction<number>) => {
-      state.course = state.courses.find((p) => Number(p.id) === Number(action.payload)) || {};
+      state.course = state.courses.find((p) => Number(p.id) === Number(action.payload)) ?? null;
     },
   },
 });

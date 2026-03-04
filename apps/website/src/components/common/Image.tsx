@@ -17,7 +17,6 @@ type ImageSource = StaticImageData;
 type ImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src"> & {
   src: ImageSource;
   fill?: boolean;
-  priority?: boolean;
 };
 
 type VideoPopupProps = {
@@ -27,7 +26,7 @@ type VideoPopupProps = {
 };
 
 const Image = React.forwardRef<HTMLImageElement, ImageProps>(
-  ({ src, alt = "", style, fill, priority: _priority, ...props }, ref) => {
+  ({ src, alt = "", style, fill, ...props }, ref) => {
     const resolvedSrc = typeof src === "string" ? src : src.src;
 
     return (

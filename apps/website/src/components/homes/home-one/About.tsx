@@ -9,7 +9,6 @@ import BtnArrow from "@/svg/BtnArrow";
 
 import about_img1 from "@/assets/img/others/about_img.png"
 import about_img2 from "@/assets/img/others/about_shape.svg"
-import about_img3 from "@/assets/img/others/student_grp.png"
 
 const About = () => {
 

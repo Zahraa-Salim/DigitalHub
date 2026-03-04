@@ -2,16 +2,23 @@
 // Purpose: Reusable React hook encapsulating shared state, side effects, or behavior.
 // If you change this file: Changing return values, timing, or side effects can impact every component that consumes this hook.
 "use client";
-import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 
-const useWishlistInfo = () => {
-   const [wishlistItems, setWishlistItems] = useState([]);
-   const wishlist = useSelector((state: any) => state.wishlist.wishlist);
+interface WishlistItem {
+   id: string;
+   title: string;
+   thumb: string;
+   price: number;
+}
 
-   useEffect(() => {
-      setWishlistItems(wishlist);
-   }, [wishlist]);
+type RootState = {
+   wishlist: {
+      wishlist: WishlistItem[];
+   };
+};
+
+const useWishlistInfo = () => {
+   const wishlistItems = useSelector((state: RootState) => state.wishlist.wishlist);
 
    return {
       wishlistItems,

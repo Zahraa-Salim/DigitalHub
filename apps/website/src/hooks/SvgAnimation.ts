@@ -10,41 +10,42 @@ const SvgAnimation = (svgIconFile: string) => {
 
   useEffect(() => {
     let vivusInstance: Vivus | null = null;
+    const hostElement = svgIconRef.current;
 
-    if (svgIconRef.current) {
-      const svgElement = svgIconRef.current.querySelector('.svg-icon');
-      if (svgElement) {
-        // Generate a unique ID if it doesn't exist
-        if (!svgElement.id) {
-          svgElement.id = `vivus-${Math.random().toString(36).substr(2, 9)}`;
+    if (!hostElement) return;
+
+    const svgElement = hostElement.querySelector('.svg-icon');
+    if (!svgElement) return;
+
+    // Generate a unique ID if it doesn't exist
+    if (!svgElement.id) {
+      svgElement.id = `vivus-${Math.random().toString(36).slice(2, 11)}`;
+    }
+    const svgId = svgElement.id;
+    const svgIcon = svgElement.getAttribute('data-svg-icon') || svgIconFile;
+
+    if (svgId && svgIcon) {
+      vivusInstance = new Vivus(svgId, {
+        duration: 80,
+        file: svgIcon,
+        onReady: (myVivus) => {
+          const duplicateSvg = myVivus.el.parentElement?.querySelectorAll('svg');
+          if (duplicateSvg && duplicateSvg.length > 1) {
+            duplicateSvg[0].remove();
+          }
         }
-        const svgId = svgElement.id;
-        const svgIcon = svgElement.getAttribute('data-svg-icon') || svgIconFile;
+      });
 
-        if (svgId && svgIcon) {
-          vivusInstance = new Vivus(svgId, {
-            duration: 80,
-            file: svgIcon,
-            onReady: (myVivus) => {
-              const duplicateSvg = myVivus.el.parentElement?.querySelectorAll('svg');
-              if (duplicateSvg && duplicateSvg.length > 1) {
-                duplicateSvg[0].remove();
-              }
-            }
-          });
+      const handleMouseEnter = () => {
+        vivusInstance?.reset().play();
+      };
 
-          const handleMouseEnter = () => {
-            vivusInstance?.reset().play();
-          };
+      hostElement.addEventListener('mouseenter', handleMouseEnter);
 
-          svgIconRef.current.addEventListener('mouseenter', handleMouseEnter);
-
-          return () => {
-            svgIconRef.current?.removeEventListener('mouseenter', handleMouseEnter);
-            vivusInstance?.stop().destroy();
-          };
-        }
-      }
+      return () => {
+        hostElement.removeEventListener('mouseenter', handleMouseEnter);
+        vivusInstance?.stop().destroy();
+      };
     }
   }, [svgIconFile]);
 

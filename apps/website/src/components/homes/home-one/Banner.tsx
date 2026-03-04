@@ -14,8 +14,6 @@ import banner_shape_2 from '@/assets/img/banner/banner_shape02.png';
 import banner_shape_3 from '@/assets/img/banner/banner_shape01.svg';
 import banner_shape_4 from '@/assets/img/banner/banner_shape02.svg';
 import banner_icon_1 from '@/assets/img/banner/bg_dots.svg';
-import banner_author_1 from '@/assets/img/banner/banner_author01.png';
-import banner_author_2 from '@/assets/img/banner/banner_author02.png';
 
 const Banner: React.FC = () => {
 

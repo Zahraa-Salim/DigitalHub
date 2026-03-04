@@ -1,7 +1,7 @@
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
-import { notifyError, notifyInfo, notifySuccess } from "@/lib/feedbackToast";
+import { notifyError, notifySuccess } from "@/lib/feedbackToast";
 import {
   getPublicApplyForm,
   listPublicCohorts,
@@ -248,9 +248,6 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
           data = buildFallbackApplyFormData(programs);
           catalog = programs;
           cohorts = publicCohorts;
-          notifyInfo("Loaded fallback apply form. Please restart backend to enable managed form fields.", {
-            id: "general-apply-fallback-mode",
-          });
         }
 
         if (!active) return;
@@ -332,8 +329,18 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
 
   return (
     <form onSubmit={onSubmit} id="general-apply-form">
+      <p className="application-form__legend">
+        <span className="application-form__required-mark">*</span> Required fields
+      </p>
+
       <div className="form-grp">
+        <label htmlFor="general-apply-program-select" className="application-form__field-label">
+          <span className="application-form__field-label-text">
+            Program <span className="application-form__required-mark" aria-hidden="true">*</span>
+          </span>
+        </label>
         <select
+          id="general-apply-program-select"
           name="program_id"
           required
           className="application-form__select"
@@ -390,13 +397,24 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
       </div>
 
       {enabledFields.map((field) => {
+        const fieldId = `general-apply-field-${field.id}`;
+        const fieldLabel = field.label || field.name;
+
         if (field.type === "textarea") {
           return (
             <div className="form-grp" key={field.id}>
+              <label htmlFor={fieldId} className="application-form__field-label">
+                <span className="application-form__field-label-text">
+                  {fieldLabel}
+                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                </span>
+              </label>
               <textarea
+                id={fieldId}
                 name={field.name}
                 placeholder={field.placeholder || field.label}
                 required={field.required}
+                aria-required={field.required || undefined}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               ></textarea>
@@ -408,10 +426,18 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
           const options = parseSelectOptions(field.options);
           return (
             <div className="form-grp" key={field.id}>
+              <label htmlFor={fieldId} className="application-form__field-label">
+                <span className="application-form__field-label-text">
+                  {fieldLabel}
+                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                </span>
+              </label>
               <select
+                id={fieldId}
                 name={field.name}
                 className="application-form__select"
                 required={field.required}
+                aria-required={field.required || undefined}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               >
@@ -431,10 +457,18 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
         if (field.type === "file") {
           return (
             <div className="form-grp" key={field.id}>
+              <label htmlFor={fieldId} className="application-form__field-label">
+                <span className="application-form__field-label-text">
+                  {fieldLabel}
+                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                </span>
+              </label>
               <input
+                id={fieldId}
                 name={field.name}
                 type="file"
                 required={field.required}
+                aria-required={field.required || undefined}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   onFieldValueChange(field.name, file?.name || "");
@@ -447,14 +481,20 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
         if (field.type === "checkbox") {
           return (
             <div className="form-grp" key={field.id}>
-              <label className="people-filter-check">
+              <label className="people-filter-check application-form__check-label" htmlFor={fieldId}>
                 <input
+                  id={fieldId}
                   name={field.name}
                   type="checkbox"
+                  required={field.required}
+                  aria-required={field.required || undefined}
                   checked={Boolean(answers[field.name])}
                   onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
                 />
-                <span>{field.label}</span>
+                <span className="application-form__field-label-text">
+                  {fieldLabel}
+                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+                </span>
               </label>
             </div>
           );
@@ -462,11 +502,19 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
 
         return (
           <div className="form-grp" key={field.id}>
+            <label htmlFor={fieldId} className="application-form__field-label">
+              <span className="application-form__field-label-text">
+                {fieldLabel}
+                {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
+              </span>
+            </label>
             <input
+              id={fieldId}
               name={field.name}
               type={inputTypeByField[field.type] || "text"}
               placeholder={field.placeholder || field.label}
               required={field.required}
+              aria-required={field.required || undefined}
               value={String(answers[field.name] ?? "")}
               onChange={(e) => onFieldValueChange(field.name, e.target.value)}
             />

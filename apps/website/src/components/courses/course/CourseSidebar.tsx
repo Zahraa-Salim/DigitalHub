@@ -4,14 +4,14 @@
 "use client";
 
 import { useState } from "react";
+import type { CohortProgramCard } from "@/lib/cohortProgramMapper";
 
 interface CourseSidebarProps {
-  courses: any[];
-  allCourses: any[];
-  setCourses: (courses: any[]) => void;
+  allCourses: CohortProgramCard[];
+  setCourses: (courses: CohortProgramCard[]) => void;
 }
 
-const CourseSidebar = ({ courses, allCourses, setCourses }: CourseSidebarProps) => {
+const CourseSidebar = ({ allCourses, setCourses }: CourseSidebarProps) => {
   const [showMoreCategory, setShowMoreCategory] = useState(false);
   const [showMoreSkill, setShowMoreSkill] = useState(false);
 
@@ -22,13 +22,15 @@ const CourseSidebar = ({ courses, allCourses, setCourses }: CourseSidebarProps) 
   // CATEGORY OPTIONS
   const allCategory = [
     "All Category",
-    ...Array.from(new Set(allCourses.map((c: any) => c.category?.name).filter(Boolean)))
+    ...Array.from(
+      new Set(allCourses.map((c) => c.category?.name).filter((name): name is string => Boolean(name)))
+    )
   ];
 
   // SKILL OPTIONS
   const allSkill = [
     "All Skill",
-    ...Array.from(new Set(allCourses.map((c: any) => c.level).filter(Boolean)))
+    ...Array.from(new Set(allCourses.map((c) => c.level).filter((level): level is string => Boolean(level))))
   ];
 
   // FILTER FUNCTION
@@ -37,12 +39,12 @@ const CourseSidebar = ({ courses, allCourses, setCourses }: CourseSidebarProps) 
 
     // CATEGORY FILTER
     if (categories.length > 0) {
-      filtered = filtered.filter((c: any) => categories.includes(c.category?.name));
+      filtered = filtered.filter((c) => categories.includes(c.category?.name));
     }
 
     // SKILL FILTER (multi)
     if (skills.length > 0) {
-      filtered = filtered.filter((c: any) => skills.includes(c.level));
+      filtered = filtered.filter((c) => skills.includes(c.level));
     }
 
     setCourses(filtered);
@@ -137,7 +139,11 @@ const CourseSidebar = ({ courses, allCourses, setCourses }: CourseSidebarProps) 
               <a
                 className={`show-more-btn ${showMoreCategory ? "active" : ""}`}
                 style={{ cursor: "pointer" }}
-                onClick={() => setShowMoreCategory(!showMoreCategory)}
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setShowMoreCategory(!showMoreCategory);
+                }}
               >
                 {showMoreCategory ? "Show Less -" : "Show More +"}
               </a>
@@ -172,7 +178,11 @@ const CourseSidebar = ({ courses, allCourses, setCourses }: CourseSidebarProps) 
               <a
                 className={`show-more-btn ${showMoreSkill ? "active" : ""}`}
                 style={{ cursor: "pointer" }}
-                onClick={() => setShowMoreSkill(!showMoreSkill)}
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setShowMoreSkill(!showMoreSkill);
+                }}
               >
                 {showMoreSkill ? "Show Less -" : "Show More +"}
               </a>

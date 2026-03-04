@@ -2,21 +2,22 @@
 // Purpose: UI component responsible for rendering part of the interface (courses/course/CourseTop.tsx).
 // If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
 "use client";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useState, type ReactNode } from "react";
+import type { CohortProgramCard } from "@/lib/cohortProgramMapper";
 
 interface CourseTopProps {
-  allCourses: any[];
+  allCourses: CohortProgramCard[];
   startOffset: number;
   endOffset: number;
   totalItems: number;
-  setCourses: (courses: any[]) => void;
-  handleTabClick: any;
-  activeTab: any;
+  setCourses: (courses: CohortProgramCard[]) => void;
+  handleTabClick: (index: number) => void;
+  activeTab: number;
 }
 
 interface TitleIcon {
   id: number;
-  icon: any;
+  icon: ReactNode;
 }
 
 const tab_title: TitleIcon[] = [

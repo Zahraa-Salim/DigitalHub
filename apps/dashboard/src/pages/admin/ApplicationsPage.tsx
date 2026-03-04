@@ -1063,7 +1063,9 @@ export function ApplicationsPage() {
           >
             <header className="modal-header">
               <button className="modal-close" type="button" onClick={() => setReviewModal(null)}>X</button>
-              <h3 className="modal-title">Approve Application</h3>
+              <h3 className="modal-title">
+                {reviewModal.action === "approve" ? "Send Accepted Group" : "Send Rejected Group"}
+              </h3>
             </header>
             <p className="post-details__line">
               Send {reviewModal.action === "approve" ? "acceptance" : "rejection"} message for{" "}
@@ -1086,7 +1088,7 @@ export function ApplicationsPage() {
                 />
               </label>
               <label className="field cohort-form-switch applications-send-channels__item">
-                <span className="field__label">Send Phone</span>
+                <span className="field__label">Send SMS</span>
                 <input
                   className="cohort-form-switch__checkbox"
                   type="checkbox"

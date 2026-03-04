@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
 
 type ApiPerson = {

@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
+import type { Swiper as SwiperClass } from "swiper";
 import Link from "@/components/common/Link";
 import { mapOpenCohortsToProgramCards } from "@/lib/cohortProgramMapper";
 import { notifyInfo } from "@/lib/feedbackToast";
@@ -41,6 +42,7 @@ const setting = {
     0: { slidesPerView: 1.05, spaceBetween: 14 },
   },
 };
+const STATUS_FILTER_ORDER = ["open", "running", "coming_soon", "planned", "completed", "cancelled"] as const;
 
 export default function CourseArea({ style }: StyleType) {
   const [activeTab, setActiveTab] = useState(0);
@@ -48,7 +50,7 @@ export default function CourseArea({ style }: StyleType) {
   const [programCardStyle, setProgramCardStyle] = useState<ProgramCardStyle>(DEFAULT_PROGRAM_CARD_STYLE);
   const [loadError, setLoadError] = useState<string | null>(null);
   const snapshotRef = useRef<string | null>(null);
-  const swiperRef = useRef<any>(null);
+  const swiperRef = useRef<SwiperClass | null>(null);
 
   const bindNavigation = () => {
     const swiper = swiperRef.current;
@@ -152,12 +154,17 @@ export default function CourseArea({ style }: StyleType) {
     };
   }, []);
 
-  const statusFilterOrder = ["open", "running", "coming_soon", "planned", "completed", "cancelled"] as const;
   const statusFilters = useMemo(() => {
+    const getStatusOrder = (status: string) => {
+      const index = STATUS_FILTER_ORDER.indexOf(status as (typeof STATUS_FILTER_ORDER)[number]);
+      return index === -1 ? STATUS_FILTER_ORDER.length : index;
+    };
+
     const uniqueStatuses = Array.from(new Set(programs.map((program) => program.status)));
     const ordered = uniqueStatuses.sort(
-      (a, b) => statusFilterOrder.indexOf(a as (typeof statusFilterOrder)[number]) - statusFilterOrder.indexOf(b as (typeof statusFilterOrder)[number])
+      (a, b) => getStatusOrder(a) - getStatusOrder(b)
     );
+
     return ordered.map((status) => {
       const sample = programs.find((program) => program.status === status);
       return {
@@ -261,7 +268,7 @@ export default function CourseArea({ style }: StyleType) {
               modules={[Navigation]}
               className="swiper courses-swiper-active"
               onSwiper={(swiper) => {
-                swiperRef.current = swiper as typeof swiperRef.current;
+                swiperRef.current = swiper;
                 window.setTimeout(() => {
                   bindNavigation();
                 }, 0);
