@@ -1,6 +1,3 @@
-﻿// File: src/layouts/footers/FooterOne.tsx
-// Purpose: Shared layout container used across pages and sections.
-// If you change this file: Changing structure or wrapper logic can affect navigation, shared UI placement, and consistency across routes.
 "use client";
 
 import Social from "@/components/common/Social";
@@ -14,12 +11,12 @@ interface StyleType {
 }
 
 interface SocialItem {
-  id: string;
   name: string;
   url: string;
 }
 
 interface FooterData {
+  siteName: string;
   getInTouch: {
     title: string;
     text: string;
@@ -32,8 +29,21 @@ interface FooterData {
   };
 }
 
-/* ================= DEFAULT DATA ================= */
+type PublicHomeResponse = {
+  success?: boolean;
+  data?: {
+    site_settings?: {
+      site_name?: string;
+      contact_info?: Record<string, unknown>;
+      social_links?: Record<string, unknown> | Array<{ name?: string; url?: string }>;
+    };
+  };
+};
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const DEFAULT_DATA: FooterData = {
+  siteName: "The Digital Hub",
   getInTouch: {
     title: "Get In Touch",
     text: "Stay connected with The Digital Hub and follow us for the latest updates, events, and learning opportunities.",
@@ -45,49 +55,78 @@ const DEFAULT_DATA: FooterData = {
     copyright: "2026",
   },
 };
-/* ================================================= */
+
+function normalizeSocialLinks(
+  raw: Record<string, unknown> | Array<{ name?: string; url?: string }> | undefined,
+): SocialItem[] {
+  if (!raw) return [];
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => ({ name: String(item?.name || ""), url: String(item?.url || "") }))
+      .filter((item) => item.name && item.url);
+  }
+
+  return Object.entries(raw)
+    .map(([name, url]) => ({ name, url: String(url ?? "") }))
+    .filter((item) => item.url);
+}
+
+const pickString = (source: Record<string, unknown>, keys: string[], fallback: string) => {
+  for (const key of keys) {
+    const value = String(source[key] ?? "").trim();
+    if (value) return value;
+  }
+  return fallback;
+};
 
 const FooterOne = ({ style, style_2 }: StyleType) => {
   const [data, setData] = useState<FooterData>(DEFAULT_DATA);
-  const [loaded, setLoaded] = useState(false);
   const currentYear = new Date().getFullYear().toString();
 
   useEffect(() => {
-    fetch("http://localhost:3000/footer", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((res) => {
-        if (res) setData(res);
+    fetch(`${API_BASE}/public/home`, { cache: "no-store", credentials: "omit" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: PublicHomeResponse | null) => {
+        const contactInfo =
+          payload?.data?.site_settings && typeof payload.data.site_settings.contact_info === "object"
+            ? (payload.data.site_settings.contact_info as Record<string, unknown>)
+            : {};
+        const socials = normalizeSocialLinks(payload?.data?.site_settings?.social_links);
+        setData((prev) => ({
+          siteName: String(payload?.data?.site_settings?.site_name || prev.siteName),
+          getInTouch: {
+            title: pickString(contactInfo, ["footer_get_in_touch_title", "get_in_touch_title"], prev.getInTouch.title),
+            text: pickString(contactInfo, ["footer_get_in_touch_text", "get_in_touch_text"], prev.getInTouch.text),
+            socials: socials.length ? socials : prev.getInTouch.socials,
+          },
+          legal: {
+            terms: pickString(contactInfo, ["footer_terms_label", "terms_label"], prev.legal.terms),
+            privacy: pickString(contactInfo, ["footer_privacy_label", "privacy_label"], prev.legal.privacy),
+            copyright: pickString(contactInfo, ["footer_copyright"], prev.legal.copyright),
+          },
+        }));
       })
-      .catch(() => {})
-      .finally(() => setLoaded(true)); // âœ… FIX
+      .catch(() => {
+        // Keep defaults on API failure.
+      });
   }, []);
-
-  // â›” Prevent default flash on refresh
-  if (!loaded) return null;
 
   return (
     <footer
-      className={`footer__area ${
-        style_2 ? "footer__area-five" : style ? "footer__area-two" : ""
-      }`}
+      className={`footer__area ${style_2 ? "footer__area-five" : style ? "footer__area-two" : ""}`}
     >
       <div className={`footer__top ${style_2 ? "footer__top-three" : ""}`}>
         <div className="container">
           <div className="row">
-            {/* LEFT PART */}
             <FooterCommon />
 
-            {/* GET IN TOUCH */}
             <div className="col-xl-3 col-lg-4 col-md-6">
               <div className="footer__widget">
-                <h4 className="footer__widget-title">
-                  {data.getInTouch.title}
-                </h4>
+                <h4 className="footer__widget-title">{data.getInTouch.title}</h4>
 
                 <div className="footer__contact-content">
-                  <p style={{ whiteSpace: "pre-line" }}>
-                    {data.getInTouch.text}
-                  </p>
+                  <p style={{ whiteSpace: "pre-line" }}>{data.getInTouch.text}</p>
 
                   <ul className="list-wrap footer__social">
                     <Social socials={data.getInTouch.socials} />
@@ -108,15 +147,12 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
         )}
       </div>
 
-      {/* BOTTOM */}
       <div className={`footer__bottom ${style_2 ? "footer__bottom-four" : ""}`}>
         <div className="container">
           <div className="row align-items-center">
             <div className="col-md-7">
               <div className="copy-right-text">
-                <p>
-                  &copy; {currentYear} The Digital Hub. All rights reserved.
-                </p>
+                <p>&copy; {data.legal.copyright || currentYear} {data.siteName}. All rights reserved.</p>
               </div>
             </div>
 
@@ -140,7 +176,3 @@ const FooterOne = ({ style, style_2 }: StyleType) => {
 };
 
 export default FooterOne;
-
-
-
-
