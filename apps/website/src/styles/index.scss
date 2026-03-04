@@ -4235,3 +4235,82 @@ body {
     justify-content: center;
   }
 }
+
+/* Production hardening: focus, motion, and form accessibility */
+.application-form__field-error {
+  margin: 8px 0 0;
+  color: #9f2f41;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+#application-form input:focus-visible,
+#application-form textarea:focus-visible,
+#application-form select:focus-visible,
+#general-apply-form input:focus-visible,
+#general-apply-form textarea:focus-visible,
+#general-apply-form select:focus-visible,
+.people-card__cta:focus-visible,
+.hire-talent-cta__btn:focus-visible,
+.hire-candidate-card__actions .btn:focus-visible,
+.home-cohorts-arrow:focus-visible,
+.courses-button-prev:focus-visible,
+.courses-button-next:focus-visible {
+  outline: 2px solid #2f47d5;
+  outline-offset: 2px;
+}
+
+/* Ensure card blocks are equal-height in target pages */
+.courses-area .courses__item,
+.all-courses-area .courses__item {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.courses-area .courses__item-content,
+.all-courses-area .courses__item-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.courses-area .courses__item-bottom,
+.all-courses-area .courses__item-bottom {
+  margin-top: auto;
+}
+
+.courses-area .courses__item-thumb img,
+.all-courses-area .courses__item-thumb img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+/* Responsive card density tuning */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .all-courses-area .row.courses__grid-wrap {
+    --bs-gutter-x: 18px;
+    --bs-gutter-y: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .all-courses-area .courses__item-content .title,
+  .courses-area .courses__item-content .title {
+    font-size: 19px;
+    line-height: 1.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .people-card,
+  .dh-program-card,
+  .hire-candidate-card,
+  .hire-talent-cta__btn,
+  .home-cohorts-arrow {
+    transition: none !important;
+    animation: none !important;
+  }
+}

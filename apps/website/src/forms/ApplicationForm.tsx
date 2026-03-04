@@ -22,6 +22,7 @@ type ApplicationFormState = {
 };
 
 type AnswersMap = Record<string, unknown>;
+type FieldErrorsMap = Record<string, string>;
 
 type SelectOption = {
   label: string;
@@ -149,6 +150,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   const [cohortsLoadError, setCohortsLoadError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [answers, setAnswers] = useState<AnswersMap>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorsMap>({});
   const selectedCohortIdRef = useRef<number | null>(selectedCohortId);
   const selectedCohortRef = useRef<PublicCohort | null>(selectedCohort);
   const pendingRef = useRef(false);
@@ -357,6 +359,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       setSelectedCohort(null);
       setResolvedForm(null);
       setAnswers({});
+      setFieldErrors({});
       cohortSnapshotRef.current = null;
       cohortFormConfigSnapshotRef.current = null;
       formSnapshotRef.current = null;
@@ -376,6 +379,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
     if (cohort && (cohort.status !== "open" || !cohort.allow_applications)) {
       setResolvedForm(null);
       setAnswers({});
+      setFieldErrors({});
       cohortFormConfigSnapshotRef.current = null;
       formSnapshotRef.current = null;
       setState({
@@ -464,6 +468,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         if (!active) return;
         setResolvedForm(null);
         setAnswers({});
+        setFieldErrors({});
         cohortFormConfigSnapshotRef.current = null;
         formSnapshotRef.current = null;
         setState({
@@ -494,44 +499,76 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
     (!resolvedForm && loadingCohorts) ||
     (!resolvedForm && Boolean(selectedCohortId && loadingForm));
 
+  const fieldsByName = useMemo(() => {
+    return sortedFields.reduce<Record<string, PublicFormField>>((acc, field) => {
+      acc[field.name] = field;
+      return acc;
+    }, {});
+  }, [sortedFields]);
+
+  const validateFieldValue = (field: PublicFormField, value: unknown) => {
+    const label = field.label || field.name;
+    if (field.required) {
+      if (field.type === "checkbox" && !value) {
+        return `${label} is required.`;
+      }
+      if (field.type !== "checkbox") {
+        const raw = typeof value === "string" ? value.trim() : value;
+        if (raw === "" || raw === null || raw === undefined) {
+          return `${label} is required.`;
+        }
+      }
+    }
+
+    const normalizedValue = typeof value === "string" ? value.trim() : "";
+    const looksLikeEmailField = field.type === "email" || field.name.toLowerCase().includes("email");
+    if (looksLikeEmailField && normalizedValue && !emailRegex.test(normalizedValue)) {
+      return `Please enter a valid email address for ${label}.`;
+    }
+
+    return "";
+  };
+
   const onFieldValueChange = (fieldName: string, value: unknown) => {
     if (state.success || state.error) {
       setState({ success: false, error: null });
     }
     setAnswers((prev) => ({ ...prev, [fieldName]: value }));
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const field = fieldsByName[fieldName];
+      if (!field) {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      }
+      const nextError = validateFieldValue(field, value);
+      if (!nextError) {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      }
+      return { ...prev, [fieldName]: nextError };
+    });
   };
 
   const validateFormAnswers = () => {
+    const nextErrors: FieldErrorsMap = {};
+
     for (const field of sortedFields) {
       const value = answers[field.name];
-      const label = field.label || field.name;
-
-      if (field.required) {
-        if (field.type === "checkbox" && !value) {
-          return `${label} is required.`;
-        }
-        if (field.type !== "checkbox") {
-          if (typeof value === "string" && !value.trim()) {
-            return `${label} is required.`;
-          }
-          if ((value === null || value === undefined) && value !== false) {
-            return `${label} is required.`;
-          }
-        }
-      }
-
-      const normalizedValue = typeof value === "string" ? value.trim() : "";
-      const looksLikeEmailField = field.type === "email" || field.name.toLowerCase().includes("email");
-      if (looksLikeEmailField && normalizedValue && !emailRegex.test(normalizedValue)) {
-        return `Please enter a valid email address for ${label}.`;
+      const message = validateFieldValue(field, value);
+      if (message) {
+        nextErrors[field.name] = message;
       }
     }
 
-    return null;
+    return nextErrors;
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (pendingRef.current) return;
     setState({ success: false, error: null });
 
     try {
@@ -543,9 +580,11 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         throw new Error("Application form is not ready yet. Please try again.");
       }
 
-      const fieldValidationError = validateFormAnswers();
-      if (fieldValidationError) {
-        throw new Error(fieldValidationError);
+      const validationErrors = validateFormAnswers();
+      setFieldErrors(validationErrors);
+      const firstValidationError = Object.values(validationErrors)[0];
+      if (firstValidationError) {
+        throw new Error(firstValidationError);
       }
 
       const fullName = pickStringValue(answers, ["full_name", "name"]);
@@ -594,6 +633,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       setState({ success: true, error: null });
       setLiveNotice(null);
       setAnswers(buildDefaultAnswers(sortedFields, selectedCohort));
+      setFieldErrors({});
     } catch (error) {
       setState({
         success: false,
@@ -669,6 +709,8 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         sortedFields.map((field) => {
           const fieldId = `application-field-${field.id}`;
           const fieldLabel = field.label || field.name;
+          const fieldError = fieldErrors[field.name];
+          const fieldErrorId = `${fieldId}-error`;
 
           if (field.type === "textarea") {
             return (
@@ -685,10 +727,17 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   placeholder={field.placeholder || field.label}
                   required={field.required}
                   aria-required={field.required || undefined}
+                  aria-invalid={fieldError ? true : undefined}
+                  aria-describedby={fieldError ? fieldErrorId : undefined}
                   disabled={pending}
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
                 ></textarea>
+                {fieldError ? (
+                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
+                    {fieldError}
+                  </p>
+                ) : null}
               </div>
             );
           }
@@ -715,6 +764,8 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   className="application-form__select"
                   required={field.required}
                   aria-required={field.required || undefined}
+                  aria-invalid={fieldError ? true : undefined}
+                  aria-describedby={fieldError ? fieldErrorId : undefined}
                   disabled={pending}
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
@@ -728,6 +779,11 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     </option>
                   ))}
                 </select>
+                {fieldError ? (
+                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
+                    {fieldError}
+                  </p>
+                ) : null}
               </div>
             );
           }
@@ -747,12 +803,19 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   type="file"
                   required={field.required}
                   aria-required={field.required || undefined}
+                  aria-invalid={fieldError ? true : undefined}
+                  aria-describedby={fieldError ? fieldErrorId : undefined}
                   disabled={pending}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     onFieldValueChange(field.name, file?.name || "");
                   }}
                 />
+                {fieldError ? (
+                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
+                    {fieldError}
+                  </p>
+                ) : null}
               </div>
             );
           }
@@ -767,6 +830,8 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     type="checkbox"
                     required={field.required}
                     aria-required={field.required || undefined}
+                    aria-invalid={fieldError ? true : undefined}
+                    aria-describedby={fieldError ? fieldErrorId : undefined}
                     disabled={pending}
                     checked={Boolean(answers[field.name])}
                     onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
@@ -776,6 +841,11 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
                   </span>
                 </label>
+                {fieldError ? (
+                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
+                    {fieldError}
+                  </p>
+                ) : null}
               </div>
             );
           }
@@ -795,10 +865,17 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                 placeholder={field.placeholder || field.label}
                 required={field.required}
                 aria-required={field.required || undefined}
+                aria-invalid={fieldError ? true : undefined}
+                aria-describedby={fieldError ? fieldErrorId : undefined}
                 disabled={pending}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               />
+              {fieldError ? (
+                <p id={fieldErrorId} className="application-form__field-error" role="alert">
+                  {fieldError}
+                </p>
+              ) : null}
             </div>
           );
         })}

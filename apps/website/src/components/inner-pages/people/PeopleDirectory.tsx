@@ -96,6 +96,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                   <li>
                     <label className="people-filter-check">
                       <input
+                        id={`people-primary-all-${mode}`}
                         type="checkbox"
                         checked={selectedPrimary.length === 0}
                         onChange={() => setSelectedPrimary([])}
@@ -107,6 +108,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                     <li key={item}>
                       <label className="people-filter-check">
                         <input
+                          id={`people-primary-${mode}-${item.replace(/\s+/g, "-").toLowerCase()}`}
                           type="checkbox"
                           checked={selectedPrimary.includes(item)}
                           onChange={() => toggleMulti(item, selectedPrimary, setSelectedPrimary)}
@@ -124,6 +126,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                   <li>
                     <label className="people-filter-check">
                       <input
+                        id={`people-secondary-all-${mode}`}
                         type="checkbox"
                         checked={selectedSecondary.length === 0}
                         onChange={() => setSelectedSecondary([])}
@@ -135,6 +138,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                     <li key={item}>
                       <label className="people-filter-check">
                         <input
+                          id={`people-secondary-${mode}-${item.replace(/\s+/g, "-").toLowerCase()}`}
                           type="checkbox"
                           checked={selectedSecondary.includes(item)}
                           onChange={() =>
@@ -177,7 +181,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                   >
                     <div className="people-card__head">
                       <div className="people-card__avatar">
-                        <Image src={item.avatar} alt={item.name} />
+                        <Image src={item.avatar} alt={item.name} loading="lazy" />
                       </div>
                       <span
                         className={`people-card__status ${

@@ -91,7 +91,7 @@ export default function CourseArea({ style }: StyleType) {
               <div className="courses__item shine__animate-item">
                 <div className="courses__item-thumb">
                   <Link to="/courses" className="shine__animate-link">
-                    <Image src={item.thumb} alt={item.title} />
+                    <Image src={item.thumb} alt={item.title} loading="lazy" />
                   </Link>
                 </div>
 
@@ -126,15 +126,16 @@ export default function CourseArea({ style }: StyleType) {
 
         {!style && (
           <div className="courses__nav">
-            <div className="courses-button-prev">
+            <button type="button" className="courses-button-prev" aria-label="Previous courses">
               <i className="flaticon-arrow-right"></i>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className="courses-button-next"
-              onClick={() => document.querySelector<HTMLDivElement>(".courses-button-prev")?.click()}
+              aria-label="Next courses"
             >
               <i className="flaticon-arrow-right"></i>
-            </div>
+            </button>
           </div>
         )}
       </div>

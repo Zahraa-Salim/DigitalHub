@@ -69,7 +69,7 @@ export default function CourseArea() {
                       <div className="courses__item shine__animate-item">
                         <div className="courses__item-thumb">
                           <Link to="/courses" className="shine__animate-link">
-                            <Image src={item.thumb} alt={item.title} />
+                            <Image src={item.thumb} alt={item.title} loading="lazy" />
                           </Link>
                         </div>
 
@@ -137,7 +137,7 @@ export default function CourseArea() {
                     <div key={item.id} className="col">
                       <div className="courses__item courses__item-three shine__animate-item">
                         <div className="courses__item-thumb">
-                          <Image src={item.thumb} width={400} height={300} alt={item.title} />
+                          <Image src={item.thumb} width={400} height={300} alt={item.title} loading="lazy" />
                         </div>
 
                         <div className="courses__item-content">

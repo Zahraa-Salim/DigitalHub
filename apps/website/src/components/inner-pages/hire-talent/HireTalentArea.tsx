@@ -209,8 +209,15 @@ const HireTalentArea = () => {
     if (!activeCandidate) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveCandidate(null);
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
     return () => {
       document.body.style.overflow = previous;
+      window.removeEventListener("keydown", handleEsc);
     };
   }, [activeCandidate]);
 
@@ -300,7 +307,7 @@ const HireTalentArea = () => {
               <span className="hire-talent-chat__status">{loadingCandidates ? "Loading candidates..." : "Live from database"}</span>
             </div>
 
-            <div className="hire-talent-chat__messages">
+            <div className="hire-talent-chat__messages" aria-live="polite">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -355,6 +362,7 @@ const HireTalentArea = () => {
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 placeholder="Example: I need a remote React developer with TypeScript and strong UI sense."
+                aria-label="Describe the role requirements"
               />
               <button className="btn btn-two" type="button" onClick={handleSubmit} disabled={loadingCandidates}>
                 Find Best Match
@@ -440,9 +448,9 @@ const HireTalentArea = () => {
                   </article>
                 ))}
 
-              {loadingCandidates && <p className="people-empty">Loading candidates from database...</p>}
+              {loadingCandidates && <p className="people-empty" role="status">Loading candidates from database...</p>}
               {!loadingCandidates && scoredCandidates.length === 0 && (
-                <p className="people-empty">{loadError || "No candidates found yet. Add participant profiles to the database."}</p>
+                <p className="people-empty" role="status">{loadError || "No candidates found yet. Add participant profiles to the database."}</p>
               )}
             </div>
           </div>
@@ -452,7 +460,7 @@ const HireTalentArea = () => {
       {activeCandidate ? (
         <div className="hire-candidate-modal" role="dialog" aria-modal="true" onClick={() => setActiveCandidate(null)}>
           <div className="hire-candidate-modal__dialog" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="hire-candidate-modal__close" onClick={() => setActiveCandidate(null)}>
+            <button type="button" className="hire-candidate-modal__close" onClick={() => setActiveCandidate(null)} aria-label="Close profile dialog">
               <span aria-hidden>x</span>
               <span className="visually-hidden">Close</span>
             </button>
