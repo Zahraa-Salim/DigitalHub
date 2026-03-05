@@ -63,6 +63,28 @@ const DEFAULT_FOOTER: FooterData = {
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const pickString = (source: Record<string, unknown>, keys: string[], fallback: string) => {
+  for (const key of keys) {
+    const value = String(source[key] ?? "").trim();
+    if (value) return value;
+  }
+  return fallback;
+};
+
+const parseLinks = (value: unknown): SectionLink[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const source = item as Record<string, unknown>;
+      const label = String(source.label ?? "").trim();
+      const url = String(source.url ?? "").trim();
+      if (!label || !url) return null;
+      return { label, url };
+    })
+    .filter((item): item is SectionLink => Boolean(item));
+};
+
 const FooterCommon = () => {
   const [data, setData] = useState<FooterData>(DEFAULT_FOOTER);
 
@@ -88,6 +110,35 @@ const FooterCommon = () => {
             address: String(contactInfo.address ?? prev.brand.address),
             phone: String(contactInfo.phone ?? prev.brand.phone),
           },
+        const usefulLinks = parseLinks(contactInfo.footer_useful_links);
+        const companyLinks = parseLinks(contactInfo.footer_company_links);
+
+        setData((prev) => ({
+          brand: {
+            title: String(payload.data?.site_settings?.site_name || prev.brand.title),
+            text: pickString(contactInfo, ["footer_brand_text", "brand_text"], prev.brand.text),
+            address: pickString(contactInfo, ["address"], prev.brand.address),
+            phone: pickString(contactInfo, ["phone"], prev.brand.phone),
+            logoUrl: pickString(contactInfo, ["footer_logo_url", "logo_url"], prev.brand.logoUrl),
+          },
+          sections: [
+            {
+              title: pickString(
+                contactInfo,
+                ["footer_useful_links_title", "useful_links_title"],
+                prev.sections[0]?.title || "Useful Links",
+              ),
+              links: usefulLinks.length ? usefulLinks : prev.sections[0]?.links || [],
+            },
+            {
+              title: pickString(
+                contactInfo,
+                ["footer_company_links_title", "company_links_title"],
+                prev.sections[1]?.title || "Our Company",
+              ),
+              links: companyLinks.length ? companyLinks : prev.sections[1]?.links || [],
+            },
+          ],
         }));
       })
       .catch(() => {

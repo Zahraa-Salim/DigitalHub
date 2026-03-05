@@ -528,6 +528,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                   <li>
                     <label className="people-filter-check">
                       <input
+                        id={`people-primary-all-${mode}`}
                         type="checkbox"
                         checked={selectedPrimary.length === 0}
                         onChange={() => {
@@ -542,6 +543,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                     <li key={item}>
                       <label className="people-filter-check">
                         <input
+                          id={`people-primary-${mode}-${item.replace(/\s+/g, "-").toLowerCase()}`}
                           type="checkbox"
                           checked={selectedPrimary.includes(item)}
                           onChange={() => toggleMulti(item, setSelectedPrimary)}
@@ -559,6 +561,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                   <li>
                     <label className="people-filter-check">
                       <input
+                        id={`people-secondary-all-${mode}`}
                         type="checkbox"
                         checked={selectedSecondary.length === 0}
                         onChange={() => {
@@ -573,6 +576,7 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                     <li key={item}>
                       <label className="people-filter-check">
                         <input
+                          id={`people-secondary-${mode}-${item.replace(/\s+/g, "-").toLowerCase()}`}
                           type="checkbox"
                           checked={selectedSecondary.includes(item)}
                           onChange={() => toggleMulti(item, setSelectedSecondary)}
@@ -709,6 +713,17 @@ const PeopleDirectory = ({ mode }: PeopleDirectoryProps) => {
                             </Link>
                           )}
                         </article>
+            <div className="row g-4">
+              {filteredItems.map((item, index) => (
+                <div key={item.id} className="col-xl-4 col-md-6">
+                  <article
+                    className="people-card"
+                    data-aos="fade-up"
+                    data-aos-delay={(index % 3) * 100}
+                  >
+                    <div className="people-card__head">
+                      <div className="people-card__avatar">
+                        <Image src={item.avatar} alt={item.name} loading="lazy" />
                       </div>
                     );
                   })}

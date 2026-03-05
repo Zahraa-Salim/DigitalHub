@@ -208,6 +208,32 @@ export default function CourseArea() {
                               <span className="dh-program-card__hero-mark" aria-hidden="true">
                                 <i className={getProgramIconClass(item.category.name)}></i>
                               </span>
+                      <div className="courses__item shine__animate-item">
+                        <div className="courses__item-thumb">
+                          <Link to="/courses" className="shine__animate-link">
+                            <Image src={item.thumb} alt={item.title} loading="lazy" />
+                          </Link>
+                        </div>
+
+                        <div className="courses__item-content">
+                          <ul className="courses__item-meta list-wrap">
+                            <li className="courses__item-tag">
+                              <span>{item.category.name}</span>
+                            </li>
+                          </ul>
+
+                          <h5 className="title">
+                            <Link to="/courses">{item.title}</Link>
+                          </h5>
+
+                          <p className="author">Duration: {item.durationLabel}</p>
+
+                          <div className="courses__item-bottom">
+                            <div className="button">
+                              <Link to="/courses">
+                                <span className="text">View Program</span>
+                                <i className="flaticon-arrow-right"></i>
+                              </Link>
                             </div>
                             <div className="dh-program-card__body">
                               <h5 className="title">
@@ -324,6 +350,31 @@ export default function CourseArea() {
                               <span className="dh-program-card__hero-mark" aria-hidden="true">
                                 <i className={getProgramIconClass(item.category.name)}></i>
                               </span>
+                      <div className="courses__item courses__item-three shine__animate-item">
+                        <div className="courses__item-thumb">
+                          <Image src={item.thumb} width={400} height={300} alt={item.title} loading="lazy" />
+                        </div>
+
+                        <div className="courses__item-content">
+                          <ul className="courses__item-meta list-wrap">
+                            <li className="courses__item-tag">
+                              <span>{item.category.name}</span>
+                            </li>
+                            <li className="price">{item.durationLabel}</li>
+                          </ul>
+
+                          <h5 className="title">
+                            <Link to="/courses">{item.title}</Link>
+                          </h5>
+
+                          <p className="info">{item.shortDescription}</p>
+
+                          <div className="courses__item-bottom">
+                            <div className="button">
+                              <Link to="/courses">
+                                <span className="text">View Program</span>
+                                <i className="flaticon-arrow-right"></i>
+                              </Link>
                             </div>
                             <div className="dh-program-card__body dh-program-card__body--list">
                               <h5 className="title">
@@ -397,3 +448,4 @@ export default function CourseArea() {
     </section>
   );
 }
+

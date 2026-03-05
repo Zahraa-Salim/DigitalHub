@@ -3972,3 +3972,345 @@ body {
     border-radius: 14px;
   }
 }
+
+/* Responsive consistency pass (home/program/team/participants/apply/hire talent) */
+.courses-area .courses-swiper-active .swiper-wrapper,
+.courses-area .courses-swiper-active .swiper-slide,
+.all-courses-area .courses__grid-wrap > .col {
+  display: flex;
+  height: auto;
+}
+
+.dh-program-card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dh-program-card__bottom {
+  margin-top: auto;
+}
+
+.dh-program-card__thumb,
+.dh-program-card__thumb-link {
+  display: block;
+}
+
+.dh-program-card__thumb img,
+.dh-program-card--list .dh-program-card__thumb img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.dh-program-card__desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.people-directory .row.g-4 > [class*="col-"] {
+  display: flex;
+}
+
+.people-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.people-card > .people-card__cta,
+.people-card__actions {
+  margin-top: auto;
+}
+
+.apply-area .contact-form-wrap {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.application-form__status {
+  margin: 2px 0 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid #d7deef;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.application-form__status--success {
+  color: #0b6f55;
+  border-color: rgba(11, 111, 85, 0.26);
+  background: rgba(12, 175, 125, 0.12);
+}
+
+.application-form__status--error {
+  color: #9f2f41;
+  border-color: rgba(201, 51, 90, 0.28);
+  background: rgba(201, 51, 90, 0.1);
+}
+
+/* Conversion-focused CTA at top of Hire Talent */
+.hire-talent-cta {
+  margin-bottom: 24px;
+  border: 1px solid rgba(236, 159, 0, 0.25);
+  border-radius: 18px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 10% 25%, rgba(255, 211, 110, 0.26), transparent 48%),
+    linear-gradient(135deg, #1a2d59 0%, #2f47a0 52%, #3f63ca 100%);
+  box-shadow: 0 18px 42px rgba(14, 28, 66, 0.24);
+  color: #f5f8ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.hire-talent-cta__content h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+}
+
+.hire-talent-cta__content p {
+  margin: 0;
+  color: rgba(245, 248, 255, 0.9);
+}
+
+.hire-talent-cta__eyebrow {
+  margin: 0 0 10px !important;
+  display: inline-flex;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.hire-talent-cta__btn {
+  min-height: 50px;
+  min-width: 190px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 10px 24px rgba(8, 17, 43, 0.28);
+}
+
+.hire-candidate-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+}
+
+.hire-candidate-card:hover {
+  transform: translateY(-4px);
+  border-color: #c0cdf0;
+  box-shadow: 0 12px 26px rgba(20, 34, 72, 0.12);
+}
+
+.hire-candidate-card__actions {
+  margin-top: auto;
+}
+
+@media (max-width: 1024px) {
+  .people-toolbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .people-toolbar__sort {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .people-toolbar__sort select {
+    min-width: 170px;
+  }
+
+  .hire-talent-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .courses-area .section__title .title {
+    font-size: 30px;
+  }
+
+  .courses-area .courses-swiper-active {
+    padding: 0 2px;
+  }
+
+  .home-cohorts-slider-wrap {
+    padding: 0 4px 58px;
+  }
+
+  .home-cohorts-controls {
+    top: auto;
+    bottom: 0;
+    transform: none;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .home-cohorts-arrow {
+    position: static;
+    width: 44px;
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .all-courses-area .courses__grid-wrap {
+    gap: 16px !important;
+  }
+
+  .dh-program-card__thumb img,
+  .dh-program-card--list .dh-program-card__thumb img {
+    height: 198px;
+  }
+
+  .dh-program-card .title {
+    font-size: 20px;
+    min-height: 0;
+  }
+
+  .dh-program-card__meta li {
+    font-size: 13px;
+  }
+
+  .people-filters__card,
+  .people-toolbar,
+  .people-card,
+  .hire-talent-chat,
+  .hire-talent-results {
+    padding: 16px;
+  }
+
+  .application-form__field-label-text {
+    flex-wrap: wrap;
+  }
+
+  .application-form__select,
+  #application-form input,
+  #application-form textarea,
+  #general-apply-form input,
+  #general-apply-form textarea,
+  #general-apply-form select {
+    width: 100%;
+  }
+
+  .hire-talent-cta {
+    padding: 16px;
+  }
+
+  .hire-talent-cta__btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .people-toolbar__sort {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .people-toolbar__sort select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .people-card__name {
+    font-size: 20px;
+  }
+
+  .hire-candidate-card__actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Production hardening: focus, motion, and form accessibility */
+.application-form__field-error {
+  margin: 8px 0 0;
+  color: #9f2f41;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+#application-form input:focus-visible,
+#application-form textarea:focus-visible,
+#application-form select:focus-visible,
+#general-apply-form input:focus-visible,
+#general-apply-form textarea:focus-visible,
+#general-apply-form select:focus-visible,
+.people-card__cta:focus-visible,
+.hire-talent-cta__btn:focus-visible,
+.hire-candidate-card__actions .btn:focus-visible,
+.home-cohorts-arrow:focus-visible,
+.courses-button-prev:focus-visible,
+.courses-button-next:focus-visible {
+  outline: 2px solid #2f47d5;
+  outline-offset: 2px;
+}
+
+/* Ensure card blocks are equal-height in target pages */
+.courses-area .courses__item,
+.all-courses-area .courses__item {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.courses-area .courses__item-content,
+.all-courses-area .courses__item-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.courses-area .courses__item-bottom,
+.all-courses-area .courses__item-bottom {
+  margin-top: auto;
+}
+
+.courses-area .courses__item-thumb img,
+.all-courses-area .courses__item-thumb img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+/* Responsive card density tuning */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .all-courses-area .row.courses__grid-wrap {
+    --bs-gutter-x: 18px;
+    --bs-gutter-y: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .all-courses-area .courses__item-content .title,
+  .courses-area .courses__item-content .title {
+    font-size: 19px;
+    line-height: 1.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .people-card,
+  .dh-program-card,
+  .hire-candidate-card,
+  .hire-talent-cta__btn,
+  .home-cohorts-arrow {
+    transition: none !important;
+    animation: none !important;
+  }
+}
