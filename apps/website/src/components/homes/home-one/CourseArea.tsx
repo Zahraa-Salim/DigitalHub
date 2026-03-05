@@ -355,14 +355,6 @@ export default function CourseArea({ style }: StyleType) {
                       </div>
                     </>
                   )}
-        <Swiper {...setting} modules={[Autoplay, Navigation]} className="swiper courses-swiper-active">
-          {filteredPrograms.map((item) => (
-            <SwiperSlide key={item.id}>
-              <div className="courses__item shine__animate-item">
-                <div className="courses__item-thumb">
-                  <Link to="/courses" className="shine__animate-link">
-                    <Image src={item.thumb} alt={item.title} loading="lazy" />
-                  </Link>
                 </div>
                 </SwiperSlide>
               ))}
@@ -384,47 +376,6 @@ export default function CourseArea({ style }: StyleType) {
         {filteredPrograms.length === 0 && (
           <div className="text-center mt-30">
             <p>{loadError || "No cohorts available at the moment."}</p>
-                <div className="courses__item-content">
-                  <ul className="courses__item-meta list-wrap">
-                    <li className="courses__item-tag">
-                      <Link to="#">{item.category.name}</Link>
-                    </li>
-                  </ul>
-
-                  <h5 className="title">
-                    <Link to="/courses">{item.title}</Link>
-                  </h5>
-
-                  <p className="author">
-                    By <Link to="#">{item.instructorName || "Our Team"}</Link>
-                  </p>
-
-                  <div className="courses__item-bottom">
-                    <div className="button">
-                      <Link to="/courses">
-                        <span className="text">Enroll Now</span>
-                        <i className="flaticon-arrow-right"></i>
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </SwiperSlide>
-          ))}
-        </Swiper>
-
-        {!style && (
-          <div className="courses__nav">
-            <button type="button" className="courses-button-prev" aria-label="Previous courses">
-              <i className="flaticon-arrow-right"></i>
-            </button>
-            <button
-              type="button"
-              className="courses-button-next"
-              aria-label="Next courses"
-            >
-              <i className="flaticon-arrow-right"></i>
-            </button>
           </div>
         )}
 
@@ -437,4 +388,3 @@ export default function CourseArea({ style }: StyleType) {
     </section>
   );
 }
-

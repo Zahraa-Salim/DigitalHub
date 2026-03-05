@@ -21,6 +21,7 @@ export async function createContactMessageService(payload) {
         kind: body.kind ?? "question",
         company_name: body.company_name ?? null,
         company_role: body.company_role ?? null,
+        linkedin_url: body.linkedin_url ?? null,
         visit_preferred_dates: body.visit_preferred_dates ?? null,
         visit_notes: body.visit_notes ?? null,
     });

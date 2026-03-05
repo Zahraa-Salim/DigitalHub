@@ -197,6 +197,22 @@ export type PublicProgramOption = {
   default_capacity?: number | null;
 };
 
+export type PublicContactKind = "question" | "feedback" | "visit_request";
+
+export type PublicContactPayload = {
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
+  message: string;
+  kind: PublicContactKind;
+  company_name?: string;
+  company_role?: string;
+  linkedin_url?: string;
+  visit_preferred_dates?: string;
+  visit_notes?: string;
+};
+
 export type PublicApplyFormData = {
   form: {
     id: number;
@@ -424,4 +440,31 @@ export async function submitPublicApply(payload: {
   const json = (await res.json()) as SuccessResponse<{ id: number; status: string }>;
   if (json?.data) return json.data;
   throw new Error("Invalid payload from /public/apply");
+}
+
+export async function submitPublicContact(payload: PublicContactPayload) {
+  const res = await fetch(`${API_BASE_URL}/contact`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let message = "Unable to send message right now. Please try again.";
+    try {
+      const json = (await res.json()) as { error?: { message?: string } };
+      if (json?.error?.message) {
+        message = json.error.message;
+      }
+    } catch {
+      // Keep fallback message.
+    }
+    throw new Error(message);
+  }
+
+  const json = (await res.json()) as SuccessResponse<{ id: number; status: string }>;
+  if (json?.data) return json.data;
+  throw new Error("Invalid payload from /contact");
 }

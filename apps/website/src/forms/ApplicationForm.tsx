@@ -1,7 +1,7 @@
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
-import { notifyError, notifySuccess } from "@/lib/feedbackToast";
+import { notifyError, notifySuccess, notifyWarning } from "@/lib/feedbackToast";
 import {
   API_BASE_URL,
   getPublicCohortFormResolution,
@@ -11,6 +11,7 @@ import {
   type PublicResolvedForm,
 } from "@/lib/publicApi";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 type ApplicationFormProps = {
   defaultCohortId?: number;
@@ -22,14 +23,11 @@ type ApplicationFormState = {
 };
 
 type AnswersMap = Record<string, unknown>;
-type FieldErrorsMap = Record<string, string>;
 
 type SelectOption = {
   label: string;
   value: string;
 };
-
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const parseSelectOptions = (options: unknown): SelectOption[] => {
   if (!Array.isArray(options)) return [];
@@ -118,9 +116,15 @@ const normalizeResolvedCohort = (raw: unknown): PublicCohort | null => {
     program_title: String(source.program_title || ""),
     name: String(source.name || ""),
     status,
-    allow_applications: status === "open",
+    allow_applications: typeof source.allow_applications === "boolean" ? source.allow_applications : status === "open",
     use_general_form: Boolean(source.use_general_form),
     application_form_id: toNumberOrNull(source.application_form_id),
+    enrollment_close_at:
+      typeof source.enrollment_close_at === "string"
+        ? source.enrollment_close_at
+        : source.enrollment_close_at === null
+          ? null
+          : undefined,
     updated_at: typeof source.updated_at === "string" ? source.updated_at : undefined,
   };
 };
@@ -134,6 +138,7 @@ const inputTypeByField: Record<string, string> = {
 };
 
 const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
+  const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const [state, setState] = useState<ApplicationFormState>({
     success: false,
@@ -148,9 +153,7 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   const [loadingCohorts, setLoadingCohorts] = useState(true);
   const [verifyingSelection, setVerifyingSelection] = useState(false);
   const [cohortsLoadError, setCohortsLoadError] = useState<string | null>(null);
-  const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [answers, setAnswers] = useState<AnswersMap>({});
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorsMap>({});
   const selectedCohortIdRef = useRef<number | null>(selectedCohortId);
   const selectedCohortRef = useRef<PublicCohort | null>(selectedCohort);
   const pendingRef = useRef(false);
@@ -163,6 +166,24 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   const cohortSnapshotRef = useRef<string | null>(null);
   const cohortFormConfigSnapshotRef = useRef<string | null>(null);
   const formSnapshotRef = useRef<string | null>(null);
+
+  const navigateBackAfterSuccess = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      const referrer = document.referrer;
+      if (referrer) {
+        try {
+          if (new URL(referrer).origin === window.location.origin) {
+            navigate(-1);
+            return;
+          }
+        } catch {
+          // Fallback route is used when referrer cannot be parsed.
+        }
+      }
+    }
+
+    navigate("/programs");
+  };
 
   const openCohorts = useMemo(
     () => cohorts.filter((cohort) => cohort.status === "open" && cohort.allow_applications),
@@ -186,13 +207,10 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
   }, [resolvedForm]);
 
   useEffect(() => {
-    if (state.success) {
-      notifySuccess("Application submitted successfully.", { id: "application-submit-success" });
-    }
     if (state.error) {
       notifyError(state.error, { id: "application-submit-error" });
     }
-  }, [state]);
+  }, [state.error]);
 
   useEffect(() => {
     let active = true;
@@ -295,7 +313,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           setSelectedCohortId(null);
           setResolvedForm(null);
           setAnswers({});
-          setLiveNotice("Cohort availability changed. Please select another open cohort before submitting.");
           setState({
             success: false,
             error: "Selected cohort is no longer open. Please choose another cohort.",
@@ -313,7 +330,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       } catch {
         if (!active) return;
         setCohortsLoadError("Unable to verify cohort availability right now. Please try again.");
-        setLiveNotice("We couldn't refresh cohort availability right now. Please recheck before submitting.");
       } finally {
         if (active) {
           setLoadingCohorts(false);
@@ -359,7 +375,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       setSelectedCohort(null);
       setResolvedForm(null);
       setAnswers({});
-      setFieldErrors({});
       cohortSnapshotRef.current = null;
       cohortFormConfigSnapshotRef.current = null;
       formSnapshotRef.current = null;
@@ -379,7 +394,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
     if (cohort && (cohort.status !== "open" || !cohort.allow_applications)) {
       setResolvedForm(null);
       setAnswers({});
-      setFieldErrors({});
       cohortFormConfigSnapshotRef.current = null;
       formSnapshotRef.current = null;
       setState({
@@ -400,10 +414,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         })
       : null;
     
-    // Only notify if we had a previous snapshot and it actually changed (not on initial load)
-    if (cohortSnapshotRef.current && cohortFormConfigSnapshotRef.current && cohortSnapshot && cohortSnapshotRef.current !== cohortSnapshot) {
-      setLiveNotice("Cohort details changed while you were filling this form. Please review before submitting.");
-    }
     if (cohortSnapshot) {
       cohortSnapshotRef.current = cohortSnapshot;
     }
@@ -446,7 +456,9 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
         const normalizedResolvedCohort = normalizeResolvedCohort(resolution?.cohort);
         if (normalizedResolvedCohort) {
-          setSelectedCohort(normalizedResolvedCohort);
+          setSelectedCohort((prev) =>
+            prev && Number(prev.id) === normalizedResolvedCohort.id ? { ...prev, ...normalizedResolvedCohort } : normalizedResolvedCohort
+          );
           setCohorts((prev) =>
             prev.some((item) => Number(item.id) === normalizedResolvedCohort.id)
               ? prev.map((item) => (Number(item.id) === normalizedResolvedCohort.id ? { ...item, ...normalizedResolvedCohort } : item))
@@ -459,7 +471,9 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
           setAnswers(buildDefaultAnswers(resolution.resolved_form.fields, normalizedResolvedCohort || cohort || null));
         }
         if (formChanged) {
-          setLiveNotice("Application fields changed while you were filling this form. Please review before submitting.");
+          notifyWarning("Application fields changed while you were filling this form. Please review before submitting.", {
+            id: "application-form-fields-changed",
+          });
         }
         formSnapshotRef.current = formSnapshot;
         cohortFormConfigSnapshotRef.current = cohortFormConfigSnapshot;
@@ -468,7 +482,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         if (!active) return;
         setResolvedForm(null);
         setAnswers({});
-        setFieldErrors({});
         cohortFormConfigSnapshotRef.current = null;
         formSnapshotRef.current = null;
         setState({
@@ -501,78 +514,12 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
   const onFieldValueChange = (fieldName: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [fieldName]: value }));
-  const fieldsByName = useMemo(() => {
-    return sortedFields.reduce<Record<string, PublicFormField>>((acc, field) => {
-      acc[field.name] = field;
-      return acc;
-    }, {});
-  }, [sortedFields]);
-
-  const validateFieldValue = (field: PublicFormField, value: unknown) => {
-    const label = field.label || field.name;
-    if (field.required) {
-      if (field.type === "checkbox" && !value) {
-        return `${label} is required.`;
-      }
-      if (field.type !== "checkbox") {
-        const raw = typeof value === "string" ? value.trim() : value;
-        if (raw === "" || raw === null || raw === undefined) {
-          return `${label} is required.`;
-        }
-      }
-    }
-
-    const normalizedValue = typeof value === "string" ? value.trim() : "";
-    const looksLikeEmailField = field.type === "email" || field.name.toLowerCase().includes("email");
-    if (looksLikeEmailField && normalizedValue && !emailRegex.test(normalizedValue)) {
-      return `Please enter a valid email address for ${label}.`;
-    }
-
-    return "";
-  };
-
-  const onFieldValueChange = (fieldName: string, value: unknown) => {
-    if (state.success || state.error) {
-      setState({ success: false, error: null });
-    }
-    setAnswers((prev) => ({ ...prev, [fieldName]: value }));
-    setFieldErrors((prev) => {
-      if (!prev[fieldName]) return prev;
-      const field = fieldsByName[fieldName];
-      if (!field) {
-        const next = { ...prev };
-        delete next[fieldName];
-        return next;
-      }
-      const nextError = validateFieldValue(field, value);
-      if (!nextError) {
-        const next = { ...prev };
-        delete next[fieldName];
-        return next;
-      }
-      return { ...prev, [fieldName]: nextError };
-    });
-  };
-
-  const validateFormAnswers = () => {
-    const nextErrors: FieldErrorsMap = {};
-
-    for (const field of sortedFields) {
-      const value = answers[field.name];
-      const message = validateFieldValue(field, value);
-      if (message) {
-        nextErrors[field.name] = message;
-      }
-    }
-
-    return nextErrors;
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     pendingRef.current = true;
     setPending(true);
-    if (pendingRef.current) return;
     setState({ success: false, error: null });
 
     try {
@@ -584,13 +531,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         throw new Error("Application form is not ready yet. Please try again.");
       }
 
-      const validationErrors = validateFormAnswers();
-      setFieldErrors(validationErrors);
-      const firstValidationError = Object.values(validationErrors)[0];
-      if (firstValidationError) {
-        throw new Error(firstValidationError);
-      }
-
       const fullName = pickStringValue(answers, ["full_name", "name"]);
       const email = pickStringValue(answers, ["email", "applicant_email"]);
       const phone = pickStringValue(answers, ["phone", "applicant_phone"]);
@@ -598,12 +538,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
       if (!email && !phone) {
         throw new Error("Provide at least an email or a phone number.");
       }
-      if (email && !emailRegex.test(email)) {
-        throw new Error("Please enter a valid email address.");
-      }
-
-      pendingRef.current = true;
-      setPending(true);
 
       const payload = {
         cohort_id: selectedCohortId,
@@ -634,10 +568,10 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         throw new Error(message);
       }
 
+      notifySuccess("Application submitted successfully.", { id: "application-submit-success" });
       setState({ success: true, error: null });
-      setLiveNotice(null);
       setAnswers(buildDefaultAnswers(sortedFields, selectedCohort));
-      setFieldErrors({});
+      navigateBackAfterSuccess();
     } catch (error) {
       setState({
         success: false,
@@ -651,12 +585,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 
   return (
     <form onSubmit={onSubmit} id="application-form">
-    <form onSubmit={onSubmit} id="application-form" aria-busy={pending}>
-      {liveNotice ? <p className="dh-live-note">{liveNotice}</p> : null}
-      <p className="application-form__legend">
-        <span className="application-form__required-mark">*</span> Required fields
-      </p>
-
       <div className="form-grp">
         <label htmlFor="application-cohort-select" className="application-form__field-label">
           <span className="application-form__field-label-text">
@@ -714,8 +642,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         sortedFields.map((field) => {
           const fieldId = `application-field-${field.id}`;
           const fieldLabel = field.label || field.name;
-          const fieldError = fieldErrors[field.name];
-          const fieldErrorId = `${fieldId}-error`;
 
           if (field.type === "textarea") {
             return (
@@ -735,17 +661,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
                 ></textarea>
-                  aria-invalid={fieldError ? true : undefined}
-                  aria-describedby={fieldError ? fieldErrorId : undefined}
-                  disabled={pending}
-                  value={String(answers[field.name] ?? "")}
-                  onChange={(e) => onFieldValueChange(field.name, e.target.value)}
-                ></textarea>
-                {fieldError ? (
-                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                    {fieldError}
-                  </p>
-                ) : null}
               </div>
             );
           }
@@ -772,9 +687,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   className="application-form__select"
                   required={field.required}
                   aria-required={field.required || undefined}
-                  aria-invalid={fieldError ? true : undefined}
-                  aria-describedby={fieldError ? fieldErrorId : undefined}
-                  disabled={pending}
                   value={String(answers[field.name] ?? "")}
                   onChange={(e) => onFieldValueChange(field.name, e.target.value)}
                 >
@@ -787,11 +699,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     </option>
                   ))}
                 </select>
-                {fieldError ? (
-                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                    {fieldError}
-                  </p>
-                ) : null}
               </div>
             );
           }
@@ -811,19 +718,11 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                   type="file"
                   required={field.required}
                   aria-required={field.required || undefined}
-                  aria-invalid={fieldError ? true : undefined}
-                  aria-describedby={fieldError ? fieldErrorId : undefined}
-                  disabled={pending}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     onFieldValueChange(field.name, file?.name || "");
                   }}
                 />
-                {fieldError ? (
-                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                    {fieldError}
-                  </p>
-                ) : null}
               </div>
             );
           }
@@ -838,9 +737,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     type="checkbox"
                     required={field.required}
                     aria-required={field.required || undefined}
-                    aria-invalid={fieldError ? true : undefined}
-                    aria-describedby={fieldError ? fieldErrorId : undefined}
-                    disabled={pending}
                     checked={Boolean(answers[field.name])}
                     onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
                   />
@@ -849,11 +745,6 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                     {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
                   </span>
                 </label>
-                {fieldError ? (
-                  <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                    {fieldError}
-                  </p>
-                ) : null}
               </div>
             );
           }
@@ -876,31 +767,9 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               />
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? fieldErrorId : undefined}
-                disabled={pending}
-                value={String(answers[field.name] ?? "")}
-                onChange={(e) => onFieldValueChange(field.name, e.target.value)}
-              />
-              {fieldError ? (
-                <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                  {fieldError}
-                </p>
-              ) : null}
             </div>
           );
         })}
-
-      {state.success && (
-        <p className="application-form__status application-form__status--success" role="status">
-          Application submitted successfully. We will review it and contact you soon.
-        </p>
-      )}
-      {state.error && (
-        <p className="application-form__status application-form__status--error" role="alert">
-          {state.error}
-        </p>
-      )}
 
       <button
         type="submit"

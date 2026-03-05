@@ -101,15 +101,10 @@ const FooterCommon = () => {
       .then((payload: PublicHomeResponse | null) => {
         if (!payload?.data?.site_settings) return;
 
-        const contactInfo = payload.data.site_settings.contact_info || {};
-        setData((prev) => ({
-          ...prev,
-          brand: {
-            ...prev.brand,
-            title: String(payload.data?.site_settings?.site_name || prev.brand.title),
-            address: String(contactInfo.address ?? prev.brand.address),
-            phone: String(contactInfo.phone ?? prev.brand.phone),
-          },
+        const contactInfo =
+          typeof payload.data.site_settings.contact_info === "object" && payload.data.site_settings.contact_info
+            ? payload.data.site_settings.contact_info
+            : {};
         const usefulLinks = parseLinks(contactInfo.footer_useful_links);
         const companyLinks = parseLinks(contactInfo.footer_company_links);
 

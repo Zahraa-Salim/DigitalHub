@@ -8,6 +8,7 @@ import { Slide } from "react-toastify";
 import ScrollToTop from "@/components/common/ScrollToTop";
 import AOS from "aos";
 import MotionAnimation from "@/hooks/MotionAnimation";
+import useScrollToTop from "@/hooks/useScrollToTop";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
 type WrapperProps = {
@@ -15,6 +16,8 @@ type WrapperProps = {
 };
 
 const Wrapper = ({ children }: WrapperProps) => {
+
+    useScrollToTop();
 
     useEffect(() => {
         AOS.init();

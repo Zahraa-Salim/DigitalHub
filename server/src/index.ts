@@ -114,6 +114,7 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE events ADD COLUMN IF NOT EXISTS post_body TEXT;
       UPDATE events SET completion_image_urls = '[]'::jsonb WHERE completion_image_urls IS NULL;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
       CREATE TABLE IF NOT EXISTS attendance_sessions (
         id BIGSERIAL PRIMARY KEY,
         cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,

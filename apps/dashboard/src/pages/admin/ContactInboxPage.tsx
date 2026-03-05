@@ -27,6 +27,7 @@ type ContactRow = {
   kind: ContactKind;
   company_name: string | null;
   company_role: string | null;
+  linkedin_url: string | null;
   visit_preferred_dates: string | null;
   visit_notes: string | null;
   status: ContactStatus;
@@ -687,6 +688,9 @@ export function ContactInboxPage() {
                   </p>
                   <p className="post-details__line">
                     <strong>Company Role:</strong> {selected.company_role || "N/A"}
+                  </p>
+                  <p className="post-details__line">
+                    <strong>LinkedIn:</strong> {selected.linkedin_url || "N/A"}
                   </p>
                   <p className="post-details__line">
                     <strong>Preferred Dates:</strong> {selected.visit_preferred_dates || "N/A"}

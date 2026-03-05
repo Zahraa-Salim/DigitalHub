@@ -7,9 +7,9 @@ import { pool } from "../db/index.js";
 export async function createContactMessage(input, db = pool) {
     return db.query(`
       INSERT INTO contact_messages
-        (name, email, phone, subject, message, kind, company_name, company_role, visit_preferred_dates, visit_notes, status, created_at)
+        (name, email, phone, subject, message, kind, company_name, company_role, linkedin_url, visit_preferred_dates, visit_notes, status, created_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'new', NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'new', NOW())
       RETURNING *
     `, [
         input.name,
@@ -20,6 +20,7 @@ export async function createContactMessage(input, db = pool) {
         input.kind,
         input.company_name ?? null,
         input.company_role ?? null,
+        input.linkedin_url ?? null,
         input.visit_preferred_dates ?? null,
         input.visit_notes ?? null,
     ]);
@@ -61,4 +62,3 @@ export async function getContactMessageById(id, db = pool) {
       LIMIT 1
     `, [id]);
 }
-

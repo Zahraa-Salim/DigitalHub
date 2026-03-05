@@ -1328,7 +1328,7 @@ ON CONFLICT (slug) DO UPDATE SET
 -- =========================================================
 INSERT INTO contact_messages (
   name, email, phone, subject, message, kind,
-  company_name, company_role, visit_preferred_dates, visit_notes,
+  company_name, company_role, linkedin_url, visit_preferred_dates, visit_notes,
   status, assigned_to
 )
 VALUES
@@ -1339,7 +1339,7 @@ VALUES
     'Question about programs',
     'Hi, I want to know when applications open and what requirements are needed.',
     'question',
-    NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL,
     'new',
     NULL
   ),
@@ -1352,6 +1352,7 @@ VALUES
     'visit_request',
     'Company A',
     'Recruiter',
+    'https://linkedin.com/in/recruiter-a',
     'Next two weeks (weekday mornings)',
     'Interested in meeting Full Stack cohort students.',
     'new',

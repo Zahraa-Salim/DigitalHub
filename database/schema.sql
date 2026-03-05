@@ -753,6 +753,7 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 
   company_name          TEXT,
   company_role          TEXT,
+  linkedin_url          TEXT,
   visit_preferred_dates TEXT,
   visit_notes           TEXT,
 

@@ -14,6 +14,7 @@ export const contactCreateSchema = z
     kind: z.enum(["question", "visit_request", "feedback"]).optional(),
     company_name: z.string().trim().optional(),
     company_role: z.string().trim().optional(),
+    linkedin_url: z.string().trim().optional(),
     visit_preferred_dates: z.string().trim().optional(),
     visit_notes: z.string().trim().optional(),
 })
