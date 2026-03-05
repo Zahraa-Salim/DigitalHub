@@ -4,6 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { pool } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
@@ -16,6 +17,7 @@ import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
 import { findActiveAdminByEmail, findAdminProfileByUserId, getUserPasswordHash, listAdminProfiles, updateLastLogin, updateUserAccount, updateUserPasswordHash, upsertAdminProfile, } from "../repositories/auth.repo.js";
 import { countUsersForMessaging, listUsersForMessaging } from "../repositories/auth.repo.js";
 import { findUsersForMessagingByIds } from "../repositories/auth.repo.js";
+import { clearUserPasswordResetToken, findUserByEmailForPasswordReset, findUserByPasswordResetToken, setUserPasswordResetToken } from "../repositories/auth.repo.js";
 export async function loginAdmin(input) {
     const userResult = await findActiveAdminByEmail(input.email.toLowerCase());
     if (!userResult.rowCount) {
@@ -58,6 +60,73 @@ export async function loginAdmin(input) {
             admin_role: user.admin_role ?? "admin",
         },
     };
+}
+
+function hashResetToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function isDevForgotAnyEmailEnabled() {
+    if (process.env.NODE_ENV === "production") {
+        return false;
+    }
+    const raw = String(process.env.AUTH_FORGOT_ALLOW_ANY_EMAIL ?? "true").trim().toLowerCase();
+    return !["0", "false", "no", "off"].includes(raw);
+}
+
+function getPasswordResetBaseUrl() {
+    return (process.env.PASSWORD_RESET_URL_BASE || process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+export async function forgotPasswordService(input) {
+    const email = String(input.email || "").trim().toLowerCase();
+    const genericMessage = "If that email exists, a reset link has been sent.";
+    if (!email) {
+        return { message: genericMessage };
+    }
+    const devAnyEmailMode = isDevForgotAnyEmailEnabled();
+    const userResult = await findUserByEmailForPasswordReset(email);
+    const user = userResult.rowCount ? userResult.rows[0] : null;
+    const canStoreTokenForUser = Boolean(user && user.is_active);
+
+    if (!canStoreTokenForUser && !devAnyEmailMode) {
+        return { message: genericMessage };
+    }
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    if (canStoreTokenForUser) {
+        const tokenHash = hashResetToken(rawToken);
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        await setUserPasswordResetToken(user.id, tokenHash, expiresAt);
+    }
+    const baseUrl = getPasswordResetBaseUrl();
+    const resetLink = `${baseUrl}/reset-password/${rawToken}`;
+    await sendDigitalHubEmail({
+        to: email,
+        subject: "Reset your password",
+        body: `We received a password reset request for your account.\n\nReset your password: ${resetLink}\n\nThis link expires in 1 hour.\nIf you did not request this, you can ignore this email.`,
+    });
+    return { message: genericMessage };
+}
+
+export async function resetPasswordService(token, input) {
+    const rawToken = String(token || "").trim();
+    if (!rawToken) {
+        throw new AppError(400, "INVALID_TOKEN", "Reset token is invalid or expired.");
+    }
+    const password = String(input.password || "");
+    if (password.length < 8) {
+        throw new AppError(400, "VALIDATION_ERROR", "Password must be at least 8 characters.");
+    }
+    const tokenHash = hashResetToken(rawToken);
+    const userResult = await findUserByPasswordResetToken(tokenHash);
+    if (!userResult.rowCount) {
+        throw new AppError(400, "INVALID_TOKEN", "Reset token is invalid or expired.");
+    }
+    const user = userResult.rows[0];
+    const passwordHash = await bcrypt.hash(password, 10);
+    await updateUserPasswordHash(user.id, passwordHash);
+    await clearUserPasswordResetToken(user.id);
+    return { message: "Password reset successful." };
 }
 export async function getMyAdminProfile(userId) {
     const result = await findAdminProfileByUserId(userId);

@@ -9,7 +9,19 @@ import { clearAuth, getUser, setUser } from "../utils/auth";
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const savedTheme = window.localStorage.getItem("dh-theme");
+    if (savedTheme === "dark") {
+      return true;
+    }
+    if (savedTheme === "light") {
+      return false;
+    }
+    return document.documentElement.classList.contains("dark");
+  });
   const [user, setUserState] = useState(() => getUser());
   const location = useLocation();
   const navigate = useNavigate();
@@ -19,6 +31,7 @@ export function AdminLayout() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
+    window.localStorage.setItem("dh-theme", isDark ? "dark" : "light");
   }, [isDark]);
 
   useEffect(() => {

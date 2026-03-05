@@ -8,6 +8,22 @@ export const loginBodySchema = z.object({
     email: z.string().trim().email(),
     password: z.string().min(1),
 }).strict();
+
+export const forgotPasswordBodySchema = z.object({
+    email: z.string().trim().email(),
+}).strict();
+
+export const resetPasswordParamsSchema = z.object({
+    token: z.string().trim().min(1),
+}).strict();
+
+export const resetPasswordBodySchema = z.object({
+    password: z.string().min(8),
+    confirmPassword: z.string().min(8),
+}).strict().refine((payload) => payload.password === payload.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+});
 export const adminUserIdParamsSchema = z.object({
     userId: z.coerce.number().int().positive(),
 }).strict();

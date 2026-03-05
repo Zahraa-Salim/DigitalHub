@@ -5,11 +5,21 @@
 // @ts-nocheck
 import { sendSuccess } from "../utils/httpResponse.js";
 import { sendList } from "../utils/httpResponse.js";
-import { getMyAdminProfile, listAllAdmins, listUsersForMessagingService, loginAdmin, sendMessagingUsersService, updateAdminBySuperAdmin, updateMyAdminProfile } from "../services/auth.service.js";
+import { forgotPasswordService, getMyAdminProfile, listAllAdmins, listUsersForMessagingService, loginAdmin, resetPasswordService, sendMessagingUsersService, updateAdminBySuperAdmin, updateMyAdminProfile } from "../services/auth.service.js";
 export async function login(req, res) {
     const payload = req.body;
     const data = await loginAdmin(payload);
     sendSuccess(res, data, "Login successful");
+}
+
+export async function forgotPassword(req, res) {
+    const data = await forgotPasswordService(req.body);
+    sendSuccess(res, data, data.message);
+}
+
+export async function resetPassword(req, res) {
+    const data = await resetPasswordService(req.params.token, req.body);
+    sendSuccess(res, data, data.message);
 }
 export async function getMe(req, res) {
     const data = await getMyAdminProfile(req.user.id);

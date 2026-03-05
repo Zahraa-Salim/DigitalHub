@@ -37,14 +37,16 @@ function buildHtmlFromText(text) {
 }
 
 function readMailerEnvConfig() {
+  const service = process.env.SMTP_SERVICE?.trim() || process.env.EMAIL_SERVICE?.trim() || "";
   const host = process.env.SMTP_HOST?.trim() || "";
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = parseBoolean(process.env.SMTP_SECURE, port === 465);
-  const user = process.env.SMTP_USER?.trim() || "";
-  const pass = process.env.SMTP_PASS?.trim() || "";
+  const user = process.env.SMTP_USER?.trim() || process.env.EMAIL_USER?.trim() || "";
+  const pass = process.env.SMTP_PASS?.trim() || process.env.EMAIL_PASS?.trim() || "";
   const fromName = process.env.MAIL_FROM_NAME?.trim() || "Digital Hub";
 
   return {
+    service,
     host,
     port,
     secure,
@@ -55,14 +57,18 @@ function readMailerEnvConfig() {
 }
 
 function isSmtpUsable(config) {
+  if ((config.user && !config.pass) || (!config.user && config.pass)) return false;
+  if (config.service) {
+    return Boolean(config.user && config.pass);
+  }
   if (!config.host) return false;
   if (!Number.isFinite(config.port) || config.port <= 0) return false;
-  if ((config.user && !config.pass) || (!config.user && config.pass)) return false;
   return true;
 }
 
 function getTransporter(config) {
   const signature = JSON.stringify({
+    service: config.service,
     host: config.host,
     port: config.port,
     secure: config.secure,
@@ -73,17 +79,27 @@ function getTransporter(config) {
     return cachedTransporter;
   }
 
-  cachedTransporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.user
-      ? {
-          user: config.user,
-          pass: config.pass,
-        }
-      : undefined,
-  });
+  if (config.service) {
+    cachedTransporter = nodemailer.createTransport({
+      service: config.service,
+      auth: {
+        user: config.user,
+        pass: config.pass,
+      },
+    });
+  } else {
+    cachedTransporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: config.user
+        ? {
+            user: config.user,
+            pass: config.pass,
+          }
+        : undefined,
+    });
+  }
   cachedConfigSignature = signature;
   return cachedTransporter;
 }

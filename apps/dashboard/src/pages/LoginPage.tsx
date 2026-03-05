@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { setToken, setUser } from "../utils/auth";
 import { ApiError, api } from "../utils/api";
 
@@ -95,6 +95,11 @@ export function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          <div className="auth-form__meta">
+            <Link className="auth-form__forgot" to="/forgot-password">
+              Forgot Password?
+            </Link>
+          </div>
 
           {error ? <p className="field__error">{error}</p> : null}
 

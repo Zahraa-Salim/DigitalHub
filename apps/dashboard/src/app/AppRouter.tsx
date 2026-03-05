@@ -3,13 +3,17 @@ import { AdminLayout } from "./AdminLayout";
 import { RequireAdmin } from "./RequireAdmin";
 import { RequireRole } from "./RequireRole";
 import { adminRoutes } from "./adminRoutes";
+import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
 import { LoginPage } from "../pages/LoginPage";
+import { ResetPasswordPage } from "../pages/ResetPasswordPage";
 
 export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         <Route element={<RequireAdmin />}>
           <Route path="/admin" element={<AdminLayout />}>

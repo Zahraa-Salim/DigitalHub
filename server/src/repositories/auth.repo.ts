@@ -20,6 +20,49 @@ export async function findActiveAdminByEmail(email, db = pool) {
       LIMIT 1
     `, [email]);
 }
+
+export async function findUserByEmailForPasswordReset(email, db = pool) {
+    return db.query(`
+      SELECT id, email, is_active
+      FROM users
+      WHERE email = $1
+      LIMIT 1
+    `, [email]);
+}
+
+export async function setUserPasswordResetToken(userId, tokenHash, expiresAt, db = pool) {
+    return db.query(`
+      UPDATE users
+      SET
+        reset_password_token = $1,
+        reset_password_expires = $2,
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING id
+    `, [tokenHash, expiresAt, userId]);
+}
+
+export async function findUserByPasswordResetToken(tokenHash, db = pool) {
+    return db.query(`
+      SELECT id
+      FROM users
+      WHERE reset_password_token = $1
+        AND reset_password_expires > NOW()
+      LIMIT 1
+    `, [tokenHash]);
+}
+
+export async function clearUserPasswordResetToken(userId, db = pool) {
+    return db.query(`
+      UPDATE users
+      SET
+        reset_password_token = NULL,
+        reset_password_expires = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `, [userId]);
+}
 export async function updateLastLogin(userId, db = pool) {
     return db.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
 }

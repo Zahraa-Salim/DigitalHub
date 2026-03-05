@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT UNIQUE,
   phone         TEXT UNIQUE,
   password_hash TEXT NOT NULL,
+  reset_password_token TEXT,
+  reset_password_expires TIMESTAMPTZ,
 
   is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
   is_instructor BOOLEAN NOT NULL DEFAULT FALSE,
@@ -24,6 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
 
   CONSTRAINT users_email_or_phone_chk CHECK (email IS NOT NULL OR phone IS NOT NULL)
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_reset_password_token
+  ON users (reset_password_token);
 
 -- =========================
 -- 2) PROFILES

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
-import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
 import { Table } from "../../components/Table";
@@ -9,6 +8,9 @@ import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
+import { Filters } from "./profiles-shared/Filters";
+import { SearchBar } from "./profiles-shared/SearchBar";
+import { StatusPanel } from "./profiles-shared/StatusPanel";
 
 type InstructorRow = {
   user_id: number;
@@ -453,84 +455,86 @@ export function ProfilesInstructorsPage() {
         </button>
       }
     >
-      <Card className="instructors-hero">
-        <div>
-          <h3 className="section-title">Instructor Profiles Hub</h3>
-          <p className="info-text">Manage profiles, visibility, and activation from one panel.</p>
-        </div>
-        <div className="profile-badges">
-          <Badge tone="public">{`${publicCount} public`}</Badge>
-          <Badge tone="resolved">{`${activeCount} active`}</Badge>
-          <Badge tone="default">{`${pagination.total} total`}</Badge>
-        </div>
-      </Card>
+      <section className="students-layout">
+        <StatusPanel
+          title="Instructor Profiles Hub"
+          subtitle="Manage profiles, visibility, and activation from one panel."
+          badges={[
+            { tone: "public", label: `${publicCount} public` },
+            { tone: "resolved", label: `${activeCount} active` },
+            { tone: "default", label: `${pagination.total} total` },
+          ]}
+        />
 
-      <FilterBar
-        className="dh-form-grid dh-form-grid--compact filters-grid--5"
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search instructor name or expertise"
-        selects={[
-          {
-            label: "Visibility",
-            value: visibility,
-            options: [
-              { label: "All", value: "all" },
-              { label: "Public", value: "public" },
-              { label: "Private", value: "private" },
-            ],
-            onChange: (v) => setVisibility(v as "all" | "public" | "private"),
-          },
-          {
-            label: "Status",
-            value: status,
-            options: [
-              { label: "All", value: "all" },
-              { label: "Active", value: "active" },
-              { label: "Inactive", value: "inactive" },
-            ],
-            onChange: (v) => setStatus(v as "all" | "active" | "inactive"),
-          },
-          {
-            label: "Sort By",
-            value: sortBy,
-            options: [
-              { label: "Newest", value: "created_at" },
-              { label: "Name", value: "full_name" },
-              { label: "User ID", value: "user_id" },
-            ],
-            onChange: (v) => setSortBy(v as "created_at" | "full_name" | "user_id"),
-          },
-          {
-            label: "Order",
-            value: sortOrder,
-            options: [
-              { label: "Descending", value: "desc" },
-              { label: "Ascending", value: "asc" },
-            ],
-            onChange: (v) => setSortOrder(v as "desc" | "asc"),
-          },
-        ]}
-      />
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search instructor name or expertise"
+          ariaLabel="Search instructor name or expertise"
+        />
 
-      {error ? (
-        <Card>
-          <p className="alert alert--error">{error}</p>
-        </Card>
-      ) : null}
+        <Filters
+          selects={[
+            {
+              label: "Visibility",
+              value: visibility,
+              options: [
+                { label: "All", value: "all" },
+                { label: "Public", value: "public" },
+                { label: "Private", value: "private" },
+              ],
+              onChange: (value) => setVisibility(value as "all" | "public" | "private"),
+            },
+            {
+              label: "Status",
+              value: status,
+              options: [
+                { label: "All", value: "all" },
+                { label: "Active", value: "active" },
+                { label: "Inactive", value: "inactive" },
+              ],
+              onChange: (value) => setStatus(value as "all" | "active" | "inactive"),
+            },
+            {
+              label: "Sort By",
+              value: sortBy,
+              options: [
+                { label: "Newest", value: "created_at" },
+                { label: "Name", value: "full_name" },
+                { label: "User ID", value: "user_id" },
+              ],
+              onChange: (value) => setSortBy(value as "created_at" | "full_name" | "user_id"),
+            },
+            {
+              label: "Order",
+              value: sortOrder,
+              options: [
+                { label: "Descending", value: "desc" },
+                { label: "Ascending", value: "asc" },
+              ],
+              onChange: (value) => setSortOrder(value as "desc" | "asc"),
+            },
+          ]}
+        />
 
-      {loading ? (
-        <Card>
-          <div className="spinner">Loading instructors...</div>
-        </Card>
-      ) : (
-        <>
-          <Card className="card--table dh-table-wrap">
-            <Table<InstructorRow>
-              rows={rows}
-              rowKey={(r) => r.user_id}
-              emptyMessage="No instructors found."
-              columns={[
+        {error ? (
+          <section className="students-feedback">
+            <p className="alert alert--error">{error}</p>
+          </section>
+        ) : null}
+
+        {loading ? (
+          <section className="students-feedback">
+            <div className="spinner">Loading instructors...</div>
+          </section>
+        ) : (
+          <>
+            <Card className="card--table dh-table-wrap">
+              <Table<InstructorRow>
+                rows={rows}
+                rowKey={(r) => r.user_id}
+                emptyMessage="No instructors found."
+                columns={[
                 {
                   key: "name",
                   label: "Name",
@@ -575,17 +579,18 @@ export function ProfilesInstructorsPage() {
                     </div>
                   ),
                 },
-              ]}
-            />
-          </Card>
-
-          {pagination.total > 0 ? (
-            <Card>
-              <Pagination page={pagination.page} totalPages={totalPagesSafe} onChange={setPage} />
+                ]}
+              />
             </Card>
-          ) : null}
-        </>
-      )}
+
+            {pagination.total > 0 ? (
+              <section className="students-pagination">
+                <Pagination page={pagination.page} totalPages={totalPagesSafe} onChange={setPage} />
+              </section>
+            ) : null}
+          </>
+        )}
+      </section>
 
       {createOpen ? (
         <div className="modal-overlay modal-overlay--profile" role="presentation" onClick={() => !creating && !createAvatarUploading && setCreateOpen(false)}>

@@ -37,6 +37,7 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, "../uploads");
+const defaultFrontendDistDir = path.resolve(__dirname, "../../apps/dashboard/dist");
 
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -72,6 +73,7 @@ app.get("/health", async (_req, res, next) => {
     }
 });
 app.use("/auth", authRouter);
+app.use("/api/auth", authRouter);
 app.use("/cms", cmsRouter);
 app.use(programsRouter);
 app.use("/profiles", profilesRouter);
@@ -93,6 +95,43 @@ app.use("/notifications", notificationsRouter);
 app.use("/logs", logsRouter);
 app.use(projectsRouter);
 app.use("/public", publicRouter);
+
+const frontendDistDir = process.env.FRONTEND_DIST_DIR
+    ? path.resolve(process.env.FRONTEND_DIST_DIR)
+    : defaultFrontendDistDir;
+const frontendIndexFile = path.join(frontendDistDir, "index.html");
+if (fs.existsSync(frontendIndexFile)) {
+    app.use(express.static(frontendDistDir));
+    app.use((req, res, next) => {
+        if (req.method !== "GET") {
+            return next();
+        }
+        const pathName = req.path || "";
+        if (pathName.startsWith("/api/") ||
+            pathName.startsWith("/auth/") ||
+            pathName.startsWith("/cms/") ||
+            pathName.startsWith("/profiles/") ||
+            pathName.startsWith("/applications/") ||
+            pathName.startsWith("/program-applications/") ||
+            pathName.startsWith("/admin/") ||
+            pathName.startsWith("/admins/") ||
+            pathName.startsWith("/announcements/") ||
+            pathName.startsWith("/attendance/") ||
+            pathName.startsWith("/events/") ||
+            pathName.startsWith("/forms/") ||
+            pathName.startsWith("/message-templates/") ||
+            pathName.startsWith("/contact/") ||
+            pathName.startsWith("/notifications/") ||
+            pathName.startsWith("/logs/") ||
+            pathName.startsWith("/public/") ||
+            pathName.startsWith("/uploads/") ||
+            pathName === "/health") {
+            return next();
+        }
+        return res.sendFile(frontendIndexFile);
+    });
+}
+
 app.use(notFound);
 app.use(errorHandler);
 async function ensureSoftDeleteColumns() {
@@ -114,6 +153,10 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE events ADD COLUMN IF NOT EXISTS post_body TEXT;
       UPDATE events SET completion_image_urls = '[]'::jsonb WHERE completion_image_urls IS NULL;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_users_reset_password_token
+        ON users (reset_password_token);
       CREATE TABLE IF NOT EXISTS attendance_sessions (
         id BIGSERIAL PRIMARY KEY,
         cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
@@ -286,6 +329,11 @@ async function startServer() {
         const port = Number(process.env.PORT || 5000);
         app.listen(port, () => {
             console.log(`Digital Hub server listening on http://localhost:${port}`);
+            if (String(process.env.LOG_ROUTES || "").trim().toLowerCase() === "true") {
+                const routes = collectRoutes(app);
+                console.log("[routes] Registered routes:");
+                routes.forEach((route) => console.log(`[routes] ${route}`));
+            }
         });
     }
     catch (error) {
@@ -294,3 +342,27 @@ async function startServer() {
     }
 }
 startServer();
+function collectRoutes(application) {
+    const routes = [];
+    const stack = application?.router?.stack || [];
+    const walk = (layerStack, prefix = "") => {
+        for (const layer of layerStack) {
+            if (layer.route?.path) {
+                const methods = Object.keys(layer.route.methods || {})
+                    .filter((method) => layer.route.methods[method])
+                    .map((method) => method.toUpperCase())
+                    .join(",");
+                routes.push(`${methods} ${prefix}${layer.route.path}`);
+                continue;
+            }
+            if (layer.name === "router" && layer.handle?.stack) {
+                const raw = String(layer.regexp || "");
+                const match = raw.match(/\\\/([^\\]+)\\\/\\\?\(\?=\\\/\|\$\)/);
+                const fragment = match?.[1] ? `/${match[1].replace(/\\\//g, "/")}` : "";
+                walk(layer.handle.stack, `${prefix}${fragment}`);
+            }
+        }
+    };
+    walk(stack);
+    return Array.from(new Set(routes)).sort();
+}
