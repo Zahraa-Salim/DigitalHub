@@ -6,6 +6,12 @@ import { RequireRole } from "./RequireRole";
 import { adminRoutes } from "./adminRoutes";
 
 const LoginPage = lazy(() => import("../pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const ForgotPasswordPage = lazy(() =>
+  import("../pages/ForgotPasswordPage").then((module) => ({ default: module.ForgotPasswordPage })),
+);
+const ResetPasswordPage = lazy(() =>
+  import("../pages/ResetPasswordPage").then((module) => ({ default: module.ResetPasswordPage })),
+);
 
 function RouteFallback() {
   return <div style={{ padding: "24px", color: "#23314f" }}>Loading...</div>;
@@ -20,6 +26,22 @@ export function AppRouter() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <LoginPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ForgotPasswordPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/reset-password/:token"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ResetPasswordPage />
             </Suspense>
           }
         />

@@ -1,60 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
-import { Card } from "../../components/Card";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
-import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
-import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
-
-type StudentCohort = {
-  enrollment_id: number;
-  cohort_id: number | null;
-  cohort_name: string | null;
-  cohort_status: string | null;
-  program_id: number | null;
-  program_title: string | null;
-  enrollment_status: string | null;
-  enrolled_at: string | null;
-};
-
-type StudentRow = {
-  user_id: number;
-  full_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  linkedin_url: string | null;
-  github_url: string | null;
-  portfolio_url: string | null;
-  is_public: boolean;
-  featured: boolean;
-  featured_rank: number | null;
-  public_slug: string | null;
-  is_graduated: boolean;
-  is_working: boolean;
-  open_to_work: boolean;
-  company_work_for: string | null;
-  admin_status: "active" | "dropout" | null;
-  dropout_reason: string | null;
-  status_updated_at: string | null;
-  status_updated_by: number | null;
-  created_at: string;
-  email: string | null;
-  phone: string | null;
-  is_active: boolean;
-  cohorts: StudentCohort[] | null;
-};
-
-type CohortOption = {
-  id: number;
-  name: string;
-};
-
-type StudentStatus = "active" | "dropout";
+import { Filters } from "./profiles-shared/Filters";
+import { SearchBar } from "./profiles-shared/SearchBar";
+import { StatusPanel } from "./profiles-shared/StatusPanel";
+import { StudentsTable } from "./profiles-students/StudentsTable";
+import { type CohortOption, type StudentRow, type StudentStatus, getStudentStatus, summarizeCohorts } from "./profiles-students/types";
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
 
@@ -85,32 +42,6 @@ type StudentAttendanceResponse = {
 
 function asText(value: string | null | undefined): string {
   return String(value ?? "").trim() || "Not set";
-}
-
-function getStudentStatus(row: Pick<StudentRow, "admin_status" | "is_active">): StudentStatus {
-  const status = String(row.admin_status || "").trim().toLowerCase();
-  if (status === "dropout") return "dropout";
-  if (status === "active") return "active";
-  return row.is_active ? "active" : "dropout";
-}
-
-function summarizeCohorts(cohorts: StudentCohort[] | null | undefined): string {
-  if (!Array.isArray(cohorts) || cohorts.length === 0) {
-    return "No cohort assigned";
-  }
-  const labels = cohorts
-    .map((entry) => {
-      const program = String(entry.program_title || "").trim();
-      const cohort = String(entry.cohort_name || "").trim();
-      if (program && cohort) return `${program} - ${cohort}`;
-      if (cohort) return cohort;
-      if (program) return program;
-      return "Assigned cohort";
-    })
-    .filter((value) => value.length > 0);
-  if (!labels.length) return "No cohort assigned";
-  if (labels.length <= 2) return labels.join(" | ");
-  return `${labels.slice(0, 2).join(" | ")} +${labels.length - 2} more`;
 }
 
 export function ProfilesStudentsPage() {
@@ -158,19 +89,10 @@ export function ProfilesStudentsPage() {
     window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 3600);
   }, []);
 
-  const cohortSelectOptions = useMemo(
-    () => [
-      { label: "All Cohorts", value: "all" },
-      ...cohorts.map((item) => ({ label: item.name, value: String(item.id) })),
-    ],
-    [cohorts],
-  );
-
   const publicCount = useMemo(() => rows.filter((entry) => entry.is_public).length, [rows]);
   const activeCount = useMemo(() => rows.filter((entry) => getStudentStatus(entry) === "active").length, [rows]);
   const dropoutCount = useMemo(() => rows.filter((entry) => getStudentStatus(entry) === "dropout").length, [rows]);
   const totalPagesSafe = Math.max(1, pagination.totalPages);
-  const allSelected = rows.length > 0 && rows.every((entry) => selectedIds.has(entry.user_id));
   const selectedRows = useMemo(
     () => rows.filter((entry) => selectedIds.has(entry.user_id)),
     [rows, selectedIds],
@@ -388,203 +310,137 @@ export function ProfilesStudentsPage() {
       title="Students"
       subtitle="View student profiles, send messages, and manage student status."
     >
-      <Card className="instructors-hero">
-        <div>
-          <h3 className="section-title">Student Profiles Hub</h3>
-          <p className="info-text">Profiles are view-only. Only status can be changed.</p>
-        </div>
-        <div className="profile-badges">
-          <Badge tone="resolved">{`${activeCount} active`}</Badge>
-          <Badge tone="draft">{`${dropoutCount} dropout`}</Badge>
-          <Badge tone="public">{`${publicCount} public`}</Badge>
-          <Badge tone="default">{`${pagination.total} total`}</Badge>
-        </div>
-      </Card>
+      <section className="students-layout">
+        <StatusPanel
+          title="Student Profiles Hub"
+          subtitle="Profiles are view-only. Only status can be changed."
+          badges={[
+            { tone: "public", label: `${publicCount} public` },
+            { tone: "resolved", label: `${activeCount} active` },
+            { tone: "draft", label: `${dropoutCount} dropout` },
+            { tone: "default", label: `${pagination.total} total` },
+          ]}
+        />
 
-      <FilterBar
-        className="dh-form-grid dh-form-grid--compact filters-grid--students-one-line"
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search student name"
-        selects={[
-          {
-            label: "Status",
-            value: statusFilter,
-            options: [
-              { label: "All", value: "all" },
-              { label: "Active", value: "active" },
-              { label: "Dropped", value: "dropout" },
-            ],
-            onChange: (value) => setStatusFilter(value as "all" | StudentStatus),
-          },
-          {
-            label: "Visibility",
-            value: visibility,
-            options: [
-              { label: "All", value: "all" },
-              { label: "Public", value: "public" },
-              { label: "Private", value: "private" },
-            ],
-            onChange: (value) => setVisibility(value as "all" | "public" | "private"),
-          },
-          {
-            label: loadingCohorts ? "Cohort (loading...)" : "Cohort",
-            value: cohortFilter,
-            options: cohortSelectOptions,
-            onChange: setCohortFilter,
-          },
-          {
-            label: "Sort By",
-            value: sortBy,
-            options: [
-              { label: "Newest", value: "created_at" },
-              { label: "Name", value: "full_name" },
-              { label: "Status", value: "status" },
-            ],
-            onChange: (value) => setSortBy(value as "created_at" | "full_name" | "status"),
-          },
-          {
-            label: "Order",
-            value: sortOrder,
-            options: [
-              { label: "Descending", value: "desc" },
-              { label: "Ascending", value: "asc" },
-            ],
-            onChange: (value) => setSortOrder(value as "asc" | "desc"),
-          },
-        ]}
-      />
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search student name"
+          ariaLabel="Search student name"
+        />
 
-      {selectedRows.length ? (
-        <Card className="admx-bulkbar">
-          <div className="admx-bulkbar__left">
-            <p>{selectedRows.length} student{selectedRows.length === 1 ? "" : "s"} selected</p>
-            <button className="admx-bulkbar__clear" type="button" aria-label="Clear selected students" onClick={() => setSelectedIds(new Set())}>×</button>
-          </div>
-          <div className="admx-bulkbar__actions">
-            <button className="admx-bulkbar__message" type="button" onClick={() => openMessageModal(selectedRows)}>
-              Message
-            </button>
-            <button className="btn btn--secondary btn--sm" type="button" onClick={() => setCsvExportOpen(true)}>
-              Export CSV
-            </button>
-          </div>
-        </Card>
-      ) : null}
+        <Filters
+          selects={[
+            {
+              label: "Status",
+              value: statusFilter,
+              options: [
+                { label: "All", value: "all" },
+                { label: "Active", value: "active" },
+                { label: "Dropped", value: "dropout" },
+              ],
+              onChange: (value) => setStatusFilter(value as "all" | StudentStatus),
+            },
+            {
+              label: "Visibility",
+              value: visibility,
+              options: [
+                { label: "All", value: "all" },
+                { label: "Public", value: "public" },
+                { label: "Private", value: "private" },
+              ],
+              onChange: (value) => setVisibility(value as "all" | "public" | "private"),
+            },
+            {
+              label: loadingCohorts ? "Cohort (loading...)" : "Cohort",
+              value: cohortFilter,
+              options: [
+                { label: "All Cohorts", value: "all" },
+                ...cohorts.map((cohort) => ({ label: cohort.name, value: String(cohort.id) })),
+              ],
+              onChange: setCohortFilter,
+            },
+            {
+              label: "Sort By",
+              value: sortBy,
+              options: [
+                { label: "Newest", value: "created_at" },
+                { label: "Name", value: "full_name" },
+                { label: "Status", value: "status" },
+              ],
+              onChange: (value) => setSortBy(value as "created_at" | "full_name" | "status"),
+            },
+            {
+              label: "Order",
+              value: sortOrder,
+              options: [
+                { label: "Descending", value: "desc" },
+                { label: "Ascending", value: "asc" },
+              ],
+              onChange: (value) => setSortOrder(value as "asc" | "desc"),
+            },
+          ]}
+        />
 
-      {error ? (
-        <Card>
-          <p className="alert alert--error">{error}</p>
-        </Card>
-      ) : null}
+        {selectedRows.length ? (
+          <section className="admx-bulkbar">
+            <div className="admx-bulkbar__left">
+              <p>{selectedRows.length} student{selectedRows.length === 1 ? "" : "s"} selected</p>
+              <button
+                className="admx-bulkbar__clear"
+                type="button"
+                aria-label="Clear selected students"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                x
+              </button>
+            </div>
+            <div className="admx-bulkbar__actions">
+              <button className="admx-bulkbar__message" type="button" onClick={() => openMessageModal(selectedRows)}>
+                Message
+              </button>
+              <button className="btn btn--secondary btn--sm" type="button" onClick={() => setCsvExportOpen(true)}>
+                Export CSV
+              </button>
+            </div>
+          </section>
+        ) : null}
 
-      {loading ? (
-        <Card>
-          <div className="spinner">Loading students...</div>
-        </Card>
-      ) : (
-        <>
-          <Card className="card--table dh-table-wrap profiles-students-table-card">
-            <Table<StudentRow>
-              rows={rows}
-              rowKey={(row) => row.user_id}
-              emptyMessage="No students found."
-              columns={[
-                {
-                  key: "select",
-                  label: (
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={() =>
-                        setSelectedIds((current) => {
-                          if (allSelected) {
-                            const next = new Set(current);
-                            rows.forEach((entry) => next.delete(entry.user_id));
-                            return next;
-                          }
-                          const next = new Set(current);
-                          rows.forEach((entry) => next.add(entry.user_id));
-                          return next;
-                        })
-                      }
-                    />
-                  ),
-                  render: (row) => (
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(row.user_id)}
-                      onChange={() =>
-                        setSelectedIds((current) => {
-                          const next = new Set(current);
-                          if (next.has(row.user_id)) next.delete(row.user_id);
-                          else next.add(row.user_id);
-                          return next;
-                        })
-                      }
-                    />
-                  ),
-                },
-                {
-                  key: "name",
-                  label: "Student",
-                  className: "table-cell-strong",
-                  render: (row) => (
-                    <button className="program-title-btn" type="button" onClick={() => setDetails(row)}>
-                      {row.full_name?.trim() || "Unnamed student"}
-                    </button>
-                  ),
-                },
-                {
-                  key: "cohorts",
-                  label: "Cohorts",
-                  render: (row) => summarizeCohorts(row.cohorts),
-                },
-                {
-                  key: "status",
-                  label: "Status",
-                  render: (row) => {
-                    const status = getStudentStatus(row);
-                    return <Badge tone={status === "active" ? "resolved" : "draft"}>{status}</Badge>;
-                  },
-                },
-                {
-                  key: "actions",
-                  label: "Actions",
-                  render: (row) => {
-                    const status = getStudentStatus(row);
-                    return (
-                      <div className="table-actions">
-                        <button className="btn btn--secondary btn--sm" type="button" onClick={() => setDetails(row)}>
-                          View
-                        </button>
-                        <button className="btn btn--primary btn--sm" type="button" onClick={() => openMessageModal([row])}>
-                          Message
-                        </button>
-                        {status === "active" ? (
-                          <button className="btn btn--danger btn--sm" type="button" onClick={() => openStatusModal(row, "dropout")}>
-                            Set Dropout
-                          </button>
-                        ) : (
-                          <button className="btn btn--success btn--sm" type="button" onClick={() => openStatusModal(row, "active")}>
-                            Set Active
-                          </button>
-                        )}
-                      </div>
-                    );
-                  },
-                },
-              ]}
-            />
-          </Card>
+        {error ? (
+          <section className="students-feedback">
+            <p className="alert alert--error">{error}</p>
+          </section>
+        ) : null}
 
-          {pagination.total > 0 ? (
-            <Card>
-              <Pagination page={pagination.page} totalPages={totalPagesSafe} onChange={setPage} />
-            </Card>
-          ) : null}
-        </>
-      )}
+        {loading ? (
+          <section className="students-feedback">
+            <div className="spinner">Loading students...</div>
+          </section>
+        ) : (
+          <StudentsTable
+            rows={rows}
+            selectedIds={selectedIds}
+            onToggleRow={(id) =>
+              setSelectedIds((current) => {
+                const next = new Set(current);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+            onView={setDetails}
+            onMessage={(row) => openMessageModal([row])}
+            onSetDropout={(row) => openStatusModal(row, "dropout")}
+            onSetActive={(row) => openStatusModal(row, "active")}
+          />
+        )}
+
+        {!loading && pagination.total > 0 ? (
+          <section className="students-pagination">
+            <Pagination page={pagination.page} totalPages={totalPagesSafe} onChange={setPage} />
+          </section>
+        ) : null}
+      </section>
 
       {details ? (
         <div className="modal-overlay modal-overlay--profile" role="presentation" onClick={() => setDetails(null)}>
@@ -791,3 +647,5 @@ export function ProfilesStudentsPage() {
     </PageShell>
   );
 }
+
+
