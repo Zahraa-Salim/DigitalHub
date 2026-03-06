@@ -20,16 +20,11 @@ type GeneralApplyFormProps = {
 };
 
 type AnswersMap = Record<string, unknown>;
-type FieldErrorsMap = Record<string, string>;
+type FieldErrors = Record<string, string>;
 
 type SelectOption = {
   label: string;
   value: string;
-};
-
-type FormAlertState = {
-  type: "idle" | "success" | "error";
-  message: string;
 };
 
 const inputTypeByField: Record<string, string> = {
@@ -39,8 +34,6 @@ const inputTypeByField: Record<string, string> = {
   file: "file",
   text: "text",
 };
-
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const parseSelectOptions = (options: unknown): SelectOption[] => {
   if (!Array.isArray(options)) return [];
@@ -175,6 +168,39 @@ const buildDefaultAnswers = (fields: PublicFormField[], selectedProgramId: numbe
   return defaults;
 };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const answerAsString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const validateFieldAnswer = (field: PublicFormField, value: unknown): string | null => {
+  if (field.type === "checkbox") {
+    if (field.required && !Boolean(value)) {
+      return `${field.label || field.name} is required.`;
+    }
+    return null;
+  }
+
+  const textValue = answerAsString(value);
+  if (field.required && !textValue) {
+    return `${field.label || field.name} is required.`;
+  }
+  if (!textValue) {
+    return null;
+  }
+
+  if (field.min_length && textValue.length < field.min_length) {
+    return `${field.label || field.name} must be at least ${field.min_length} characters.`;
+  }
+  if (field.max_length && textValue.length > field.max_length) {
+    return `${field.label || field.name} must be at most ${field.max_length} characters.`;
+  }
+  if ((field.type === "email" || field.name.toLowerCase().includes("email")) && !EMAIL_PATTERN.test(textValue)) {
+    return "Please enter a valid email address.";
+  }
+
+  return null;
+};
+
 const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralApplyFormProps) => {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -183,8 +209,8 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
   const [cohortCatalog, setCohortCatalog] = useState<PublicCohort[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(defaultProgramId ?? null);
   const [answers, setAnswers] = useState<AnswersMap>({});
-  const [formAlert, setFormAlert] = useState<FormAlertState>({ type: "idle", message: "" });
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorsMap>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const enabledFields = useMemo(
     () =>
@@ -269,6 +295,7 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
         setSelectedProgramId(resolvedProgramId);
         setAnswers(buildDefaultAnswers(data.fields || [], resolvedProgramId));
         setFieldErrors({});
+        setSubmitMessage(null);
       } catch (error) {
         if (!active) return;
         notifyError(
@@ -289,78 +316,46 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
   }, [defaultProgramId, defaultProgramTitle]);
 
   const onFieldValueChange = (fieldName: string, value: unknown) => {
-    setFormAlert((current) => (current.type === "idle" ? current : { type: "idle", message: "" }));
     setAnswers((prev) => ({ ...prev, [fieldName]: value }));
     setFieldErrors((prev) => {
       if (!prev[fieldName]) return prev;
-      const field = enabledFields.find((item) => item.name === fieldName);
-      if (!field) {
-        const next = { ...prev };
-        delete next[fieldName];
-        return next;
-      }
-      const nextError = validateFieldValue(field, value);
-      if (!nextError) {
-        const next = { ...prev };
-        delete next[fieldName];
-        return next;
-      }
-      return { ...prev, [fieldName]: nextError };
+      const next = { ...prev };
+      delete next[fieldName];
+      return next;
     });
-  };
-
-  const validateFieldValue = (field: PublicFormField, value: unknown) => {
-    const label = field.label || field.name;
-    if (field.required) {
-      if (field.type === "checkbox" && !value) {
-        return `${label} is required.`;
-      }
-      if (field.type !== "checkbox") {
-        const raw = typeof value === "string" ? value.trim() : value;
-        if (raw === "" || raw === null || raw === undefined) {
-          return `${label} is required.`;
-        }
-      }
-    }
-
-    const normalizedValue = typeof value === "string" ? value.trim() : "";
-    const looksLikeEmailField = field.type === "email" || field.name.toLowerCase().includes("email");
-    if (looksLikeEmailField && normalizedValue && !emailRegex.test(normalizedValue)) {
-      return `Please enter a valid email address for ${label}.`;
-    }
-    return "";
-  };
-
-  const validateAnswers = () => {
-    const nextErrors: FieldErrorsMap = {};
-
-    if (!selectedProgramId) {
-      nextErrors.program_id = "Please select a program first.";
-    }
-
-    for (const field of enabledFields) {
-      const value = answers[field.name];
-      const message = validateFieldValue(field, value);
-      if (message) {
-        nextErrors[field.name] = message;
-      }
-    }
-
-    return nextErrors;
+    setSubmitMessage(null);
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (pending) return;
+    setSubmitMessage(null);
+
+    // Validate configured dynamic fields before hitting the API.
+    const nextErrors: FieldErrors = {};
+    if (!selectedProgramId) {
+      nextErrors.program_id = "Please select a program first.";
+    }
+    enabledFields.forEach((field) => {
+      const error = validateFieldAnswer(field, answers[field.name]);
+      if (error) {
+        nextErrors[field.name] = error;
+      }
+    });
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setSubmitMessage({ type: "error", text: "Please fix the highlighted fields and submit again." });
+      notifyError("Please fix the highlighted fields and submit again.", { id: "general-apply-validation-error" });
+      return;
+    }
+
+    setFieldErrors({});
+    setPending(true);
 
     try {
-      const validationErrors = validateAnswers();
-      setFieldErrors(validationErrors);
-      const firstValidationError = Object.values(validationErrors)[0];
-      if (firstValidationError) {
-        throw new Error(firstValidationError);
+      if (!selectedProgramId) {
+        throw new Error("Please select a program first.");
       }
-      setPending(true);
 
       const payloadAnswers: Record<string, unknown> = {
         ...answers,
@@ -373,20 +368,16 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
       });
 
       notifySuccess("Application submitted successfully.", { id: "general-apply-success" });
-      setFormAlert({
-        type: "success",
-        message: "Application submitted successfully. We will contact you with next steps.",
-      });
       setAnswers(buildDefaultAnswers(formData?.fields || [], selectedProgramId));
-      setFieldErrors({});
+      setSubmitMessage({ type: "success", text: "Application submitted successfully. We will contact you soon." });
     } catch (error) {
-      const message =
+      const errorText =
         error instanceof Error ? error.message : "Unable to submit your application right now. Please try again.";
-      setFormAlert({ type: "error", message });
       notifyError(
-        message,
+        errorText,
         { id: "general-apply-submit-error" }
       );
+      setSubmitMessage({ type: "error", text: errorText });
     } finally {
       setPending(false);
     }
@@ -408,10 +399,15 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
   }
 
   return (
-    <form onSubmit={onSubmit} id="general-apply-form" aria-busy={pending}>
+    <form onSubmit={onSubmit} id="general-apply-form" noValidate aria-busy={pending}>
       <p className="application-form__legend">
         <span className="application-form__required-mark">*</span> Required fields
       </p>
+      {submitMessage ? (
+        <p className={`application-form__status application-form__status--${submitMessage.type}`} role="status">
+          {submitMessage.text}
+        </p>
+      ) : null}
 
       <div className="form-grp">
         <label htmlFor="general-apply-program-select" className="application-form__field-label">
@@ -425,13 +421,17 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
           required
           className="application-form__select"
           disabled={pending}
-          aria-invalid={fieldErrors.program_id ? true : undefined}
-          aria-describedby={fieldErrors.program_id ? "general-apply-program-select-error" : undefined}
           value={selectedProgramId ?? ""}
           onChange={(e) => {
             const nextProgramId = e.target.value ? Number(e.target.value) : null;
             setSelectedProgramId(nextProgramId);
             onFieldValueChange("program_id", nextProgramId ? String(nextProgramId) : "");
+            setFieldErrors((prev) => {
+              if (!prev.program_id) return prev;
+              const next = { ...prev };
+              delete next.program_id;
+              return next;
+            });
           }}
         >
           <option value="" disabled>
@@ -443,11 +443,7 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
             </option>
           ))}
         </select>
-        {fieldErrors.program_id ? (
-          <p id="general-apply-program-select-error" className="application-form__field-error" role="alert">
-            {fieldErrors.program_id}
-          </p>
-        ) : null}
+        {fieldErrors.program_id ? <p className="application-form__field-error">{fieldErrors.program_id}</p> : null}
       </div>
 
       <div className={`application-form__program-drawer ${selectedProgramDetails ? "is-open" : ""}`}>
@@ -486,8 +482,6 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
       {enabledFields.map((field) => {
         const fieldId = `general-apply-field-${field.id}`;
         const fieldLabel = field.label || field.name;
-        const fieldError = fieldErrors[field.name];
-        const fieldErrorId = `${fieldId}-error`;
 
         if (field.type === "textarea") {
           return (
@@ -504,17 +498,10 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                 placeholder={field.placeholder || field.label}
                 required={field.required}
                 aria-required={field.required || undefined}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? fieldErrorId : undefined}
-                disabled={pending}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               ></textarea>
-              {fieldError ? (
-                <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                  {fieldError}
-                </p>
-              ) : null}
+              {fieldErrors[field.name] ? <p className="application-form__field-error">{fieldErrors[field.name]}</p> : null}
             </div>
           );
         }
@@ -535,9 +522,6 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                 className="application-form__select"
                 required={field.required}
                 aria-required={field.required || undefined}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? fieldErrorId : undefined}
-                disabled={pending}
                 value={String(answers[field.name] ?? "")}
                 onChange={(e) => onFieldValueChange(field.name, e.target.value)}
               >
@@ -550,11 +534,7 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                   </option>
                 ))}
               </select>
-              {fieldError ? (
-                <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                  {fieldError}
-                </p>
-              ) : null}
+              {fieldErrors[field.name] ? <p className="application-form__field-error">{fieldErrors[field.name]}</p> : null}
             </div>
           );
         }
@@ -574,19 +554,12 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                 type="file"
                 required={field.required}
                 aria-required={field.required || undefined}
-                aria-invalid={fieldError ? true : undefined}
-                aria-describedby={fieldError ? fieldErrorId : undefined}
-                disabled={pending}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   onFieldValueChange(field.name, file?.name || "");
                 }}
               />
-              {fieldError ? (
-                <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                  {fieldError}
-                </p>
-              ) : null}
+              {fieldErrors[field.name] ? <p className="application-form__field-error">{fieldErrors[field.name]}</p> : null}
             </div>
           );
         }
@@ -601,9 +574,6 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                   type="checkbox"
                   required={field.required}
                   aria-required={field.required || undefined}
-                  aria-invalid={fieldError ? true : undefined}
-                  aria-describedby={fieldError ? fieldErrorId : undefined}
-                  disabled={pending}
                   checked={Boolean(answers[field.name])}
                   onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
                 />
@@ -612,11 +582,7 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
                   {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
                 </span>
               </label>
-              {fieldError ? (
-                <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                  {fieldError}
-                </p>
-              ) : null}
+              {fieldErrors[field.name] ? <p className="application-form__field-error">{fieldErrors[field.name]}</p> : null}
             </div>
           );
         }
@@ -636,26 +602,13 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
               placeholder={field.placeholder || field.label}
               required={field.required}
               aria-required={field.required || undefined}
-              aria-invalid={fieldError ? true : undefined}
-              aria-describedby={fieldError ? fieldErrorId : undefined}
-              disabled={pending}
               value={String(answers[field.name] ?? "")}
               onChange={(e) => onFieldValueChange(field.name, e.target.value)}
             />
-            {fieldError ? (
-              <p id={fieldErrorId} className="application-form__field-error" role="alert">
-                {fieldError}
-              </p>
-            ) : null}
+            {fieldErrors[field.name] ? <p className="application-form__field-error">{fieldErrors[field.name]}</p> : null}
           </div>
         );
       })}
-
-      {formAlert.type !== "idle" ? (
-        <p className={`application-form__status application-form__status--${formAlert.type}`} role="status">
-          {formAlert.message}
-        </p>
-      ) : null}
 
       <button type="submit" className="btn btn-two arrow-btn" disabled={pending || !selectedProgramId}>
         {pending ? "Submitting..." : "Submit Application"} <BtnArrow />
