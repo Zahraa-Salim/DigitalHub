@@ -1,339 +1,894 @@
-# Digital Hub — Main Website Workflow (Public) + Students Pages
+# Digital Hub — Public Website
+## Pages • Features • Data from DB • API Integration (Updated)
 
-This document describes the **public website workflow**: what pages exist, what content comes from the database, what actions happen, and key rules/notes.  
-Includes **Students List**, **Students Summary**, **Student Detail**, and **Footer** requirements.
+This document defines the public website behavior based on the latest scope:
 
----
-
-## 0) Global Website Rules
-
-### 0.1 Global data loaded on every page
-**DB / API sources**
-- `site_settings`
-  - `site_name`
-  - `theme` (JSON of CSS variables)
-  - `default_event_location` (default: "Digital Hub")
-  - `contact_info` (address, phone, email)
-  - `social_links`
-
-**Used for**
-- Header branding + footer contact/social
-- Default event location fallback
-- Theme styling via CSS variables
-
-**Notes**
-- Cache in frontend (e.g., 10 minutes) to reduce requests.
-- Apply theme vars at app start:
-  - `--primary`, `--secondary`, `--bg`, `--text`, etc.
+- ✅ Website is CMS-driven from database
+- ✅ Visitor can apply to open cohorts
+- ✅ Visitor can contact Digital Hub (questions / feedback)
+- ✅ Company / Recruiter can request visits via contact form
+- ✅ Website shows Programs (with Cohorts inside), Announcements, Participants, Team
+- ✅ Events are presented under About section
+- ✅ Website reads theme tokens and applies CSS variables
+- ✅ Recruiter Assistant accessible from CTA (Hire Talent)
+- ✅ Dedicated Cohort Application page exists
+- ✅ Subscribe + Join Our Team CTA at bottom of Home
 
 ---
 
-## 1) Home Page (`/`) Workflow
+# 1) Website Goals
 
-Home is built from **sections stored in DB** and toggled on/off by admin.
-
-### 1.1 Fetch home sections
-**API**
-- `GET /public/home`
-
-**DB**
-- `home_sections` where `is_enabled=true` sorted by `sort_order`
-
-**Section block shape**
-- `key` (unique)
-- `title`
-- `content` (JSON)
-- `is_enabled`
-- `sort_order`
-
-### 1.2 Required home sections (minimum)
-- `hero`
-- `about_summary`
-- `programs_preview`
-- `events_preview`
-- `featured_students` ✅
-- `featured_instructors`
-- `announcements_preview`
-- `cta`
-- `contact_summary`
+- Present Digital Hub as an employability / career development platform
+- Show Programs and their Cohorts
+- Collect cohort-based applications
+- Publish Announcements (including event notices)
+- Show public Participants and Team
+- Collect inbound contact + recruiter visit requests
 
 ---
 
-## 2) About Page (`/about`)
-**API**
+# 2) Global Website Requirements
+
+## 2.1 Dynamic Theme
+
+Website must fetch theme tokens and apply them as CSS variables.
+
+API:
+- `GET /public/theme`
+
+---
+
+## 2.2 Public Content Only
+
+Any profile shown on website MUST have:
+
+- `is_public = true`
+
+Applies to:
+
+- Participants (`student_profiles`)
+- Instructors
+- Admin Team (`admin_profiles`)
+
+---
+
+## 2.3 SEO-Friendly Routes
+
+- `/`
+- `/programs`
+- `/programs/:slug`
+- `/apply/:cohortId`
+- `/participants`
+- `/participants/:public_slug`
+- `/team`
+- `/announcements`
+- `/contact`
+- `/about`
+
+Optional:
+- `/projects/:id`
+
+Events are accessible via:
+- `/about#events`
+
+---
+
+# 3) Global Layout
+
+## 3.1 Navbar
+
+Left:
+- Logo → `/`
+
+Links:
+- Home
+- Programs
+- Participants
+- Contact
+- About (dropdown)
+
+About dropdown:
+- Mission → `/about#mission`
+- Team → `/about#team`
+- Events → `/about#events`
+
+Right:
+- CTA Button: **Hire Talent**
+  - `/participants?assistant=true`
+
+---
+
+# 4) Website Pages + Data
+
+---
+
+## 4.1 Home Page (`/`)
+
+Sections (Top → Bottom)
+
+### Hero Section
+CTA:
+- Explore Programs → `/programs`
+- Meet Participants → `/participants`
+
+---
+
+### Announcements Preview (Above Programs)
+
+API:
+- `GET /public/announcements?limit=3`
+
+Conditions:
+- `target_audience IN ('website','all')`
+- `is_published = true`
+- `publish_at <= NOW()` if exists
+
+CTA:
+- `/announcements`
+
+---
+
+### Programs Preview (with Cohorts)
+
+API:
+- `GET /public/programs`
+- `GET /public/cohorts?programSlug=...`
+
+Each Program Card contains:
+
+- Program title
+- Summary
+- Cohorts list (max 2–3)
+
+Each Cohort row:
+
+- Cohort name
+- Status badge
+- Dates
+
+Apply Button visible ONLY IF:
+
+- `status = 'open'`
+- `allow_applications = true`
+
+Apply:
+- `/apply/:cohortId`
+
+---
+
+### Featured Participants
+
+API:
+- `GET /public/participants?featured=true`
+
+Card links:
+- `/participants/:public_slug`
+
+---
+
+### Featured Projects (Optional)
+
+Data:
+- `projects` where `is_public = true`
+
+Optional cohort badge if:
+- `cohort_id IS NOT NULL`
+
+---
+
+### Recruiter CTA
+
+CTA:
+- Hire Talent → `/participants?assistant=true`
+
+---
+
+### Join Our Team + Subscribe (Last Section)
+
+Left:
+
+- Join our team CTA
+- Contact → `/contact?kind=join_team`
+
+Right:
+
+Email Input
+Button: Stay Updated
+
+Text:
+
+> Get updates about programs, cohorts, events, and announcements.
+
+(No events section on Home.)
+
+---
+
+## 4.2 Programs Page (`/programs`)
+
+API:
+- `GET /public/programs`
+
+Each Program Card:
+
+- Title
+- Summary
+- Cohorts inside card
+
+Each Cohort:
+
+- Status badge
+- Enrollment info
+
+Apply Button visible ONLY IF:
+
+- `status = 'open'`
+- `allow_applications = true`
+
+Apply:
+- `/apply/:cohortId`
+
+---
+
+## 4.3 Program Details (`/programs/:slug`)
+
+API:
+
+- `GET /public/programs/:slug`
+- `GET /public/cohorts?programSlug=...`
+
+Sections:
+
+- Program info
+- Cohorts list
+
+Apply Button rules same as above.
+
+---
+
+## 4.4 Cohort Application Page (`/apply/:cohortId`)
+
+API:
+
+- `GET /public/forms/cohort-application?cohortId=...` (optional)
+- `POST /applications`
+
+Reject submission IF:
+
+- cohort enrollment closed
+- outside enrollment window
+- duplicate application
+
+Show confirmation on success.
+
+---
+
+## 4.5 Participants (`/participants`)
+
+API:
+
+- `GET /public/participants?page&limit&search`
+
+Filters:
+
+- Program
+- Cohort
+- open_to_work
+
+Recruiter Assistant Panel:
+
+Auto opens when:
+
+- `?assistant=true`
+
+Detail:
+- `/participants/:public_slug`
+
+---
+
+## 4.6 Participant Detail
+
+API:
+
+- `GET /public/participants/:public_slug`
+
+Show:
+
+- Bio
+- LinkedIn / Portfolio / GitHub
+- open_to_work
+- graduated
+- working + company
+
+Projects:
+
+- image
+- github_url
+- live_url
+- optional cohort badge
+
+---
+
+## 4.7 Team (`/team`)
+
+API:
+
+- `GET /public/admins`
+- `GET /public/instructors`
+
+Only show:
+
+- `is_public = true`
+
+Filters:
+
+- Admins
+- Instructors
+
+---
+
+## 4.8 About (`/about`)
+
+API:
+
 - `GET /public/pages/about`
 
-**DB**
-- `pages` where `key='about'` and `is_published=true`
+Sections:
 
-**Notes**
-- Block-based JSON rendering (paragraphs, images, bullet lists, cards).
+### Mission (`#mission`)
+CMS content
 
----
+### Team (`#team`)
+Public Admins + Instructors
 
-## 3) Programs List (`/programs`)
-**API**
-- `GET /public/programs?status=coming_soon,open,running,completed&search=&page=`
+### Events (`#events`)
+Informational section:
 
-**DB**
-- `programs`
+- workshops
+- demo days
+- company visits
+- talks
 
-**Rules**
-- Apply button only if:
-  - `status='open'`
-  - `allow_applications=true`
-  - within enrollment window (optional)
+Optional CTA:
 
----
-
-## 4) Program Details (`/programs/:slug`)
-**API**
-- `GET /public/programs/:slug`
-
-**DB**
-- `programs`
-- `program_instructors` + `instructor_profiles`
-
-### 4.1 Application form (dynamic fields)
-**Only visible when**
-- `status='open'` and `allow_applications=true`
-- within enrollment open/close (if used)
-- capacity not full (checked in API)
-
-**Form schema**
-- `forms` + `form_fields` (`key='program_application'`)
-
-**Submit**
-- `POST /public/applications`
-- writes:
-  - `applicants` (upsert)
-  - `applications`
-  - `application_submissions` (answers JSON)
-
-**Duplicate apply rule**
-- If same applicant already has pending/approved/waitlisted application for same program:
-  - show “Already applied” message + current status
+- `/announcements`
 
 ---
 
-## 5) Events List (`/events`) & Event Details (`/events/:slug`)
-**API**
-- `GET /public/events?upcoming=true`
-- `GET /public/events/:slug`
+## 4.9 Contact (`/contact`)
 
-**DB**
-- `events`
+API:
 
-**Location rule**
-- If `events.location` is null/empty → use `site_settings.default_event_location`
+- `POST /contact`
 
----
+Modes:
 
-## 6) Instructors List (`/instructors`) & Instructor Detail (optional)
-**API**
-- `GET /public/instructors`
-- optional: `GET /public/instructors/:id`
+- question
+- feedback
+- visit_request
 
-**DB**
-- `instructor_profiles` (and `users` where `role='instructor'` and active)
+Company fields:
+
+- company_name
+- company_role
+- visit_preferred_dates
+- visit_notes
 
 ---
 
-## 7) Contact Page (`/contact`)
-**Display**
-- `site_settings.contact_info`
-- `site_settings.social_links`
+# 5) Website List Standards
 
-**Submit**
-- `POST /public/contact`
-- writes:
-  - `contact_messages`
+Use:
 
-**Notes**
-- Add rate-limiting to prevent spam.
+- page
+- limit
+- search
+- sortBy
+- order
 
----
+Examples:
 
-# 8) Students Pages (Public)
-
-You requested:
-- Students list
-- Students list summary
-- Student detail (with id)
-- Featured support
-- Footer requirements
-
-These are public-facing pages to showcase students (not the private student dashboard).
+- `/public/programs?page=1&limit=12`
+- `/public/participants?page=1&limit=12&featured=true`
 
 ---
 
-## 8.1 Students List Summary (Home section) ✅
-### Purpose
-Display a short preview of featured students on the home page.
+# 6) Security / Privacy Rules
 
-**Section**
-- `home_sections.key='featured_students'`
+Never show:
 
-**Expected `content`**
-- `title` (optional override)
-- `subtitle`
-- `limit` (e.g., 4)
-- `showFeaturedOnly` (boolean, default true)
-- `ctaText` (e.g., "View All Students")
-- `ctaLink` (e.g., "/students")
+- email
+- phone
+- password_hash
+- admin-only internal notes
 
-**DB needed**
-- `student_profiles`
-  - `featured=true`
-  - order by `featured_rank` asc, then `created_at` desc
+Only show:
 
-**Fields shown per student card**
-- `student_profiles.user_id` (or `public_id`, see notes)
-- `full_name`
-- `avatar_url`
-- `bio` short
-- optional: `program_name` (if you want to show current program)
-
-**Notes**
-- If no featured students exist:
-  - hide section OR show fallback text from section content.
+- `is_public = true`
+- `is_published = true`
 
 ---
 
-## 8.2 Students List Page (`/students`) ✅
-### Purpose
-Public directory of students (or featured students).
+# 7) Future Enhancements
 
-**API**
-- `GET /public/students?featuredOnly=false&search=&page=&limit=`
+- Newsletter signup backend
+- Project gallery page
+- Partner companies page
+- Application status lookup
+- Multi-language support (Arabic / English)
 
-**DB**
-- `student_profiles`
-- join `users` (role='student', is_active=true)
 
-**Filters**
-- `featuredOnly=true` → only `student_profiles.featured=true`
-- search by `full_name` (ILIKE)
+Digital Hub — Public Website
+Pages • Features • Data from DB • API Integration (Updated)
 
-**Sorting**
-- featured first (if mixed)
-- `featured_rank` asc
-- then `full_name` asc
+This document defines the public website behavior based on the latest scope:
 
-**Fields returned**
-- `id` (recommended: `student_profiles.user_id` as stable identifier)
-- `full_name`
-- `avatar_url`
-- `bio` (short)
-- `featured` (boolean)
-- optional: `featured_rank`
+✅ Website is CMS-driven from database
 
-**UI requirements**
-- Search input
-- Featured filter toggle (optional)
-- Pagination
+✅ Visitor can apply to open cohorts
 
-**Notes (privacy)**
-- Do NOT expose: phone, email, address, personal data.
-- Keep only public profile fields.
+✅ Visitor can contact Digital Hub (questions / feedback)
 
----
+✅ Company/Recruiter can request visits via contact form
 
-## 8.3 Student Detail Page (`/students/:id`) ✅
-### Purpose
-Public profile for one student.
+✅ Website shows Programs (with Cohorts inside), Announcements, Participants, Team
 
-**API**
-- `GET /public/students/:id`
+✅ Events are presented under About (and via Announcements when needed)
 
-**DB**
-- `student_profiles` by `user_id`
-- join `users` to ensure role is student + active
+✅ Website reads theme tokens and applies CSS variables
 
-**Fields displayed**
-- `id` (user_id)
-- `full_name`
-- `avatar_url`
-- `bio`
-- `featured` (boolean)
-- optional: achievements / gallery / projects (if you add later)
-- optional: related programs (ONLY if you want public association)
+✅ Recruiter assistant available from CTA (Hire Talent)
 
-**Error states**
-- If student not found or not public → 404 page.
+✅ Projects may be displayed on participant profiles
 
-**Notes**
-- If you want to avoid exposing raw numeric ids publicly:
-  - add `public_slug` or `public_id` column to `student_profiles` and route by that instead.
+1) Website Goals
 
----
+Present Digital Hub as an employability / career development platform
 
-# 9) Footer (All Pages) ✅
+Show Programs and their Cohorts
 
-### 9.1 Footer content sources
-**DB**
-- `site_settings`
-  - `site_name`
-  - `contact_info` (address, phone, email)
-  - `social_links`
-- optional: `pages` keys (published)
-  - to generate footer links automatically
+Collect Applications (cohort-based)
 
-### 9.2 Footer sections (recommended)
-1. Brand
-   - site name + short description (optional in `site_settings`)
-2. Quick Links
-   - Home, About, Programs, Events, Instructors, Students, Contact
-3. Contact
-   - address, phone, email
-4. Social
-   - icons + links
-5. Copyright
-   - `© {year} {site_name}. All rights reserved.`
+Publish Announcements (including event notices)
 
-**Notes**
-- Footer should be consistent across web pages.
-- Footer should not require multiple requests: include `site_settings` in app bootstrap.
+Show public Participants and Team
 
----
+Collect inbound contact + recruiter visit requests
 
-# 10) Attendance Note (No Email Confirmation)
-Public website does not confirm attendance.
-Attendance is recorded by instructors in instructor dashboard via:
-- `attendance_records(session_id, enrollment_id, status, marked_by, marked_at)`
+2) Global Website Requirements
+2.1 Dynamic Theme
 
-Optional student self check-in (phase 2):
-- session code entry, stored in `attendance_checkins`.
+Website must fetch theme tokens and apply as CSS variables.
 
----
+API:
 
-# 11) Data Summary — What public site reads/writes
+GET /public/theme
 
-## Reads
-- `site_settings`
-- `home_sections`
-- `pages`
-- `programs`
-- `events`
-- `instructor_profiles`
-- `student_profiles` ✅
-- `forms` + `form_fields`
-- `announcements` (optional public)
+2.2 Public Content Only
 
-## Writes
-- `contact_messages`
-- `applications` + `applicants` + `application_submissions`
+Any profile shown on website MUST have:
 
----
+is_public=true
 
-# 12) Implementation Notes / Rules
-- Programs:
-  - `coming_soon` → details visible, apply hidden
-  - `open` → apply visible only if `allow_applications=true` and within window
-- Events:
-  - default location from `site_settings.default_event_location`
-- Students:
-  - featured supported via `student_profiles.featured=true` + `featured_rank`
-  - avoid exposing private fields publicly
-- Theme:
-  - store CSS variables in `site_settings.theme` and apply globally at runtime
+Applies to:
+
+Participants (student_profiles)
+
+Instructors
+
+Admin Team (from admin_profiles)
+
+2.3 SEO-friendly Routes (Updated)
+
+/ Home
+
+/programs
+
+/programs/:slug
+
+/apply/:cohortId ✅ NEW
+
+/participants
+
+/participants/:public_slug
+
+/team
+
+/announcements
+
+/contact
+
+/about
+
+Optional:
+
+/projects/:id
+
+Events:
+
+Not in primary nav
+
+Accessible via /about#events
+
+3) Global Layout
+3.1 Navbar
+
+Left:
+
+Logo → /
+
+Links:
+
+Home
+
+Programs
+
+Participants
+
+Contact
+
+About ▾
+
+About dropdown:
+
+Mission → /about#mission
+
+Team → /about#team
+
+Events → /about#events
+
+Right:
+
+CTA: Hire Talent → /participants?assistant=true
+
+4) Website Pages + Data
+4.1 Home Page (/)
+
+Sections (top → bottom):
+
+A) Hero
+
+CTA → /programs
+
+CTA → /participants
+
+B) Announcements Preview ✅ ABOVE PROGRAMS
+
+API:
+
+GET /public/announcements?limit=3
+
+Conditions:
+
+target_audience IN ('website','all')
+
+is_published=true
+
+publish_at <= now()
+
+CTA:
+
+/announcements
+
+C) Programs Preview (with Cohorts)
+
+API:
+
+GET /public/programs
+
+GET /public/cohorts?programSlug=...
+
+Each Program Card shows:
+
+Program title
+
+Summary
+
+Cohorts list (max 2–3)
+
+Each Cohort row shows:
+
+name
+
+status badge
+
+dates
+
+Apply button visible ONLY IF:
+
+status='open'
+
+allow_applications=true
+
+(optional later) within enrollment window
+
+Apply:
+
+/apply/:cohortId
+
+D) Featured Participants
+
+API:
+
+GET /public/participants?featured=true
+
+Cards link to:
+
+/participants/:public_slug
+
+E) Featured Projects (Optional)
+
+Data:
+
+projects where is_public=true
+
+Optional cohort label if:
+
+cohort_id IS NOT NULL
+
+F) Recruiter CTA
+
+CTA → /participants?assistant=true
+
+G) Join Our Team + Subscribe (LAST SECTION)
+
+Left:
+
+“Join our team”
+
+CTA → /contact?kind=join_team
+
+Right:
+
+Email input
+
+Button: “Stay Updated”
+
+Text:
+
+Get updates about programs, cohorts, events, and announcements.
+
+(No events section on Home.)
+
+4.2 Programs (/programs)
+
+API:
+
+GET /public/programs
+
+Each Program Card:
+
+title
+
+summary
+
+Cohorts inside card
+
+Each Cohort:
+
+status
+
+enrollment info
+
+Apply button:
+Visible only when:
+
+status='open'
+
+allow_applications=true
+
+Apply:
+
+/apply/:cohortId
+
+4.3 Program Details (/programs/:slug)
+
+API:
+
+GET /public/programs/:slug
+
+GET /public/cohorts?programSlug=...
+
+Sections:
+
+Program info
+
+Cohorts list
+
+Apply button rules same as above.
+
+4.4 Cohort Application (/apply/:cohortId) ✅
+
+API:
+
+GET /public/forms/cohort-application?cohortId=... (optional)
+
+POST /applications
+
+Rules:
+Reject if:
+
+cohort closed
+
+enrollment window closed
+
+duplicate applicant
+
+Show:
+
+success confirmation on submit
+
+4.5 Participants (/participants)
+
+API:
+
+GET /public/participants?page&limit&search
+
+Filters:
+
+Program
+
+Cohort
+
+open_to_work
+
+Assistant panel:
+
+opens when:
+
+?assistant=true
+
+Detail:
+
+/participants/:public_slug
+
+4.6 Participant Detail
+
+API:
+
+GET /public/participants/:public_slug
+
+Show:
+
+bio
+
+links
+
+open_to_work
+
+graduated
+
+working + company
+
+Projects:
+
+image
+
+github_url
+
+live_url
+
+cohort badge (optional)
+
+4.7 Team (/team)
+
+API:
+
+GET /public/admins
+
+GET /public/instructors
+
+Filters:
+
+Admins
+
+Instructors
+
+Only where:
+
+is_public=true
+
+4.8 About (/about)
+
+API:
+
+GET /public/pages/about
+
+Sections:
+
+Mission (#mission)
+
+Static CMS content
+
+Team (#team)
+
+Public Admins + Instructors
+
+Events (#events)
+
+Informational section:
+
+workshops
+
+demo days
+
+company visits
+
+talks
+
+Optional CTA:
+
+/announcements
+
+4.9 Contact (/contact)
+
+API:
+
+POST /contact
+
+Modes:
+
+question
+
+feedback
+
+visit_request
+
+Company fields:
+
+company_name
+
+company_role
+
+visit_preferred_dates
+
+visit_notes
+
+5) Website List Standards
+
+Use:
+
+page
+
+limit
+
+search
+
+sortBy
+
+order
+
+Examples:
+
+/public/programs?page=1&limit=12
+
+/public/participants?page=1&limit=12&featured=true
+
+6) Security / Privacy Rules
+
+Never show:
+
+email
+
+phone
+
+password_hash
+
+admin notes
+
+Only:
+
+is_public=true
+
+is_published=true
+
+7) Future Enhancements
+
+Newsletter signup backend
+
+Project gallery page
+
+Partner companies page
+
+Application status lookup
+
+Arabic/English support

@@ -1,0 +1,204 @@
+.dh-navbar {
+  padding: 0;
+  border-bottom: 1px solid #e9edf3;
+
+  & .tgmenu__nav {
+    display: flex;
+    align-items: center;
+    min-height: 74px;
+    gap: 20px;
+  }
+
+  & .dh-navbar__logo {
+    flex: 0 0 auto;
+
+    & img {
+      width: auto;
+      max-height: 42px;
+    }
+  }
+
+  & .dh-navbar__center {
+    flex: 1 1 auto;
+    justify-content: center;
+
+    & .navigation {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 0 auto;
+
+      & > li > a {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 14px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #1f2937;
+        border-radius: 999px;
+        transition: all 0.2s ease;
+
+        &::after {
+          content: "";
+          position: absolute;
+          left: 14px;
+          right: 14px;
+          bottom: 8px;
+          height: 2px;
+          border-radius: 2px;
+          background: var(--tg-theme-primary);
+          transform: scaleX(0);
+          transform-origin: center;
+          transition: transform 0.2s ease;
+        }
+      }
+
+      & > li.active > a,
+      & > li.is-active > a,
+      & > li > a:hover {
+        color: var(--tg-theme-primary);
+        background: #f6f8fb;
+      }
+
+      & > li.active > a::after,
+      & > li.is-active > a::after,
+      & > li > a:hover::after {
+        transform: scaleX(1);
+      }
+    }
+  }
+
+  & .dh-navbar__actions {
+    flex: 0 0 auto;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  & .dh-auth-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  & .dh-auth-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 10px;
+    color: #344054;
+    font-weight: 600;
+
+    &:hover {
+      color: var(--tg-theme-primary);
+    }
+  }
+
+  & .dh-auth-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--tg-theme-primary);
+    border-radius: 10px;
+    background: var(--tg-theme-primary);
+    color: var(--tg-common-color-white);
+    font-weight: 600;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--tg-common-color-white);
+      color: var(--tg-theme-primary);
+    }
+
+    &--ghost {
+      background: var(--tg-common-color-white);
+      color: var(--tg-theme-primary);
+    }
+  }
+
+  & .dh-mobile-toggler {
+    margin-left: auto;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #d9e1ea;
+    border-radius: 10px;
+    background: var(--tg-common-color-white);
+    color: var(--tg-theme-primary);
+    font-size: 20px;
+    line-height: 1;
+
+    &:hover {
+      background: #f7f9fc;
+    }
+  }
+
+  &.sticky-menu .tgmenu__nav {
+    min-height: 66px;
+  }
+}
+
+.dh-mobile-sidebar {
+  & .nav-logo {
+    border-bottom: 1px solid #e9edf3;
+    padding: 22px 24px;
+
+    & img {
+      width: auto;
+      max-height: 42px;
+    }
+  }
+
+  & .tgmobile__menu-outer .navigation > li > a {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    padding: 12px 24px;
+  }
+
+  & .tgmobile__menu-outer .navigation > li.active > a,
+  & .tgmobile__menu-outer .navigation > li.is-active > a,
+  & .tgmobile__menu-outer .navigation > li > a:hover {
+    color: var(--tg-theme-primary);
+    background: #f6f8fb;
+  }
+
+  & .dh-mobile-auth {
+    display: flex;
+    gap: 10px;
+    padding: 18px 24px 24px;
+  }
+
+  & .dh-mobile-auth__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--tg-theme-primary);
+    border-radius: 10px;
+    background: var(--tg-theme-primary);
+    color: var(--tg-common-color-white);
+    font-weight: 600;
+
+    &--ghost {
+      background: var(--tg-common-color-white);
+      color: var(--tg-theme-primary);
+    }
+  }
+}
+
+@media (max-width: 991.98px) {
+  .dh-navbar {
+    & .tgmenu__nav {
+      min-height: 64px;
+      gap: 14px;
+    }
+
+    & .dh-navbar__logo img {
+      max-height: 38px;
+    }
+  }
+}
