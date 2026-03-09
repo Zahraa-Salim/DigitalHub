@@ -4,7 +4,11 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
-import { listFailedMessagesForOverviewRetry, getAdminOverviewAggregates } from "../repositories/overview.repo.js";
+import {
+  listFailedMessagesForOverviewRetry,
+  getAdminOverviewAggregates,
+  listOverviewMessages,
+} from "../repositories/overview.repo.js";
 import { sendApplicationMessageService } from "./applications.service.js";
 import { sendProgramApplicationMessageService } from "./programApplications.service.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
@@ -87,4 +91,8 @@ export async function retryFailedOverviewMessagesService(actorUserId, payload) {
     failed_messages: failed,
     skipped_messages: skipped,
   };
+}
+
+export async function listOverviewMessagesService(query) {
+  return listOverviewMessages(query);
 }

@@ -4,8 +4,8 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { getAdminOverviewService } from "../services/overview.service.js";
-import { retryFailedOverviewMessagesService } from "../services/overview.service.js";
-import { sendSuccess } from "../utils/httpResponse.js";
+import { listOverviewMessagesService, retryFailedOverviewMessagesService } from "../services/overview.service.js";
+import { sendList, sendSuccess } from "../utils/httpResponse.js";
 
 export async function getAdminOverview(req, res) {
   const data = await getAdminOverviewService(req.user);
@@ -15,4 +15,9 @@ export async function getAdminOverview(req, res) {
 export async function retryFailedOverviewMessages(req, res) {
   const data = await retryFailedOverviewMessagesService(req.user.id, req.body);
   sendSuccess(res, data, "Failed messages retry completed.");
+}
+
+export async function listOverviewMessages(req, res) {
+  const result = await listOverviewMessagesService(req.query);
+  sendList(res, result.data, result.pagination);
 }

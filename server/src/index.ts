@@ -4,6 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import cors from "cors";
+import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import express from "express";
 import fs from "node:fs";
@@ -31,26 +32,77 @@ import { projectsRouter } from "./routes/projects.routes.js";
 import { programApplicationsRouter } from "./routes/programApplications.routes.js";
 import { programsRouter } from "./routes/programs.routes.js";
 import { publicRouter } from "./routes/public.routes.js";
+import { AppError } from "./utils/appError.js";
 import { sendSuccess } from "./utils/httpResponse.js";
+import { validateProductionEnv } from "./utils/validateProductionEnv.js";
 dotenv.config();
+validateProductionEnv();
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, "../uploads");
-const defaultFrontendDistDir = path.resolve(__dirname, "../../apps/dashboard/dist");
+const defaultFrontendDistDir = path.resolve(__dirname, "../../frontend/dist");
+const frontendDistDir = process.env.FRONTEND_DIST_DIR
+    ? path.resolve(process.env.FRONTEND_DIST_DIR)
+    : defaultFrontendDistDir;
+const frontendIndexFile = path.join(frontendDistDir, "index.html");
 
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const allowedOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
-    : true;
-app.use(cors({
-    origin: allowedOrigins,
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
-}));
+const normalizeOrigin = (value) => String(value || "").trim().replace(/\/+$/g, "");
+const configuredCorsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN
+        .split(",")
+        .map((origin) => normalizeOrigin(origin))
+        .filter(Boolean)
+    : [];
+const isPrivateDevOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/i.test(String(origin || ""));
+const parseForwardedPart = (value) => String(value || "").split(",")[0]?.trim() || "";
+const getRequestOriginCandidates = (req) => {
+    const host = parseForwardedPart(req.headers["x-forwarded-host"]) || req.get("host") || "";
+    const proto = parseForwardedPart(req.headers["x-forwarded-proto"]) || req.protocol || "http";
+    if (!host) {
+        return [];
+    }
+    const normalizedHost = host.trim();
+    return [`${proto}://${normalizedHost}`, `https://${normalizedHost}`, `http://${normalizedHost}`]
+        .map((entry) => normalizeOrigin(entry))
+        .filter(Boolean);
+};
+const isAllowedCorsOrigin = (origin, req) => {
+    if (!origin) {
+        return true;
+    }
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (configuredCorsOrigins.includes(normalizedOrigin)) {
+        return true;
+    }
+    if (getRequestOriginCandidates(req).includes(normalizedOrigin)) {
+        return true;
+    }
+    if (process.env.NODE_ENV !== "production" && isPrivateDevOrigin(normalizedOrigin)) {
+        return true;
+    }
+    return false;
+};
+const corsOptionsDelegate = (req, callback) => {
+    const requestOrigin = req.headers.origin;
+    const corsOptions = {
+        origin: false,
+        credentials: true,
+        allowedHeaders: ["Content-Type", "Authorization"],
+        methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    };
+    if (isAllowedCorsOrigin(requestOrigin, req)) {
+        corsOptions.origin = true;
+        callback(null, corsOptions);
+        return;
+    }
+    callback(new AppError(403, "FORBIDDEN", `CORS origin not allowed: ${requestOrigin}`), corsOptions);
+};
+app.use(cors(corsOptionsDelegate));
 app.use((req, res, next) => {
     if (req.headers.origin) {
         res.header("Access-Control-Allow-Credentials", "true");
@@ -60,6 +112,46 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "8mb" }));
 app.use("/uploads", express.static(uploadsDir));
 app.use(validatePagination);
+if (fs.existsSync(frontendIndexFile)) {
+    app.use(express.static(frontendDistDir));
+    app.use((req, res, next) => {
+        if (req.method !== "GET" && req.method !== "HEAD") {
+            return next();
+        }
+        const accepts = String(req.headers.accept || "");
+        if (!accepts.includes("text/html")) {
+            return next();
+        }
+        const pathName = req.path || "";
+        if (path.extname(pathName)) {
+            return next();
+        }
+        const apiOnlyPrefixes = [
+            "/health",
+            "/public",
+            "/api",
+            "/auth",
+            "/cms",
+            "/profiles",
+            "/applications",
+            "/program-applications",
+            "/admins",
+            "/announcements",
+            "/attendance",
+            "/forms",
+            "/message-templates",
+            "/notifications",
+            "/logs",
+            "/projects",
+            "/uploads",
+        ];
+        const isApiOnlyPath = apiOnlyPrefixes.some((prefix) => pathName === prefix || pathName.startsWith(`${prefix}/`));
+        if (isApiOnlyPath) {
+            return next();
+        }
+        return res.sendFile(frontendIndexFile);
+    });
+}
 app.get("/", (_req, res) => {
     sendSuccess(res, { status: "ok" }, "Digital Hub API is running.");
 });
@@ -96,44 +188,18 @@ app.use("/logs", logsRouter);
 app.use(projectsRouter);
 app.use("/public", publicRouter);
 
-const frontendDistDir = process.env.FRONTEND_DIST_DIR
-    ? path.resolve(process.env.FRONTEND_DIST_DIR)
-    : defaultFrontendDistDir;
-const frontendIndexFile = path.join(frontendDistDir, "index.html");
-if (fs.existsSync(frontendIndexFile)) {
-    app.use(express.static(frontendDistDir));
-    app.use((req, res, next) => {
-        if (req.method !== "GET") {
-            return next();
-        }
-        const pathName = req.path || "";
-        if (pathName.startsWith("/api/") ||
-            pathName.startsWith("/auth/") ||
-            pathName.startsWith("/cms/") ||
-            pathName.startsWith("/profiles/") ||
-            pathName.startsWith("/applications/") ||
-            pathName.startsWith("/program-applications/") ||
-            pathName.startsWith("/admin/") ||
-            pathName.startsWith("/admins/") ||
-            pathName.startsWith("/announcements/") ||
-            pathName.startsWith("/attendance/") ||
-            pathName.startsWith("/events/") ||
-            pathName.startsWith("/forms/") ||
-            pathName.startsWith("/message-templates/") ||
-            pathName.startsWith("/contact/") ||
-            pathName.startsWith("/notifications/") ||
-            pathName.startsWith("/logs/") ||
-            pathName.startsWith("/public/") ||
-            pathName.startsWith("/uploads/") ||
-            pathName === "/health") {
-            return next();
-        }
-        return res.sendFile(frontendIndexFile);
-    });
-}
-
 app.use(notFound);
 app.use(errorHandler);
+
+function slugifyValue(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .replace(/-{2,}/g, "-");
+}
+
 async function ensureSoftDeleteColumns() {
     await pool.query(`
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -151,13 +217,36 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS completion_image_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS post_body TEXT;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS featured_image_url TEXT;
       UPDATE events SET completion_image_urls = '[]'::jsonb WHERE completion_image_urls IS NULL;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+      ALTER TABLE announcements ADD COLUMN IF NOT EXISTS event_id BIGINT;
       ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
+      ALTER TABLE admin_profiles ADD COLUMN IF NOT EXISTS skills TEXT;
+      ALTER TABLE instructor_profiles ADD COLUMN IF NOT EXISTS skills TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
       CREATE INDEX IF NOT EXISTS idx_users_reset_password_token
         ON users (reset_password_token);
+      CREATE TABLE IF NOT EXISTS media_assets (
+        id BIGSERIAL PRIMARY KEY,
+        file_name TEXT NOT NULL UNIQUE,
+        original_name TEXT,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+        storage_path TEXT NOT NULL,
+        public_url TEXT NOT NULL UNIQUE,
+        alt_text TEXT,
+        tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_assets_created_at
+        ON media_assets (created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_media_assets_file_name
+        ON media_assets (file_name);
       CREATE TABLE IF NOT EXISTS attendance_sessions (
         id BIGSERIAL PRIMARY KEY,
         cohort_id BIGINT NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
@@ -321,12 +410,62 @@ async function ensureSoftDeleteColumns() {
       SET status = 'coming_soon', updated_at = NOW()
       WHERE status = 'planned'
         AND deleted_at IS NULL;
+
+      ALTER TABLE IF EXISTS cohorts
+        ADD COLUMN IF NOT EXISTS auto_announce BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE IF EXISTS events
+        ADD COLUMN IF NOT EXISTS auto_announce BOOLEAN NOT NULL DEFAULT FALSE;
     `);
 }
+
+async function ensureStudentProfileUserLinks() {
+    const orphanProfilesResult = await pool.query(`
+      SELECT
+        sp.ctid::text AS row_ref,
+        sp.full_name,
+        sp.public_slug
+      FROM student_profiles sp
+      LEFT JOIN users u ON u.id = sp.user_id
+      WHERE sp.user_id IS NULL OR u.id IS NULL
+    `);
+    if (!orphanProfilesResult.rowCount) {
+        return;
+    }
+    const placeholderHash = await bcrypt.hash("ChangeMe123!", 10);
+    for (let index = 0; index < orphanProfilesResult.rows.length; index += 1) {
+        const row = orphanProfilesResult.rows[index];
+        const baseSlug = slugifyValue(row.public_slug || row.full_name || `student-${index + 1}`) || `student-${index + 1}`;
+        const userResult = await pool.query(`
+          INSERT INTO users (
+            email,
+            password_hash,
+            is_student,
+            is_active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, TRUE, TRUE, NOW(), NOW())
+          RETURNING id
+        `, [`${baseSlug}-${Date.now()}-${index + 1}@digitalhub.local`, placeholderHash]);
+        const userId = Number(userResult.rows[0]?.id);
+        const generatedSlug = row.public_slug
+            ? slugifyValue(row.public_slug)
+            : `${baseSlug}-${userId}`;
+        await pool.query(`
+          UPDATE student_profiles
+          SET user_id = $1,
+              public_slug = COALESCE(NULLIF(public_slug, ''), $2)
+          WHERE ctid = $3::tid
+        `, [userId, generatedSlug, row.row_ref]);
+    }
+}
+
 async function startServer() {
     try {
         await pool.query("SELECT 1");
         await ensureSoftDeleteColumns();
+        await ensureStudentProfileUserLinks();
         const port = Number(process.env.PORT || 5000);
         app.listen(port, () => {
             console.log(`Digital Hub server listening on http://localhost:${port}`);

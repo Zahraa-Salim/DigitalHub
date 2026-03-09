@@ -29,10 +29,12 @@ export const instructorCreateSchema = z
     avatar_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     bio: z.string().trim().nullable().optional(),
     expertise: z.string().trim().nullable().optional(),
+    skills: z.string().trim().nullable().optional(),
     linkedin_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     github_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     portfolio_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     is_public: z.boolean().optional(),
+    sort_order: z.number().int().min(0).nullable().optional(),
 })
     .strict()
     .refine((payload) => Boolean((payload.email || "").trim()) || Boolean((payload.phone || "").trim()), {
@@ -64,18 +66,23 @@ export const instructorPatchSchema = z
     avatar_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     bio: z.string().trim().nullable().optional(),
     expertise: z.string().trim().nullable().optional(),
+    skills: z.string().trim().nullable().optional(),
     linkedin_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     github_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     portfolio_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
+    sort_order: z.number().int().min(0).nullable().optional(),
 })
     .strict()
     .refine((payload) => Object.keys(payload).length > 0, { message: "At least one field is required." });
 export const managerPatchSchema = z
     .object({
     full_name: z.union([z.literal(""), z.string().trim().min(1)]).optional(),
+    email: z.union([z.literal(""), z.string().trim().email()]).optional(),
+    phone: z.union([z.literal(""), z.string().trim().min(4)]).optional(),
     avatar_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     bio: z.string().trim().nullable().optional(),
     job_title: z.string().trim().nullable().optional(),
+    skills: z.string().trim().nullable().optional(),
     admin_role: z.enum(["admin", "super_admin"]).optional(),
     linkedin_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),
     github_url: z.union([z.literal(""), z.string().trim().url()]).nullable().optional(),

@@ -50,8 +50,15 @@ export async function listProfilesService(tableName, sortColumns, query) {
     const params = [];
     const where = [];
     if (list.search) {
+        const searchColumns = ["p.full_name", "COALESCE(p.bio, '')"];
+        if (tableName === "instructor_profiles") {
+            searchColumns.push("COALESCE(p.expertise, '')", "COALESCE(p.skills, '')");
+        }
+        if (tableName === "admin_profiles") {
+            searchColumns.push("COALESCE(p.job_title, '')", "COALESCE(p.skills, '')", "COALESCE(p.admin_role, '')");
+        }
         params.push(`%${list.search}%`);
-        where.push(buildSearchClause(["p.full_name", "COALESCE(p.bio, '')"], params.length));
+        where.push(buildSearchClause(searchColumns, params.length));
     }
     if (list.isPublic !== undefined) {
         params.push(list.isPublic);
@@ -249,10 +256,12 @@ export async function createInstructorProfileService(actorUserId, payload) {
                 avatar_url: normalizeOptionalText(payload.avatar_url),
                 bio: normalizeOptionalText(payload.bio),
                 expertise: normalizeOptionalText(payload.expertise),
+                skills: normalizeOptionalText(payload.skills),
                 linkedin_url: normalizeOptionalText(payload.linkedin_url),
                 github_url: normalizeOptionalText(payload.github_url),
                 portfolio_url: normalizeOptionalText(payload.portfolio_url),
                 is_public: Boolean(payload.is_public),
+                sort_order: payload.sort_order ? Number(payload.sort_order) : null,
             }, client);
             const profileResult = await getInstructorProfileByUserId(userId, client);
             const row = profileResult.rows[0];

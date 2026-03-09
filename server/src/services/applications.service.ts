@@ -313,19 +313,36 @@ function buildMessageDraftsFromFlags(input) {
 
 async function queueMessageDrafts(application, actorUserId, drafts, client) {
   if (!Array.isArray(drafts) || !drafts.length) {
-    return [];
+    return { sentMessages: [], failedMessages: [], skippedCount: 0 };
   }
 
-  const createdDrafts = [];
+  const tokens = await buildApplicationMessageTokens(application.id, client);
+  const sentMessages = [];
+  const failedMessages = [];
+  let skippedCount = 0;
+
   for (const draft of drafts) {
-    const channel = draft.channel;
+    const channel = draft.channel === "sms" ? "sms" : "email";
     const toValue =
       draft.to_value ??
       (channel === "email" ? application.email : application.phone);
 
     if (!toValue) {
+      skippedCount += 1;
       continue;
     }
+
+    const trimmedBody = String(draft.body || "").trim();
+    if (!trimmedBody) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const renderedSubject =
+      channel === "email"
+        ? renderTemplateString(draft.subject || "Digital Hub Message", tokens)
+        : null;
+    const renderedBody = renderTemplateString(trimmedBody, tokens);
 
     const row = await createApplicationMessageDraft(
       {
@@ -333,7 +350,7 @@ async function queueMessageDrafts(application, actorUserId, drafts, client) {
         channel,
         to_value: String(toValue).trim(),
         subject: draft.subject ?? null,
-        body: String(draft.body || "").trim(),
+        body: trimmedBody,
         template_key: draft.template_key ?? null,
         status: "draft",
         created_by: actorUserId,
@@ -341,31 +358,95 @@ async function queueMessageDrafts(application, actorUserId, drafts, client) {
       client,
     );
 
-    if (row.rowCount) {
-      createdDrafts.push(row.rows[0]);
+    if (!row.rowCount || !row.rows[0]?.id) {
+      failedMessages.push({
+        channel,
+        to_value: String(toValue).trim(),
+        status: "failed",
+        error: "MESSAGE_CREATE_FAILED",
+      });
+      continue;
+    }
+
+    const messageId = Number(row.rows[0].id);
+    try {
+      if (channel === "email") {
+        await sendDigitalHubEmail({
+          to: String(toValue).trim(),
+          subject: renderedSubject || "Digital Hub Message",
+          body: renderedBody,
+        });
+      } else {
+        await sendDigitalHubWhatsApp({
+          to: String(toValue).trim(),
+          body: renderedBody,
+        });
+      }
+
+      const sentResult = await markApplicationMessageSent(
+        application.id,
+        messageId,
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+
+      sentMessages.push({
+        ...(sentResult.rows[0] ?? row.rows[0]),
+        subject: renderedSubject,
+        body: renderedBody,
+      });
+    } catch (error) {
+      const failedResult = await markApplicationMessageFailed(
+        application.id,
+        messageId,
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+      failedMessages.push({
+        ...(failedResult.rows[0] ?? row.rows[0]),
+        subject: renderedSubject,
+        body: renderedBody,
+        status: "failed",
+        error: String(error?.message || error),
+      });
     }
   }
 
-  if (createdDrafts.length) {
+  if (sentMessages.length || failedMessages.length) {
     await logAdminAction(
       {
         actorUserId,
-        action: ADMIN_ACTIONS.APPLICATION_MESSAGE_DRAFT_CREATED,
+        action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
         entityType: "applications",
         entityId: application.id,
-        message: `${createdDrafts.length} message draft(s) created for application ${application.id}.`,
+        message: `${sentMessages.length} message(s) sent and ${failedMessages.length} failed for application ${application.id}.`,
         metadata: {
-          channels: createdDrafts.map((draft) => draft.channel),
-          draft_ids: createdDrafts.map((draft) => draft.id),
+          channels: Array.from(
+            new Set(
+              [...sentMessages, ...failedMessages]
+                .map((item) => item.channel)
+                .filter(Boolean),
+            ),
+          ),
+          sent_count: sentMessages.length,
+          failed_count: failedMessages.length,
+          sent_ids: sentMessages.map((item) => item.id).filter(Boolean),
+          failed_ids: failedMessages.map((item) => item.id).filter(Boolean),
         },
-        title: "Application Message Drafts Created",
-        body: `${createdDrafts.length} draft message(s) prepared for application #${application.id}.`,
+        title: failedMessages.length
+          ? "Application Messages Processed (With Failures)"
+          : "Application Messages Sent",
+        body: failedMessages.length
+          ? `${sentMessages.length} message(s) sent and ${failedMessages.length} failed for application #${application.id}.`
+          : `${sentMessages.length} message(s) sent for application #${application.id}.`,
       },
       client,
     );
   }
 
-  return createdDrafts;
+  return { sentMessages, failedMessages, skippedCount };
 }
 
 async function sendAccountCredentialsMessageForApplication(
@@ -1035,7 +1116,7 @@ export async function scheduleApplicationInterviewService(applicationId, actorUs
       template_key: "interview_scheduling",
     });
 
-    const queuedDrafts = await queueMessageDrafts(
+    const messageDispatch = await queueMessageDrafts(
       { ...application, id: applicationId },
       actorUserId,
       drafts,
@@ -1054,7 +1135,9 @@ export async function scheduleApplicationInterviewService(applicationId, actorUs
           location_type: interview.location_type,
           location_details: interview.location_details,
           duration_minutes: interview.duration_minutes,
-          message_draft_count: queuedDrafts.length,
+          message_sent_count: messageDispatch.sentMessages.length,
+          message_failed_count: messageDispatch.failedMessages.length,
+          message_skipped_count: messageDispatch.skippedCount,
         },
         title: "Interview Scheduled",
         body: `Interview scheduled for application #${applicationId}.`,
@@ -1065,7 +1148,9 @@ export async function scheduleApplicationInterviewService(applicationId, actorUs
     return {
       application: updated.rows[0],
       interview,
-      message_drafts: queuedDrafts,
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
+      message_drafts: [...messageDispatch.sentMessages, ...messageDispatch.failedMessages],
       links,
     };
   });
@@ -1165,7 +1250,7 @@ export async function setApplicationDecisionService(applicationId, actorUserId, 
       : [];
 
     const drafts = [...explicitDrafts, ...autoDrafts];
-    const queuedDrafts = await queueMessageDrafts(
+    const messageDispatch = await queueMessageDrafts(
       { ...application, id: applicationId },
       actorUserId,
       drafts,
@@ -1184,7 +1269,9 @@ export async function setApplicationDecisionService(applicationId, actorUserId, 
           from_stage: application.stage,
           to_stage: nextStage,
           status: nextStatus,
-          message_draft_count: queuedDrafts.length,
+          message_sent_count: messageDispatch.sentMessages.length,
+          message_failed_count: messageDispatch.failedMessages.length,
+          message_skipped_count: messageDispatch.skippedCount,
         },
         title: "Application Decision Recorded",
         body: `Decision '${decision}' was recorded for application #${applicationId}.`,
@@ -1194,7 +1281,9 @@ export async function setApplicationDecisionService(applicationId, actorUserId, 
 
     return {
       application: updated.rows[0],
-      message_drafts: queuedDrafts,
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
+      message_drafts: [...messageDispatch.sentMessages, ...messageDispatch.failedMessages],
     };
   });
 }

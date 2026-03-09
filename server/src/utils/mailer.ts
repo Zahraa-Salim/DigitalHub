@@ -164,6 +164,7 @@ export async function sendDigitalHubEmail({ to, subject, body }) {
 
   const config = readMailerEnvConfig();
   const fromAddress = await resolveFromAddress(config);
+  const isProduction = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
   if (!fromAddress) {
     throw new AppError(
       500,
@@ -173,6 +174,9 @@ export async function sendDigitalHubEmail({ to, subject, body }) {
   }
 
   if (!isSmtpUsable(config)) {
+    if (isProduction) {
+      throw new AppError(500, "EMAIL_NOT_CONFIGURED", "SMTP is not fully configured.");
+    }
     if (!warnedMockMode) {
       warnedMockMode = true;
       console.warn(

@@ -4,6 +4,12 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { withTransaction } from "../db/index.js";
+import {
+    createAnnouncement,
+    deleteAnnouncement,
+    findActiveAutoAnnouncementByEventId,
+    updateAnnouncement,
+} from "../repositories/announcements.repo.js";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -41,6 +47,64 @@ function normalizeCompletionImageUrls(value) {
     return Array.from(new Set(normalized));
 }
 
+function isEventUpcoming(event) {
+    const startsAt = new Date(event?.starts_at || "");
+    return !Number.isNaN(startsAt.getTime()) && startsAt.getTime() >= Date.now();
+}
+
+function buildEventAnnouncementContent(event) {
+    const eventTitle = event?.title || `Event #${event.id}`;
+    const location = event?.location ? ` at ${event.location}` : "";
+    return {
+        title: `${eventTitle} is coming up`,
+        body: `Join us for ${eventTitle}${location}. Save the date and review the event details before it starts.`,
+    };
+}
+
+async function syncEventAnnouncement(adminId, event, autoAnnounce, dbClient) {
+    if (!event?.id) {
+        return;
+    }
+
+    const existingResult = await findActiveAutoAnnouncementByEventId(event.id, dbClient);
+    const existing = existingResult.rows[0] ?? null;
+    const shouldShow =
+        Boolean(autoAnnounce) &&
+        Boolean(event.is_published) &&
+        !Boolean(event.is_done) &&
+        isEventUpcoming(event);
+
+    if (!shouldShow) {
+        if (existing) {
+            await deleteAnnouncement(existing.id, dbClient);
+        }
+        return;
+    }
+
+    const content = buildEventAnnouncementContent(event);
+    if (existing) {
+        await updateAnnouncement(
+            existing.id,
+            "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, cohort_id = NULL",
+            [content.title, content.body, "website", true, new Date().toISOString()],
+            dbClient,
+        );
+        return;
+    }
+
+    await createAnnouncement({
+        title: content.title,
+        body: content.body,
+        target_audience: "website",
+        cohort_id: null,
+        event_id: event.id,
+        is_auto: true,
+        is_published: true,
+        publish_at: new Date().toISOString(),
+        created_by: adminId,
+    }, dbClient);
+}
+
 export async function createEventService(adminId, payload) {
     const body = payload;
     return withTransaction(async (client) => {
@@ -53,10 +117,12 @@ export async function createEventService(adminId, payload) {
             starts_at: body.starts_at,
             ends_at: body.ends_at ?? null,
             is_published: body.is_published ?? false,
+            auto_announce: body.auto_announce ?? false,
             completion_image_urls: normalizeCompletionImageUrls(body.completion_image_urls),
             created_by: adminId,
         }, client);
         const created = result.rows[0];
+        await syncEventAnnouncement(adminId, created, created.auto_announce, client);
         await logAdminAction({
             actorUserId: adminId,
             action: "create event",
@@ -95,63 +161,92 @@ export async function listEventsService(query) {
     };
 }
 export async function patchEventService(id, adminId, payload) {
-    const normalizedPayload = {
-        ...payload,
-    };
-    if (normalizedPayload.completion_image_urls !== undefined) {
-        normalizedPayload.completion_image_urls = JSON.stringify(normalizeCompletionImageUrls(normalizedPayload.completion_image_urls));
-    }
-    const built = buildUpdateQuery(normalizedPayload, ["slug", "title", "description", "post_body", "location", "starts_at", "ends_at", "is_published", "is_done", "done_at", "completion_image_urls"], 1);
-    const setClause = built.setClause.replace(/completion_image_urls = \$(\d+)/, (_match, index) => `completion_image_urls = $${index}::jsonb`);
-    const values = built.values;
-    const result = await updateEvent(id, setClause, values);
-    if (!result.rowCount) {
-        throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
-    }
-    const updated = result.rows[0];
-    await logAdminAction({
-        actorUserId: adminId,
-        action: "update event",
-        entityType: "events",
-        entityId: id,
-        message: `Event ${id} was updated.`,
-        metadata: { updated_fields: Object.keys(normalizedPayload) },
-        title: "Event Updated",
-        body: `Event #${id} was edited.`,
+    return withTransaction(async (client) => {
+        const currentResult = await listEvents("WHERE id = $1", "id", "desc", [id], 1, 0, client);
+        if (!currentResult.rowCount) {
+            throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+        }
+
+        const current = currentResult.rows[0];
+        const normalizedPayload = {
+            ...payload,
+            auto_announce:
+                payload.auto_announce !== undefined ? Boolean(payload.auto_announce) : Boolean(current.auto_announce),
+        };
+
+        if (normalizedPayload.completion_image_urls !== undefined) {
+            normalizedPayload.completion_image_urls = JSON.stringify(normalizeCompletionImageUrls(normalizedPayload.completion_image_urls));
+        }
+
+        const built = buildUpdateQuery(
+            normalizedPayload,
+            ["slug", "title", "description", "post_body", "location", "starts_at", "ends_at", "is_published", "auto_announce", "is_done", "done_at", "completion_image_urls"],
+            1,
+        );
+        const setClause = built.setClause.replace(/completion_image_urls = \$(\d+)/, (_match, index) => `completion_image_urls = $${index}::jsonb`);
+        const values = built.values;
+        const result = await updateEvent(id, setClause, values, client);
+        if (!result.rowCount) {
+            throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+        }
+
+        const updated = result.rows[0];
+        await syncEventAnnouncement(adminId, updated, updated.auto_announce, client);
+
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "update event",
+            entityType: "events",
+            entityId: id,
+            message: `Event ${id} was updated.`,
+            metadata: { updated_fields: Object.keys(normalizedPayload) },
+            title: "Event Updated",
+            body: `Event #${id} was edited.`,
+        }, client);
+
+        return updated;
     });
-    return updated;
 }
 export async function deleteEventService(id, adminId) {
-    const result = await deleteEvent(id);
-    if (!result.rowCount) {
-        throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
-    }
-    await logAdminAction({
-        actorUserId: adminId,
-        action: "delete event",
-        entityType: "events",
-        entityId: id,
-        message: `Event ${id} was deleted.`,
-        title: "Event Deleted",
-        body: `Event #${id} was deleted.`,
+    return withTransaction(async (client) => {
+        const existingAnnouncement = await findActiveAutoAnnouncementByEventId(id, client);
+        const result = await deleteEvent(id, client);
+        if (!result.rowCount) {
+            throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+        }
+        if (existingAnnouncement.rowCount) {
+            await deleteAnnouncement(existingAnnouncement.rows[0].id, client);
+        }
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "delete event",
+            entityType: "events",
+            entityId: id,
+            message: `Event ${id} was deleted.`,
+            title: "Event Deleted",
+            body: `Event #${id} was deleted.`,
+        }, client);
+        return { id };
     });
-    return { id };
 }
 export async function markEventDoneService(id, adminId) {
-    const result = await markEventDone(id);
-    if (!result.rowCount) {
-        throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
-    }
-    await logAdminAction({
-        actorUserId: adminId,
-        action: "mark event done",
-        entityType: "events",
-        entityId: id,
-        message: `Event ${id} was marked as done.`,
-        title: "Event Completed",
-        body: `Event #${id} was marked as completed.`,
+    return withTransaction(async (client) => {
+        const result = await markEventDone(id, client);
+        if (!result.rowCount) {
+            throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+        }
+        await syncEventAnnouncement(adminId, result.rows[0], result.rows[0].auto_announce, client);
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "mark event done",
+            entityType: "events",
+            entityId: id,
+            message: `Event ${id} was marked as done.`,
+            title: "Event Completed",
+            body: `Event #${id} was marked as completed.`,
+        }, client);
+        return result.rows[0];
     });
-    return result.rows[0];
 }
 
 export async function uploadEventImageService(actorUserId, payload) {

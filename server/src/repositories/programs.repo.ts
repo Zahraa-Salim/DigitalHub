@@ -86,6 +86,7 @@ export async function createCohort(input, db = pool) {
           enrollment_close_at,
           start_date,
           end_date,
+          auto_announce,
           attendance_days,
           attendance_start_time,
           attendance_end_time,
@@ -93,7 +94,7 @@ export async function createCohort(input, db = pool) {
           updated_at
         )
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
       RETURNING *
     `, [
         input.program_id,
@@ -105,6 +106,7 @@ export async function createCohort(input, db = pool) {
         input.enrollment_close_at ?? null,
         input.start_date ?? null,
         input.end_date ?? null,
+        input.auto_announce ?? false,
         input.attendance_days ?? null,
         input.attendance_start_time ?? null,
         input.attendance_end_time ?? null,
@@ -133,6 +135,7 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
         c.name,
         CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
         (CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END) AS allow_applications,
+        c.auto_announce,
         c.capacity,
         c.enrollment_open_at,
         c.enrollment_close_at,
@@ -163,6 +166,7 @@ export async function getCohortStatusById(id, db = pool) {
         c.enrollment_close_at,
         c.start_date,
         c.end_date,
+        c.auto_announce,
         c.attendance_days,
         c.attendance_start_time,
         c.attendance_end_time
@@ -265,6 +269,15 @@ export async function upsertCohortInstructor(cohortId, instructorUserId, cohortR
       DO UPDATE SET cohort_role = EXCLUDED.cohort_role
       RETURNING *
     `, [cohortId, instructorUserId, cohortRole]);
+}
+
+export async function deleteCohortInstructor(cohortId, instructorUserId, db = pool) {
+    return db.query(`
+      DELETE FROM cohort_instructors
+      WHERE cohort_id = $1
+        AND instructor_user_id = $2
+      RETURNING cohort_id, instructor_user_id
+    `, [cohortId, instructorUserId]);
 }
 
 

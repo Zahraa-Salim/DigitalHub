@@ -3,13 +3,57 @@
 // Purpose: Contains business logic, orchestration, and transaction-level behavior.
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
+import fs from "node:fs";
+import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { withTransaction } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { cacheDel } from "../utils/cache.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
-import { countHomeSections, countPages, countThemeTokens, createThemeToken, ensureSiteSettingsRow, getSiteSettings, listHomeSections, listPages, listThemeTokens, updateHomeSection, updatePage, updateSiteSettings, updateThemeToken, } from "../repositories/cms.repo.js";
+import { countHomeSections, countMediaAssets, countPages, countThemeTokens, createMediaAsset, createThemeToken, ensureDefaultHomeSections, ensureDefaultPages, ensureSiteSettingsRow, getSiteSettings, listHomeSections, listMediaAssets, listPages, listThemeTokens, updateHomeSection, updatePage, updateSiteSettings, updateThemeToken, } from "../repositories/cms.repo.js";
+
+const CMS_MEDIA_MIME_TO_EXT = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+};
+const MAX_CMS_MEDIA_BYTES = 6 * 1024 * 1024;
+function sanitizeFilenamePart(value) {
+    return String(value || "media")
+        .toLowerCase()
+        .replace(/\.[a-z0-9]+$/i, "")
+        .replace(/[^a-z0-9-_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 48) || "media";
+}
+function normalizeTagList(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+    return Array.from(new Set(values
+        .map((entry) => String(entry || "").trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 20)));
+}
+function decodeBase64Image(input) {
+    const raw = String(input || "").trim();
+    if (!raw) {
+        throw new AppError(400, "VALIDATION_ERROR", "Media file data is required.");
+    }
+    const cleaned = raw.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, "").replace(/\s+/g, "");
+    try {
+        return Buffer.from(cleaned, "base64");
+    }
+    catch (_error) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid media payload.");
+    }
+}
 export async function getCmsSiteSettings() {
     const result = await getSiteSettings();
     if (!result.rowCount) {
@@ -41,6 +85,7 @@ export async function patchCmsSiteSettings(adminId, payload) {
     return updated;
 }
 export async function listCmsPages(query) {
+    await ensureDefaultPages();
     const list = parseListQuery(query, ["id", "key", "title", "updated_at"], "updated_at");
     const params = [];
     const where = [];
@@ -58,7 +103,7 @@ export async function listCmsPages(query) {
     };
 }
 export async function patchCmsPage(id, adminId, payload) {
-    return withTransaction(async (client) => {
+    const updated = await withTransaction(async (client) => {
         const allowedColumns = ["title", "content", "is_published"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         const result = await updatePage(id, setClause, values, adminId, client);
@@ -79,8 +124,11 @@ export async function patchCmsPage(id, adminId, payload) {
         }, client);
         return result.rows[0];
     });
+    await cacheDel(`public:page:${String(updated.key || "").trim().toLowerCase()}`);
+    return updated;
 }
 export async function listCmsHomeSections(query) {
+    await ensureDefaultHomeSections();
     const list = parseListQuery(query, ["id", "key", "title", "sort_order", "updated_at"], "sort_order");
     const params = [];
     const where = [];
@@ -129,6 +177,74 @@ export async function patchCmsHomeSection(id, adminId, payload) {
     });
     await cacheDel("public:home");
     return updated;
+}
+export async function listCmsMedia(query) {
+    const list = parseListQuery(query, ["id", "file_name", "original_name", "mime_type", "size_bytes", "created_at", "updated_at"], "created_at");
+    const params = [];
+    const where = [];
+    if (list.search) {
+        params.push(`%${list.search}%`);
+        where.push(buildSearchClause(["file_name", "COALESCE(original_name, '')", "COALESCE(alt_text, '')"], params.length));
+    }
+    const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const countResult = await countMediaAssets(whereClause, params);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const dataResult = await listMediaAssets(whereClause, list.sortBy, list.order, params, list.limit, list.offset);
+    return {
+        data: dataResult.rows,
+        pagination: buildPagination(list.page, list.limit, total),
+    };
+}
+export async function uploadCmsMedia(adminId, payload) {
+    const mimeType = String(payload.mime_type || "").trim().toLowerCase();
+    const extension = CMS_MEDIA_MIME_TO_EXT[mimeType];
+    if (!extension) {
+        throw new AppError(400, "VALIDATION_ERROR", "Unsupported media mime type.");
+    }
+    const fileBuffer = decodeBase64Image(payload.data_base64);
+    if (!fileBuffer.length) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid media payload.");
+    }
+    if (fileBuffer.length > MAX_CMS_MEDIA_BYTES) {
+        throw new AppError(400, "VALIDATION_ERROR", "Media file must be 6MB or less.");
+    }
+    const safeBase = sanitizeFilenamePart(payload.filename || payload.alt_text || "media");
+    const fileName = `${adminId}-${Date.now()}-${randomBytes(8).toString("hex")}-${safeBase}.${extension}`;
+    const storagePath = `cms/${fileName}`;
+    const uploadsDir = path.resolve(process.cwd(), "uploads", "cms");
+    const filePath = path.join(uploadsDir, fileName);
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
+    await fs.promises.writeFile(filePath, fileBuffer);
+    const created = await withTransaction(async (client) => {
+        const result = await createMediaAsset({
+            file_name: fileName,
+            original_name: payload.filename || null,
+            mime_type: mimeType,
+            size_bytes: fileBuffer.length,
+            storage_path: storagePath,
+            public_url: `/uploads/${storagePath}`,
+            alt_text: payload.alt_text || null,
+            tags: normalizeTagList(payload.tags),
+            created_by: adminId,
+        }, client);
+        const asset = result.rows[0];
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "upload media",
+            entityType: "media_assets",
+            entityId: asset.id,
+            message: `Media asset ${asset.file_name} was uploaded.`,
+            metadata: {
+                mime_type: mimeType,
+                size_bytes: fileBuffer.length,
+                public_url: asset.public_url,
+            },
+            title: "Media Uploaded",
+            body: "A CMS media file was uploaded.",
+        }, client);
+        return asset;
+    });
+    return created;
 }
 export async function listCmsThemeTokens(query) {
     const list = parseListQuery(query, ["id", "key", "purpose", "scope", "updated_at"], "updated_at");

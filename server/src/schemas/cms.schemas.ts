@@ -58,5 +58,14 @@ export const themePatchSchema = z
     .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required.",
 });
+export const mediaUploadSchema = z
+    .object({
+    filename: z.string().trim().min(1).max(160).optional(),
+    mime_type: z.enum(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/svg+xml"]),
+    data_base64: z.string().trim().min(1),
+    alt_text: z.string().trim().max(240).optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+})
+    .strict();
 
 

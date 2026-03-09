@@ -64,12 +64,14 @@ export async function createInstructorProfile(userId, payload, db = pool) {
         avatar_url,
         bio,
         expertise,
+        skills,
         linkedin_url,
         github_url,
         portfolio_url,
-        is_public
+        is_public,
+        sort_order
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
         userId,
@@ -77,10 +79,12 @@ export async function createInstructorProfile(userId, payload, db = pool) {
         payload.avatar_url ?? null,
         payload.bio ?? null,
         payload.expertise ?? null,
+        payload.skills ?? null,
         payload.linkedin_url ?? null,
         payload.github_url ?? null,
         payload.portfolio_url ?? null,
         payload.is_public ?? false,
+        payload.sort_order ?? null,
     ]);
 }
 

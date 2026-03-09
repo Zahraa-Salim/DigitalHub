@@ -7,15 +7,16 @@ import { pool } from "../db/index.js";
 export async function createAnnouncement(input, db = pool) {
     return db.query(`
       INSERT INTO announcements
-        (title, body, target_audience, cohort_id, is_auto, is_published, publish_at, created_by, created_at)
+        (title, body, target_audience, cohort_id, event_id, is_auto, is_published, publish_at, created_by, created_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       RETURNING *
     `, [
         input.title,
         input.body,
         input.target_audience,
         input.cohort_id ?? null,
+        input.event_id ?? null,
         input.is_auto,
         input.is_published,
         input.publish_at ?? null,
@@ -54,6 +55,30 @@ export async function deleteAnnouncement(id, db = pool) {
         AND deleted_at IS NULL
       RETURNING id
     `, [id]);
+}
+
+export async function findActiveAutoAnnouncementByCohortId(cohortId, db = pool) {
+    return db.query(`
+      SELECT *
+      FROM announcements
+      WHERE cohort_id = $1
+        AND is_auto = TRUE
+        AND deleted_at IS NULL
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `, [cohortId]);
+}
+
+export async function findActiveAutoAnnouncementByEventId(eventId, db = pool) {
+    return db.query(`
+      SELECT *
+      FROM announcements
+      WHERE event_id = $1
+        AND is_auto = TRUE
+        AND deleted_at IS NULL
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `, [eventId]);
 }
 
 

@@ -74,9 +74,11 @@ export const patchInstructorProfile = createPatchHandler("instructor_profiles", 
     "avatar_url",
     "bio",
     "expertise",
+    "skills",
     "linkedin_url",
     "github_url",
     "portfolio_url",
+    "sort_order",
 ]);
 export const patchInstructorVisibility = createVisibilityHandler("instructor_profiles");
 export async function postInstructorProfile(req, res) {
@@ -107,6 +109,7 @@ export const patchManagerProfile = createPatchHandler("admin_profiles", [
     "avatar_url",
     "bio",
     "job_title",
+    "skills",
     "admin_role",
     "linkedin_url",
     "github_url",

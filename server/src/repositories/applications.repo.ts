@@ -150,7 +150,7 @@ export async function upsertStudentProfile(userId, fullName, db = pool) {
       INSERT INTO student_profiles
         (user_id, full_name, avatar_url, bio, linkedin_url, github_url, portfolio_url, is_public, featured, featured_rank, public_slug, created_at)
       VALUES
-        ($1, $2, NULL, NULL, NULL, NULL, NULL, FALSE, FALSE, NULL, NULL, NOW())
+        ($1, $2, NULL, NULL, NULL, NULL, NULL, TRUE, FALSE, NULL, NULL, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET full_name = COALESCE(EXCLUDED.full_name, student_profiles.full_name)
     `, [userId, fullName]);

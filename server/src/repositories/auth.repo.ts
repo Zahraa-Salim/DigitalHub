@@ -64,7 +64,16 @@ export async function clearUserPasswordResetToken(userId, db = pool) {
     `, [userId]);
 }
 export async function updateLastLogin(userId, db = pool) {
-    return db.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
+    try {
+        return await db.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
+    }
+    catch (error) {
+        // Keep login functional on environments that haven't added this column yet.
+        if (String(error?.code || "") === "42703") {
+            return { rows: [], rowCount: 0 };
+        }
+        throw error;
+    }
 }
 export async function findAdminProfileByUserId(userId, db = pool) {
     return db.query(`

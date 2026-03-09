@@ -842,7 +842,7 @@ export async function upsertStudentProfile(userId, fullName, db = pool) {
         public_slug,
         created_at
       )
-      VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, FALSE, FALSE, NULL, NULL, NOW())
+      VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, TRUE, FALSE, NULL, NULL, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET full_name = COALESCE(EXCLUDED.full_name, student_profiles.full_name)
       RETURNING user_id

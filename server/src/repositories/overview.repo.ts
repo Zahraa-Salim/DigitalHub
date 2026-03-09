@@ -4,6 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { pool } from "../db/index.js";
+import { buildPagination } from "../utils/pagination.js";
 
 const PROGRAM_STAGES = [
   "applied",
@@ -478,4 +479,84 @@ export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db
     `,
     [safeLimit],
   );
+}
+
+export async function listOverviewMessages(filters, db = pool) {
+  const page = Math.max(1, Number(filters?.page ?? 1));
+  const limit = Math.max(1, Math.min(100, Number(filters?.limit ?? 20)));
+  const offset = (page - 1) * limit;
+  const status = filters?.status === "failed" ? "failed" : "sent";
+  const channel = ["all", "email", "whatsapp"].includes(String(filters?.channel || ""))
+    ? String(filters.channel)
+    : "all";
+  const search = typeof filters?.search === "string" ? filters.search.trim() : "";
+
+  const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
+
+  const params = [status];
+  const where = ["am.status = $1"];
+
+  if (channel === "email") {
+    where.push(`am.channel = 'email'`);
+  } else if (channel === "whatsapp") {
+    if (applicationMessagesHasMetadata) {
+      where.push(`am.channel = 'sms' AND COALESCE(am.metadata->>'provider', '') = 'whatsapp'`);
+    } else {
+      where.push(`am.channel = 'sms'`);
+    }
+  } else if (applicationMessagesHasMetadata) {
+    where.push(`(am.channel = 'email' OR (am.channel = 'sms' AND COALESCE(am.metadata->>'provider', '') = 'whatsapp'))`);
+  } else {
+    where.push(`(am.channel = 'email' OR am.channel = 'sms')`);
+  }
+
+  if (search) {
+    params.push(`%${search}%`);
+    where.push(`am.to_value ILIKE $${params.length}`);
+  }
+
+  const whereClause = `WHERE ${where.join(" AND ")}`;
+  const countResult = await db.query(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM application_messages am
+      ${whereClause}
+    `,
+    params,
+  );
+  const total = Number(countResult.rows[0]?.total ?? 0);
+
+  const dataParams = [...params, limit, offset];
+  const metadataSelect = applicationMessagesHasMetadata
+    ? `COALESCE(am.metadata->>'last_error', NULL) AS last_error`
+    : `NULL::text AS last_error`;
+
+  const dataResult = await db.query(
+    `
+      SELECT
+        am.id::int AS id,
+        am.application_id::int AS application_id,
+        am.program_application_id::int AS program_application_id,
+        CASE WHEN am.channel = 'email' THEN 'email' ELSE 'whatsapp' END AS channel,
+        am.status,
+        am.to_value,
+        am.subject,
+        am.body,
+        am.template_key,
+        am.sent_at,
+        am.created_at,
+        ${metadataSelect}
+      FROM application_messages am
+      ${whereClause}
+      ORDER BY am.created_at DESC, am.id DESC
+      LIMIT $${dataParams.length - 1}
+      OFFSET $${dataParams.length}
+    `,
+    dataParams,
+  );
+
+  return {
+    data: dataResult.rows,
+    pagination: buildPagination(page, limit, total),
+  };
 }

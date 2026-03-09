@@ -4,7 +4,7 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { createCmsThemeToken, getCmsSiteSettings, listCmsHomeSections, listCmsPages, listCmsThemeTokens, patchCmsHomeSection, patchCmsPage, patchCmsSiteSettings, patchCmsThemeToken, } from "../services/cms.service.js";
+import { createCmsThemeToken, getCmsSiteSettings, listCmsHomeSections, listCmsMedia, listCmsPages, listCmsThemeTokens, patchCmsHomeSection, patchCmsPage, patchCmsSiteSettings, patchCmsThemeToken, uploadCmsMedia, } from "../services/cms.service.js";
 export async function getSiteSettings(_req, res) {
     const data = await getCmsSiteSettings();
     sendSuccess(res, data);
@@ -28,6 +28,14 @@ export async function getHomeSections(req, res) {
 export async function patchHomeSection(req, res) {
     const data = await patchCmsHomeSection(Number(req.params.id), req.user.id, req.body);
     sendSuccess(res, data, "Home section updated successfully.");
+}
+export async function getMedia(req, res) {
+    const result = await listCmsMedia(req.query);
+    sendList(res, result.data, result.pagination);
+}
+export async function postMedia(req, res) {
+    const data = await uploadCmsMedia(req.user.id, req.body);
+    sendSuccess(res, data, "Media uploaded successfully.", 201);
 }
 export async function getTheme(req, res) {
     const result = await listCmsThemeTokens(req.query);

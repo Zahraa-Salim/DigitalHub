@@ -17,6 +17,7 @@ export async function createAnnouncementService(adminId, payload) {
             body: body.body,
             target_audience: body.target_audience,
             cohort_id: body.cohort_id ?? null,
+            event_id: body.event_id ?? null,
             is_auto: body.is_auto ?? false,
             is_published: body.is_published ?? true,
             publish_at: body.publish_at ?? null,
@@ -68,7 +69,7 @@ export async function listAnnouncementsService(query) {
     };
 }
 export async function patchAnnouncementService(id, adminId, payload) {
-    const { setClause, values } = buildUpdateQuery(payload, ["title", "body", "target_audience", "cohort_id", "is_auto", "is_published", "publish_at"], 1);
+    const { setClause, values } = buildUpdateQuery(payload, ["title", "body", "target_audience", "cohort_id", "event_id", "is_auto", "is_published", "publish_at"], 1);
     const result = await updateAnnouncement(id, setClause, values);
     if (!result.rowCount) {
         throw new AppError(404, "ANNOUNCEMENT_NOT_FOUND", "Announcement not found.");

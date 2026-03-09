@@ -74,8 +74,19 @@ function isDevForgotAnyEmailEnabled() {
     return !["0", "false", "no", "off"].includes(raw);
 }
 
+function isDevResetDebugEnabled() {
+    if (process.env.NODE_ENV === "production") {
+        return false;
+    }
+    const raw = String(process.env.AUTH_DEBUG_RETURN_RESET_TOKEN ?? "true").trim().toLowerCase();
+    return !["0", "false", "no", "off"].includes(raw);
+}
+
 function getPasswordResetBaseUrl() {
-    return (process.env.PASSWORD_RESET_URL_BASE || process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+    return (process.env.PASSWORD_RESET_URL_BASE ||
+        process.env.DASHBOARD_URL ||
+        process.env.FRONTEND_URL ||
+        "http://localhost:5174").replace(/\/$/, "");
 }
 
 export async function forgotPasswordService(input) {
@@ -93,9 +104,9 @@ export async function forgotPasswordService(input) {
         return { message: genericMessage };
     }
     const rawToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
     if (canStoreTokenForUser) {
         const tokenHash = hashResetToken(rawToken);
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
         await setUserPasswordResetToken(user.id, tokenHash, expiresAt);
     }
     const baseUrl = getPasswordResetBaseUrl();
@@ -105,6 +116,18 @@ export async function forgotPasswordService(input) {
         subject: "Reset your password",
         body: `We received a password reset request for your account.\n\nReset your password: ${resetLink}\n\nThis link expires in 1 hour.\nIf you did not request this, you can ignore this email.`,
     });
+    if (isDevResetDebugEnabled()) {
+        return {
+            message: genericMessage,
+            debug: {
+                reset_token: rawToken,
+                reset_link: resetLink,
+                expires_at: expiresAt.toISOString(),
+                delivered_to: email,
+                user_exists: canStoreTokenForUser,
+            },
+        };
+    }
     return { message: genericMessage };
 }
 

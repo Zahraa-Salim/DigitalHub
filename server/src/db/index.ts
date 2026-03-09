@@ -7,12 +7,16 @@ import pkg from "pg";
 import dns from "node:dns";
 const { Pool } = pkg;
 const LEGACY_SSL_MODES = new Set(["prefer", "require", "verify-ca"]);
-function normalizeDatabaseUrl(rawUrl: string): string {
+function normalizeDatabaseUrl(rawUrl: string, forceDisableSsl = false): string {
     if (!rawUrl) {
         return rawUrl;
     }
     try {
         const parsed = new URL(rawUrl);
+        if (forceDisableSsl) {
+            parsed.searchParams.set("sslmode", "disable");
+            return parsed.toString();
+        }
         const sslMode = (parsed.searchParams.get("sslmode") || "").trim().toLowerCase();
         const libpqCompat = (parsed.searchParams.get("uselibpqcompat") || "").trim().toLowerCase();
         if (LEGACY_SSL_MODES.has(sslMode) && libpqCompat !== "true") {
@@ -30,11 +34,29 @@ try {
   // Ignore when runtime does not support changing DNS result order.
 }
 
-const databaseUrl = normalizeDatabaseUrl(String(process.env.DATABASE_URL || "").trim());
 const sslMode = String(process.env.PGSSLMODE || "").trim().toLowerCase();
-const sslEnabled = process.env.PGSSL !== "false" && sslMode !== "disable";
+const databaseUrl = normalizeDatabaseUrl(String(process.env.DATABASE_URL || "").trim(), sslMode === "disable");
+const sslRejectUnauthorizedEnv = String(process.env.PGSSL_REJECT_UNAUTHORIZED || "").trim().toLowerCase();
+const sslRejectUnauthorized = sslRejectUnauthorizedEnv
+    ? ["1", "true", "yes", "on"].includes(sslRejectUnauthorizedEnv)
+    : String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+const connectionStringRequestsSsl = (() => {
+    if (!databaseUrl) {
+        return false;
+    }
+    try {
+        const parsed = new URL(databaseUrl);
+        const mode = (parsed.searchParams.get("sslmode") || "").trim().toLowerCase();
+        return mode !== "" && mode !== "disable";
+    }
+    catch {
+        return false;
+    }
+})();
+const envRequestsSsl = String(process.env.PGSSL || "").trim().toLowerCase() === "true";
+const sslEnabled = sslMode !== "disable" && (envRequestsSsl || connectionStringRequestsSsl);
 const sharedPoolOptions = {
-    ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
+    ssl: sslEnabled ? { rejectUnauthorized: sslRejectUnauthorized } : undefined,
   max: Number(process.env.PG_POOL_MAX || 10),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
   connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS || 15000),

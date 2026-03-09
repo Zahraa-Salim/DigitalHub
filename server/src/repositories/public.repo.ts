@@ -29,9 +29,17 @@ export async function listPublicHomeSections(db = pool) {
     return db.query(`
       SELECT id, key, title, is_enabled, sort_order, content, updated_at
       FROM home_sections
-      WHERE is_enabled = TRUE
       ORDER BY sort_order ASC, id ASC
     `);
+}
+export async function getPublicPageByKey(pageKey, db = pool) {
+    return db.query(`
+      SELECT id, key, title, content, is_published, updated_at
+      FROM pages
+      WHERE key = $1
+        AND is_published = TRUE
+      LIMIT 1
+    `, [pageKey]);
 }
 export async function getPublicSiteSettings(db = pool) {
     return db.query(`
@@ -156,6 +164,7 @@ export async function getPublicStudentBySlug(publicSlug, db = pool) {
         WHERE e.student_user_id = sp.user_id
       ) cm ON TRUE
       WHERE sp.is_public = TRUE
+        AND COALESCE(sp.admin_status, 'active') = 'active'
         AND sp.public_slug = $1
       LIMIT 1
     `, [publicSlug]);
@@ -170,6 +179,93 @@ export async function getPublicEventBySlug(slug, db = pool) {
         AND e.slug = $1
       LIMIT 1
     `, [slug]);
+}
+
+export async function getPublicCohortById(cohortId, db = pool) {
+    return db.query(`
+      SELECT
+        c.id,
+        c.program_id,
+        p.title AS program_title,
+        p.image_url AS program_image_url,
+        c.name,
+        CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
+        CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications,
+        c.use_general_form,
+        c.application_form_id,
+        c.enrollment_open_at,
+        c.enrollment_close_at,
+        c.start_date,
+        c.end_date,
+        c.attendance_days,
+        c.attendance_start_time,
+        c.attendance_end_time,
+        c.created_at,
+        c.updated_at
+      FROM cohorts c
+      JOIN programs p ON p.id = c.program_id
+      WHERE c.id = $1
+        AND c.deleted_at IS NULL
+        AND p.deleted_at IS NULL
+        AND p.is_published = TRUE
+      LIMIT 1
+    `, [cohortId]);
+}
+
+export async function listPublicCohortInstructors(cohortId, db = pool) {
+    return db.query(`
+      SELECT
+        ip.user_id,
+        ip.full_name,
+        ip.avatar_url,
+        ip.bio,
+        ip.expertise,
+        ip.skills,
+        ip.linkedin_url,
+        ip.github_url,
+        ip.portfolio_url,
+        ci.cohort_role
+      FROM cohort_instructors ci
+      JOIN instructor_profiles ip ON ip.user_id = ci.instructor_user_id
+      JOIN users u ON u.id = ip.user_id
+      WHERE ci.cohort_id = $1
+        AND ip.is_public = TRUE
+        AND u.is_active = TRUE
+      ORDER BY ip.full_name ASC
+    `, [cohortId]);
+}
+
+export async function listPublicCohortStudents(cohortId, db = pool) {
+    return db.query(`
+      SELECT
+        sp.user_id,
+        sp.full_name,
+        sp.avatar_url,
+        sp.bio,
+        NULL::text AS skills,
+        sp.linkedin_url,
+        sp.github_url,
+        sp.portfolio_url,
+        sp.public_slug,
+        e.status AS enrollment_status,
+        e.enrolled_at
+      FROM enrollments e
+      JOIN student_profiles sp ON sp.user_id = e.student_user_id
+      JOIN users u ON u.id = sp.user_id
+      WHERE e.cohort_id = $1
+        AND e.status IN ('active', 'paused', 'completed')
+        AND sp.is_public = TRUE
+        AND u.is_active = TRUE
+      ORDER BY
+        CASE e.status
+          WHEN 'active' THEN 0
+          WHEN 'paused' THEN 1
+          WHEN 'completed' THEN 2
+          ELSE 3
+        END,
+        e.enrolled_at DESC,
+        sp.full_name ASC
+    `, [cohortId]);
 }
 
 export async function programApplicationsTableExists(db = pool) {

@@ -58,26 +58,27 @@ RETURNING id;
 -- Convenience selectors
 -- (Use these in subqueries below)
 -- admin id:
---   (SELECT id FROM users WHERE email='admin@digitalhub.com')
+--   (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
 -- instructor id:
---   (SELECT id FROM users WHERE email='instructor@digitalhub.com')
+--   (SELECT id FROM users WHERE email='instructor@digitalhub.com' ORDER BY id ASC LIMIT 1)
 -- student id:
---   (SELECT id FROM users WHERE email='student@digitalhub.com')
+--   (SELECT id FROM users WHERE email='student@digitalhub.com' ORDER BY id ASC LIMIT 1)
 
 -- =========================================================
 -- 2) PROFILES
 -- =========================================================
 -- Instructor profile (public)
 INSERT INTO instructor_profiles (
-  user_id, full_name, avatar_url, bio, expertise,
+  user_id, full_name, avatar_url, bio, expertise, skills,
   linkedin_url, github_url, portfolio_url, is_public
 )
 VALUES (
-  (SELECT id FROM users WHERE email='instructor@digitalhub.com'),
+  (SELECT id FROM users WHERE email='instructor@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'Rami Haddad',
   NULL,
   'Full-stack engineer and mentor focused on employability and project-based learning.',
   'React, Node.js, PostgreSQL, API Design',
+  'React, Node.js, PostgreSQL, REST APIs, Mentoring',
   'https://www.linkedin.com/in/rami-haddad',
   'https://github.com/rami-haddad',
   NULL,
@@ -87,6 +88,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   full_name=EXCLUDED.full_name,
   bio=EXCLUDED.bio,
   expertise=EXCLUDED.expertise,
+  skills=EXCLUDED.skills,
   is_public=EXCLUDED.is_public;
 
 -- Student profile (public + featured)
@@ -96,7 +98,7 @@ INSERT INTO student_profiles (
   is_public, featured, featured_rank, public_slug
 )
 VALUES (
-  (SELECT id FROM users WHERE email='student@digitalhub.com'),
+  (SELECT id FROM users WHERE email='student@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'Zahraa Salim',
   NULL,
   'Junior developer focused on building real projects and becoming job-ready.',
@@ -118,17 +120,18 @@ ON CONFLICT (user_id) DO UPDATE SET
 
 -- Admin profile (admin shown publicly)
 INSERT INTO admin_profiles (
-  user_id, full_name, avatar_url, bio, job_title,
+  user_id, full_name, avatar_url, bio, job_title, skills,
   linkedin_url, github_url, portfolio_url,
   admin_role,
   is_public, sort_order
 )
 VALUES (
-  (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'Digital Hub Admin',
   NULL,
   'Program manager supporting learners and partners to build real-world skills and employability.',
   'Program Manager',
+  'Program Operations, Partner Relations, Curriculum Delivery',
   NULL,
   NULL,
   NULL,
@@ -140,6 +143,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   full_name=EXCLUDED.full_name,
   bio=EXCLUDED.bio,
   job_title=EXCLUDED.job_title,
+  skills=EXCLUDED.skills,
   admin_role=EXCLUDED.admin_role,
   is_public=EXCLUDED.is_public,
   sort_order=EXCLUDED.sort_order;
@@ -163,7 +167,7 @@ SET
     'instagram', 'https://instagram.com/digitalhub',
     'linkedin', 'https://linkedin.com/company/digitalhub'
   ),
-  updated_by = (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  updated_by = (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
   updated_at = NOW()
 WHERE id=1;
 
@@ -172,11 +176,11 @@ WHERE id=1;
 -- =========================================================
 INSERT INTO theme_tokens (key, purpose, value, scope, updated_by)
 VALUES
-  ('--bg', 'Background', '#0B0F19', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('--text', 'Text', '#E6EAF2', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('--primary', 'Primary', '#6D5EF7', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('--card', 'Card Background', '#121A2A', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('--border', 'Border', '#22304D', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com'))
+  ('--bg', 'Background', '#0B0F19', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('--text', 'Text', '#E6EAF2', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('--primary', 'Primary', '#6D5EF7', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('--card', 'Card Background', '#121A2A', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('--border', 'Border', '#22304D', 'web', (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1))
 ON CONFLICT (key) DO UPDATE SET
   purpose=EXCLUDED.purpose,
   value=EXCLUDED.value,
@@ -191,18 +195,273 @@ INSERT INTO pages (key, title, content, is_published, updated_by)
 VALUES
   ('about', 'About Digital Hub',
     jsonb_build_object(
-      'heroTitle', 'Build skills. Become employable.',
-      'heroSubtitle', 'We help learners become job-ready through structured programs, real projects, and community.'
+      'hero_tag', 'About Digital Hub',
+      'hero_title_primary', 'Practical Learning For',
+      'hero_title_highlight', 'Real Career Progress',
+      'hero_subtitle', 'Digital Hub helps learners move from foundations to delivery through project-driven programs, mentor feedback, and clear execution standards.',
+      'hero_image_url', '/assets/img/others/inner_about_img.png',
+      'hero_pills', jsonb_build_array(
+        'Industry-aligned programs',
+        'Mentor-supported learning',
+        'Project-first outcomes'
+      ),
+      'primary_cta_text', 'Apply Now',
+      'primary_cta_link', '/apply',
+      'secondary_cta_text', 'Browse Programs',
+      'secondary_cta_link', '/programs',
+      'focus_eyebrow', 'What We Deliver',
+      'focus_title', 'How The Learning Experience Works',
+      'focus_description', 'Our delivery model combines technical depth, structured mentorship, and measurable outcomes so learners can build strong momentum.',
+      'mission_eyebrow', 'Mission',
+      'mission_title', 'What We Stand For',
+      'mission_description', 'Digital Hub is designed to close the gap between learning and employability through practical, high-accountability training.',
+      'outcomes_eyebrow', 'How We Measure Outcomes',
+      'outcomes_title', 'Mission Impact KPIs',
+      'outcomes_description', 'These KPI cards are tied to live platform entities: cohorts, participants, team members, and programs.',
+      'programs_eyebrow', 'Program Portfolio',
+      'programs_title', 'Program Names',
+      'programs_description', 'Programs currently available across Digital Hub tracks.',
+      'program_names_limit', 12,
+      'alumni_eyebrow', 'Alumni Success Stories',
+      'alumni_title', 'Real Outcomes From Recent Graduates',
+      'alumni_description', 'Examples of graduates moving into delivery roles, freelance work, and product teams.',
+      'partners_eyebrow', 'Partner Companies',
+      'partners_title', 'Organizations Collaborating With Digital Hub',
+      'partners_description', 'A sample of hiring and project partners connected to learner outcomes.',
+      'faq_eyebrow', 'Mission FAQ',
+      'faq_title', 'Program Impact Questions',
+      'faq_description', 'Answers to common questions about outcomes, employability, and measurable impact.',
+      'journey_eyebrow', 'Mission In Action',
+      'journey_title', 'From Learning To Delivery',
+      'journey_description', 'Participants move through a clear journey that turns learning into demonstrable execution.',
+      'metric_cards', jsonb_build_array(
+        jsonb_build_object('metric_key', 'team_number', 'label', 'Team Members', 'description', 'Instructors and managers supporting delivery and coaching.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'programs', 'label', 'Programs', 'description', 'Active and upcoming tracks aligned with market needs.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'cohorts_made', 'label', 'Cohorts Created', 'description', 'Cohorts launched across completed, running, open, and planned cycles.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'participants', 'label', 'Participants', 'description', 'Participants currently tracked in the system.', 'suffix', '+')
+      ),
+      'outcome_kpi_cards', jsonb_build_array(
+        jsonb_build_object('metric_key', 'cohorts_made', 'label', 'Cohorts Made', 'description', 'Total cohorts created and managed in the platform.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'participants', 'label', 'Participants', 'description', 'Current participant count across active records.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'team_number', 'label', 'Team Number', 'description', 'Combined instructors and management team supporting delivery.', 'suffix', '+'),
+        jsonb_build_object('metric_key', 'programs', 'label', 'Programs', 'description', 'Program names are loaded below directly from the database.', 'suffix', '+')
+      ),
+      'focus_cards', jsonb_build_array(
+        jsonb_build_object('title', 'Applied Learning', 'description', 'Learners build real deliverables, not just exercises, throughout each program.'),
+        jsonb_build_object('title', 'Mentor Feedback Loops', 'description', 'Regular review cycles keep learners aligned with quality standards and deadlines.'),
+        jsonb_build_object('title', 'Career Readiness', 'description', 'Training includes portfolio direction, communication practice, and execution habits.')
+      ),
+      'mission_cards', jsonb_build_array(
+        jsonb_build_object('title', 'Access To Practical Skills', 'description', 'We help learners gain hands-on digital capabilities through guided, structured delivery.'),
+        jsonb_build_object('title', 'Clarity And Accountability', 'description', 'Clear milestones and progress tracking help learners stay focused and move forward.'),
+        jsonb_build_object('title', 'Community And Growth', 'description', 'Learners grow inside a support system of mentors, peers, and outcomes-focused coaching.')
+      ),
+      'alumni_story_cards', jsonb_build_array(
+        jsonb_build_object('name', 'Nour Salameh', 'role', 'Frontend Developer', 'company', 'Cedar Tech', 'quote', 'The project cycle taught me how to deliver features under real deadlines.', 'outcome', 'Hired as a junior frontend developer after completing capstone delivery.'),
+        jsonb_build_object('name', 'Hadi Nasser', 'role', 'Data Analyst', 'company', 'Insight Labs', 'quote', 'Mentor feedback on dashboards changed how I present data to stakeholders.', 'outcome', 'Moved from intern to full-time analyst role within three months.'),
+        jsonb_build_object('name', 'Rana Farah', 'role', 'Product Associate', 'company', 'Launchbase', 'quote', 'The product workflow modules made roadmap planning and prioritization practical.', 'outcome', 'Transitioned from marketing coordination into product operations.')
+      ),
+      'partner_logo_cards', jsonb_build_array(
+        jsonb_build_object('name', 'Cedar Tech', 'logo_url', '/assets/img/brand/brand01.png', 'link', 'https://example.com/cedar-tech'),
+        jsonb_build_object('name', 'Insight Labs', 'logo_url', '/assets/img/brand/brand02.png', 'link', 'https://example.com/insight-labs'),
+        jsonb_build_object('name', 'Launchbase', 'logo_url', '/assets/img/brand/brand03.png', 'link', 'https://example.com/launchbase'),
+        jsonb_build_object('name', 'Beirut Digital Factory', 'logo_url', '/assets/img/brand/brand04.png', 'link', 'https://example.com/bdf'),
+        jsonb_build_object('name', 'Nexa Systems', 'logo_url', '/assets/img/brand/brand05.png', 'link', 'https://example.com/nexa')
+      ),
+      'mission_faq_items', jsonb_build_array(
+        jsonb_build_object('question', 'How are mission outcomes measured?', 'answer', 'We track operational KPIs such as cohorts created, participant activity, and team-supported delivery capacity.'),
+        jsonb_build_object('question', 'Are these KPI cards static?', 'answer', 'No. The KPI cards map to live data keys and can also be overridden when needed for campaigns.'),
+        jsonb_build_object('question', 'Where do program names come from?', 'answer', 'Program names are loaded directly from the programs table via public API endpoints.'),
+        jsonb_build_object('question', 'What defines an alumni success story?', 'answer', 'Stories are outcome-focused: role transition, hiring progress, or tangible project delivery results.')
+      ),
+      'journey_cards', jsonb_build_array(
+        jsonb_build_object('step', 'Step 01', 'title', 'Foundations', 'description', 'Learners build strong fundamentals with practical labs and guided assignments.'),
+        jsonb_build_object('step', 'Step 02', 'title', 'Project Execution', 'description', 'Participants work on scoped projects that mirror professional delivery expectations.'),
+        jsonb_build_object('step', 'Step 03', 'title', 'Career Positioning', 'description', 'Final outputs are refined for hiring readiness, portfolio quality, and interviews.')
+      )
     ),
     TRUE,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   ('privacy', 'Privacy Policy',
     jsonb_build_object(
       'text', 'This is a demo privacy policy. Replace with your official policy.'
     ),
     TRUE,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('contact', 'Contact Us',
+    jsonb_build_object(
+      'hero_title', 'Get in Touch',
+      'hero_subtitle', 'Questions, partnership requests, or visit planning. Reach out and our team will reply shortly.',
+      'email', 'hello@digitalhub.com',
+      'phone', '+961-00-000-000',
+      'whatsapp', '+961-00-000-000',
+      'address', 'Beirut, Lebanon',
+      'map_embed_url', 'https://maps.google.com/?q=Beirut',
+      'form_title', 'Send us a message',
+      'submit_button_text', 'Send Message'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('faq', 'Frequently Asked Questions',
+    jsonb_build_object(
+      'title', 'Frequently Asked Questions',
+      'description', 'Find quick answers about programs, admissions, and communication.',
+      'search_placeholder', 'Search questions...',
+      'empty_state_text', 'No questions found.',
+      'items', jsonb_build_array(
+        jsonb_build_object(
+          'question', 'Who can apply to Digital Hub programs?',
+          'answer', 'Anyone interested in building practical digital skills can apply.'
+        ),
+        jsonb_build_object(
+          'question', 'Do I need previous technical experience?',
+          'answer', 'Not always. Requirements vary by program and are listed on each program page.'
+        ),
+        jsonb_build_object(
+          'question', 'How will I know my application status?',
+          'answer', 'You will receive updates through the contact details you provide in your application.'
+        )
+      )
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  )
+ON CONFLICT (key) DO UPDATE SET
+  title=EXCLUDED.title,
+  content=EXCLUDED.content,
+  is_published=EXCLUDED.is_published,
+  updated_by=EXCLUDED.updated_by,
+  updated_at=NOW();
+
+INSERT INTO pages (key, title, content, is_published, updated_by)
+VALUES
+  ('programs', 'Programs',
+    jsonb_build_object(
+      'hero_title', 'All Programs',
+      'hero_subtitle', 'Browse open and upcoming programs delivered through The Digital Hub.'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('events', 'Events',
+    jsonb_build_object(
+      'hero_title', 'Events',
+      'hero_subtitle', 'Community moments, open days, and career conversations hosted by The Digital Hub.',
+      'start_label', 'Start',
+      'end_label', 'End',
+      'location_label', 'Location',
+      'status_label', 'Status',
+      'event_post_title', 'Event Post',
+      'fallback_post_text', 'Details for this event will be published soon.',
+      'not_available_text', 'N/A'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('participants', 'Participants',
+    jsonb_build_object(
+      'hero_title', 'Participants',
+      'hero_subtitle', 'Explore public participant profiles and discover emerging talent.'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('team', 'Team',
+    jsonb_build_object(
+      'hero_title', 'Team',
+      'hero_subtitle', 'Meet the admin and instructor teams behind The Digital Hub.'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('apply', 'Apply',
+    jsonb_build_object(
+      'hero_title', 'Apply to Join',
+      'hero_subtitle', 'Submit an application to a cohort or program using the forms below.'
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('hire_talent', 'Hire Talent',
+    jsonb_build_object(
+      'hero_title', 'Hire Digital Hub Talent',
+      'hero_subtitle', 'Use the recruiter toolkit to explore demo matches and design your hiring flow.',
+      'candidates', jsonb_build_array(
+        jsonb_build_object(
+          'name', 'Lina Haddad',
+          'headline', 'Frontend Developer',
+          'experienceLevel', 'mid',
+          'locationType', 'remote',
+          'location', 'Beirut, Lebanon',
+          'availability', 'Immediate',
+          'cohorts', jsonb_build_array('Full Stack - Spring 2026'),
+          'skills', jsonb_build_array('React', 'TypeScript', 'UI/UX'),
+          'summary', 'Builds accessible interfaces and converts product requirements into clean React code.',
+          'matchNotes', jsonb_build_array('Strong React and TypeScript foundation', 'Good UX collaboration experience'),
+          'avatar', '/assets/img/instructor/instructor01.png',
+          'cvUrl', '/assets/docs/demo-cv.pdf',
+          'portfolioUrl', '#',
+          'linkedinUrl', '#',
+          'email', 'lina.haddad@example.com'
+        ),
+        jsonb_build_object(
+          'name', 'Ziad Farah',
+          'headline', 'Full Stack Engineer',
+          'experienceLevel', 'senior',
+          'locationType', 'hybrid',
+          'location', 'Tripoli, Lebanon',
+          'availability', '2 weeks',
+          'cohorts', jsonb_build_array('Backend Engineering - Winter 2025'),
+          'skills', jsonb_build_array('Node.js', 'PostgreSQL', 'TypeScript'),
+          'summary', 'Designs APIs, optimizes SQL queries, and mentors junior engineers.',
+          'matchNotes', jsonb_build_array('Strong backend architecture', 'Reliable with production database workloads'),
+          'avatar', '/assets/img/instructor/instructor02.png',
+          'cvUrl', '/assets/docs/demo-cv.pdf',
+          'portfolioUrl', '#',
+          'linkedinUrl', '#',
+          'email', 'ziad.farah@example.com'
+        ),
+        jsonb_build_object(
+          'name', 'Maya Saade',
+          'headline', 'Product Designer',
+          'experienceLevel', 'mid',
+          'locationType', 'on_site',
+          'location', 'Saida, Lebanon',
+          'availability', 'Immediate',
+          'cohorts', jsonb_build_array('UI/UX Design - Fall 2025'),
+          'skills', jsonb_build_array('UI/UX', 'React'),
+          'summary', 'Creates design systems, prototypes quickly, and supports handoff with dev-ready specs.',
+          'matchNotes', jsonb_build_array('Strong visual system thinking', 'Can support front-end implementation'),
+          'avatar', '/assets/img/instructor/instructor03.png',
+          'cvUrl', '/assets/docs/demo-cv.pdf',
+          'portfolioUrl', '#',
+          'linkedinUrl', '#',
+          'email', 'maya.saade@example.com'
+        ),
+        jsonb_build_object(
+          'name', 'Karim Nassar',
+          'headline', 'Data Analyst',
+          'experienceLevel', 'junior',
+          'locationType', 'remote',
+          'location', 'Byblos, Lebanon',
+          'availability', '1 month',
+          'cohorts', jsonb_build_array('Data & BI - Spring 2026'),
+          'skills', jsonb_build_array('Data Analysis', 'PostgreSQL'),
+          'summary', 'Transforms raw data into dashboards and insight reports for business teams.',
+          'matchNotes', jsonb_build_array('Good analytical workflow', 'Comfortable with SQL reporting'),
+          'avatar', '/assets/img/instructor/instructor04.png',
+          'cvUrl', '/assets/docs/demo-cv.pdf',
+          'portfolioUrl', '#',
+          'linkedinUrl', '#',
+          'email', 'karim.nassar@example.com'
+        )
+      )
+    ),
+    TRUE,
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT (key) DO UPDATE SET
   title=EXCLUDED.title,
@@ -223,19 +482,51 @@ VALUES
       'ctaText', 'Explore Programs',
       'ctaLink', '/programs'
     ),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
-  ('programs', 'Programs', TRUE, 2,
+  ('about', 'About', TRUE, 2,
+    jsonb_build_object(
+      'subtitle', 'About The Digital Hub',
+      'title', 'Empowering Youth with Practical Digital Skills',
+      'description', 'The Digital Hub helps youth build practical digital skills through guided training, mentorship, and real projects that connect learning to work.',
+      'bullet_points', jsonb_build_array(
+        'Job-ready web and digital training',
+        'Hands-on projects with mentor support',
+        'Career preparation for real opportunities'
+      ),
+      'cta_text', 'Learn More About Us',
+      'cta_link', '/about-us',
+      'main_image_url', 'about_img.png',
+      'shape_image_url', 'about_shape.svg'
+    ),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  ('programs', 'Programs', TRUE, 3,
     jsonb_build_object('style', 'grid', 'limit', 6),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
-  ('featured_students', 'Featured Students', TRUE, 3,
-    jsonb_build_object('limit', 6),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ('team', 'Team', TRUE, 4,
+    jsonb_build_object(
+      'subtitle', 'Meet The Digital Hub Team',
+      'title', 'Our Core Team of Managers and Team',
+      'description', 'Meet the people behind Digital Hub programs, mentorship, and delivery. Our team supports learners from training to career readiness.',
+      'cta_text', 'Meet The Full Team',
+      'cta_link', '/team',
+      'limit', 6,
+      'source_mode', 'profiles'
+    ),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
-  ('announcements', 'Announcements', TRUE, 4,
-    jsonb_build_object('limit', 3),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  ('announcements', 'Announcements', TRUE, 5,
+    jsonb_build_object(
+      'subtitle', 'Latest Updates',
+      'title', 'What Is Happening At The Digital Hub',
+      'description', 'Track important updates across upcoming events, cohort announcements, and new opportunities published by the team.',
+      'limit', 3,
+      'cta_text', 'View All Updates',
+      'cta_link', '/events'
+    ),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT (key) DO UPDATE SET
   title=EXCLUDED.title,
@@ -251,10 +542,10 @@ ON CONFLICT (key) DO UPDATE SET
 -- Forms
 INSERT INTO forms (key, title, description, is_active, created_by)
 VALUES
-  ('cohort_application', 'Cohort Application', 'Apply to join a cohort.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('general_apply', 'General Apply Form', 'Public program-level application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('program_application', 'Program Application Form', 'Admin-managed program application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com')),
-  ('contact', 'Contact Form', 'Send a question, feedback, or a visit request.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com'))
+  ('cohort_application', 'Cohort Application', 'Apply to join a cohort.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('general_apply', 'General Apply Form', 'Public program-level application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('program_application', 'Program Application Form', 'Admin-managed program application form.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)),
+  ('contact', 'Contact Form', 'Send a question, feedback, or a visit request.', TRUE, (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1))
 ON CONFLICT (key) DO UPDATE SET
   title=EXCLUDED.title,
   description=EXCLUDED.description,
@@ -265,11 +556,11 @@ ON CONFLICT (key) DO UPDATE SET
 -- Cohort application fields (minimal demo)
 INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
 VALUES
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
-  ((SELECT id FROM forms WHERE key='cohort_application'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
+  ((SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
+  ((SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
 ON CONFLICT (form_id, name) DO UPDATE SET
   label=EXCLUDED.label,
   type=EXCLUDED.type,
@@ -282,11 +573,11 @@ ON CONFLICT (form_id, name) DO UPDATE SET
 -- Public general apply fields
 INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
 VALUES
-  ((SELECT id FROM forms WHERE key='general_apply'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
-  ((SELECT id FROM forms WHERE key='general_apply'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
-  ((SELECT id FROM forms WHERE key='general_apply'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
-  ((SELECT id FROM forms WHERE key='general_apply'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
-  ((SELECT id FROM forms WHERE key='general_apply'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
+  ((SELECT id FROM forms WHERE key='general_apply' ORDER BY id ASC LIMIT 1), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply' ORDER BY id ASC LIMIT 1), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply' ORDER BY id ASC LIMIT 1), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply' ORDER BY id ASC LIMIT 1), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='general_apply' ORDER BY id ASC LIMIT 1), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
 ON CONFLICT (form_id, name) DO UPDATE SET
   label=EXCLUDED.label,
   type=EXCLUDED.type,
@@ -299,11 +590,11 @@ ON CONFLICT (form_id, name) DO UPDATE SET
 -- Admin program application form fields
 INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
 VALUES
-  ((SELECT id FROM forms WHERE key='program_application'), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
-  ((SELECT id FROM forms WHERE key='program_application'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
-  ((SELECT id FROM forms WHERE key='program_application'), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
-  ((SELECT id FROM forms WHERE key='program_application'), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
-  ((SELECT id FROM forms WHERE key='program_application'), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
+  ((SELECT id FROM forms WHERE key='program_application' ORDER BY id ASC LIMIT 1), 'full_name', 'Full Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application' ORDER BY id ASC LIMIT 1), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application' ORDER BY id ASC LIMIT 1), 'phone', 'Phone', 'phone', FALSE, NULL, '+961...', 3, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application' ORDER BY id ASC LIMIT 1), 'program_id', 'Program', 'select', TRUE, NULL, 'Select a program', 4, TRUE),
+  ((SELECT id FROM forms WHERE key='program_application' ORDER BY id ASC LIMIT 1), 'why_join', 'Why do you want to join?', 'textarea', TRUE, NULL, 'Tell us your goals...', 5, TRUE)
 ON CONFLICT (form_id, name) DO UPDATE SET
   label=EXCLUDED.label,
   type=EXCLUDED.type,
@@ -316,12 +607,12 @@ ON CONFLICT (form_id, name) DO UPDATE SET
 -- Contact fields (demo)
 INSERT INTO form_fields (form_id, name, label, type, required, options, placeholder, sort_order, is_enabled)
 VALUES
-  ((SELECT id FROM forms WHERE key='contact'), 'name', 'Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
-  ((SELECT id FROM forms WHERE key='contact'), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
-  ((SELECT id FROM forms WHERE key='contact'), 'kind', 'Message Type', 'select', TRUE,
+  ((SELECT id FROM forms WHERE key='contact' ORDER BY id ASC LIMIT 1), 'name', 'Name', 'text', TRUE, NULL, 'Your name', 1, TRUE),
+  ((SELECT id FROM forms WHERE key='contact' ORDER BY id ASC LIMIT 1), 'email', 'Email', 'email', TRUE, NULL, 'you@example.com', 2, TRUE),
+  ((SELECT id FROM forms WHERE key='contact' ORDER BY id ASC LIMIT 1), 'kind', 'Message Type', 'select', TRUE,
     jsonb_build_object('choices', jsonb_build_array('question','feedback','visit_request')),
     NULL, 3, TRUE),
-  ((SELECT id FROM forms WHERE key='contact'), 'message', 'Message', 'textarea', TRUE, NULL, 'Write your message...', 4, TRUE)
+  ((SELECT id FROM forms WHERE key='contact' ORDER BY id ASC LIMIT 1), 'message', 'Message', 'textarea', TRUE, NULL, 'Write your message...', 4, TRUE)
 ON CONFLICT (form_id, name) DO UPDATE SET
   label=EXCLUDED.label,
   type=EXCLUDED.type,
@@ -343,7 +634,7 @@ VALUES
    'Basic computer skills and motivation to learn.',
    20,
    TRUE,
-   (SELECT id FROM users WHERE email='admin@digitalhub.com')
+   (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   ('ui-ux', 'UI/UX Design',
    'Learn design thinking and build real UI projects.',
@@ -351,7 +642,7 @@ VALUES
    'Creativity and basic computer skills.',
    15,
    TRUE,
-   (SELECT id FROM users WHERE email='admin@digitalhub.com')
+   (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT (slug) DO UPDATE SET
   title=EXCLUDED.title,
@@ -410,8 +701,8 @@ VALUES
     'Hello {name},\n\nWe have a quick update for you.\n\nBest regards,\nDigital Hub Team',
     TRUE,
     10,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'reminder',
@@ -422,8 +713,8 @@ VALUES
     'Hello {name},\n\nThis is a reminder about your pending action.\n\nBest regards,\nDigital Hub Team',
     TRUE,
     20,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'follow_up',
@@ -434,8 +725,8 @@ VALUES
     'Hello {name},\n\nFollowing up on our previous message.\n\nBest regards,\nDigital Hub Team',
     TRUE,
     30,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'interview_scheduling',
@@ -446,8 +737,8 @@ VALUES
     E'Dear {name},\n\nYour interview has been scheduled on {scheduled_at}.\nDuration: {duration_minutes} minutes\nLocation Type: {location_type}\nLocation Details: {location_details}\nApplication ID: {application_id}\nConfirm Token: {confirm_token}\nConfirm here: {confirm_url}\nReschedule here: {reschedule_url}\n\nBest regards,\nAdmissions Team',
     TRUE,
     40,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'interview_confirmation',
@@ -458,8 +749,8 @@ VALUES
     E'Dear {name},\n\nYour interview is confirmed for {scheduled_at}.\nWe look forward to speaking with you.\n\nBest regards,\nAdmissions Team',
     TRUE,
     50,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'decision_accepted',
@@ -470,8 +761,8 @@ VALUES
     E'Dear {name},\n\nCongratulations. You have been accepted into our program.\nIf you are sure you want to join, please confirm here:\n{participation_confirm_url}\n\nWarm regards,\nAdmissions Team',
     TRUE,
     60,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'decision_rejected',
@@ -482,8 +773,8 @@ VALUES
     E'Dear {name},\n\nThank you for applying. After careful review, we are unable to offer a place at this time.\n\nBest regards,\nAdmissions Team',
     TRUE,
     70,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'account_credentials',
@@ -494,8 +785,8 @@ VALUES
     E'Dear {name},\n\nYour student account has been created.\nEmail: {email}\nTemporary Password: {generated_password}\nSign in here: {sign_in_url}\n\nPlease sign in and change your password.\n\nBest regards,\nDigital Hub Team',
     TRUE,
     80,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com'),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT (key) DO UPDATE SET
   label = EXCLUDED.label,
@@ -516,7 +807,7 @@ INSERT INTO cohorts (
 )
 VALUES
   (
-    (SELECT id FROM programs WHERE slug='full-stack'),
+    (SELECT id FROM programs WHERE slug='full-stack' ORDER BY id ASC LIMIT 1),
     'Full Stack — Spring 2026',
     'open',
     TRUE,
@@ -527,7 +818,7 @@ VALUES
     '2026-06-10'
   ),
   (
-    (SELECT id FROM programs WHERE slug='ui-ux'),
+    (SELECT id FROM programs WHERE slug='ui-ux' ORDER BY id ASC LIMIT 1),
     'UI/UX — Coming Soon',
     'coming_soon',
     FALSE,
@@ -548,8 +839,8 @@ WHERE name IN ('Full Stack — Spring 2026', 'UI/UX — Coming Soon');
 -- Assign instructor to the open cohort
 INSERT INTO cohort_instructors (cohort_id, instructor_user_id, cohort_role)
 VALUES (
-  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026'),
-  (SELECT id FROM users WHERE email='instructor@digitalhub.com'),
+  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1),
+  (SELECT id FROM users WHERE email='instructor@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'lead_instructor'
 )
 ON CONFLICT (cohort_id, instructor_user_id) DO UPDATE SET
@@ -575,7 +866,7 @@ INSERT INTO applications (
   submitted_at
 )
 VALUES (
-  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026'),
+  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1),
   (SELECT id FROM applicants WHERE email='student@digitalhub.com' ORDER BY id DESC LIMIT 1),
   lower('student@digitalhub.com'),
   NULL,
@@ -600,10 +891,10 @@ ON CONFLICT (cohort_id, applicant_email_norm) WHERE applicant_email_norm IS NOT 
 INSERT INTO application_submissions (application_id, form_id, answers)
 VALUES (
   (SELECT id FROM applications
-    WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026')
+    WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1)
     ORDER BY id DESC LIMIT 1
   ),
-  (SELECT id FROM forms WHERE key='cohort_application'),
+  (SELECT id FROM forms WHERE key='cohort_application' ORDER BY id ASC LIMIT 1),
   jsonb_build_object(
     'full_name', 'Zahraa Salim',
     'email', 'student@digitalhub.com',
@@ -619,20 +910,20 @@ UPDATE applications
 SET status='participation_confirmed',
     stage='participation_confirmed',
     participation_confirmed_at=NOW(),
-    reviewed_by=(SELECT id FROM users WHERE email='admin@digitalhub.com'),
+    reviewed_by=(SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
     reviewed_at=NOW()
 WHERE id = (
   SELECT id FROM applications
-  WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026')
+  WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1)
   ORDER BY id DESC LIMIT 1
 );
 
 INSERT INTO enrollments (student_user_id, cohort_id, application_id, status)
 VALUES (
-  (SELECT id FROM users WHERE email='student@digitalhub.com'),
-  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026'),
+  (SELECT id FROM users WHERE email='student@digitalhub.com' ORDER BY id ASC LIMIT 1),
+  (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1),
   (SELECT id FROM applications
-    WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026')
+    WHERE cohort_id=(SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1)
     ORDER BY id DESC LIMIT 1
   ),
   'active'
@@ -817,7 +1108,7 @@ INSERT INTO student_profiles (
 )
 VALUES
   (
-    (SELECT id FROM users WHERE email='omar.nasser@example.com'),
+    (SELECT id FROM users WHERE email='omar.nasser@example.com' ORDER BY id ASC LIMIT 1),
     'Omar Nasser',
     NULL,
     'Backend-focused learner building API and database projects.',
@@ -830,7 +1121,7 @@ VALUES
     'omar-nasser'
   ),
   (
-    (SELECT id FROM users WHERE email='leila.farah@example.com'),
+    (SELECT id FROM users WHERE email='leila.farah@example.com' ORDER BY id ASC LIMIT 1),
     'Leila Farah',
     NULL,
     'Career-switcher focused on frontend architecture and UX quality.',
@@ -843,7 +1134,7 @@ VALUES
     'leila-farah'
   ),
   (
-    (SELECT id FROM users WHERE email='rana.tarek@example.com'),
+    (SELECT id FROM users WHERE email='rana.tarek@example.com' ORDER BY id ASC LIMIT 1),
     'Rana Tarek',
     NULL,
     'Developer interested in full-stack projects and deployment workflows.',
@@ -921,7 +1212,7 @@ SELECT
     ELSE 'pending_confirmation'
   END,
   md5('intv-' || a.id::text || '-seed'),
-  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
 FROM applications a
 WHERE a.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
   AND a.status IN ('invited_to_interview', 'interview_confirmed')
@@ -966,7 +1257,7 @@ SELECT
     ELSE 'status_update'
   END,
   'draft',
-  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
 FROM applications a
 LEFT JOIN applicants ap ON ap.id = a.applicant_id
 WHERE a.cohort_id = (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' LIMIT 1)
@@ -1179,7 +1470,7 @@ SELECT
   ) AS submission_answers,
   gar.stage::text,
   CASE WHEN gar.stage IN ('reviewing', 'invited_to_interview', 'interview_confirmed', 'accepted', 'rejected', 'participation_confirmed')
-       THEN (SELECT id FROM users WHERE email='admin@digitalhub.com')
+       THEN (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
        ELSE NULL
   END AS reviewed_by,
   CASE WHEN gar.stage IN ('reviewing', 'invited_to_interview', 'interview_confirmed', 'accepted', 'rejected', 'participation_confirmed')
@@ -1215,7 +1506,7 @@ SET
   location_details = 'Google Meet',
   status = CASE WHEN pa.stage = 'interview_confirmed' THEN 'confirmed' ELSE 'pending_confirmation' END,
   confirm_token = md5('program-intv-' || pa.id::text || '-seed'),
-  created_by = (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  created_by = (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
   updated_at = NOW()
 FROM program_applications pa
 WHERE i.program_application_id = pa.id
@@ -1241,7 +1532,7 @@ SELECT
   'Google Meet',
   CASE WHEN pa.stage = 'interview_confirmed' THEN 'confirmed' ELSE 'pending_confirmation' END,
   md5('program-intv-' || pa.id::text || '-seed'),
-  (SELECT id FROM users WHERE email='admin@digitalhub.com')
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
 FROM program_applications pa
 WHERE pa.applicant_email_norm = lower('lina.younes@example.com')
   AND NOT EXISTS (
@@ -1261,21 +1552,21 @@ VALUES
     'Applications Open: Full Stack — Spring 2026',
     'Applications are open now. Apply to join our full stack cohort and build real projects.',
     'website',
-    (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026'),
+    (SELECT id FROM cohorts WHERE name='Full Stack — Spring 2026' ORDER BY id ASC LIMIT 1),
     FALSE,
     TRUE,
     NOW(),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'UI/UX Cohort Coming Soon',
     'Our UI/UX cohort is coming soon. Follow announcements for opening dates.',
     'website',
-    (SELECT id FROM cohorts WHERE name='UI/UX — Coming Soon'),
+    (SELECT id FROM cohorts WHERE name='UI/UX — Coming Soon' ORDER BY id ASC LIMIT 1),
     TRUE,
     TRUE,
     NOW(),
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT DO NOTHING;
 
@@ -1298,7 +1589,7 @@ VALUES
     TRUE,
     FALSE,
     NULL,
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   ),
   (
     'career-talk-2026',
@@ -1310,7 +1601,7 @@ VALUES
     TRUE,
     TRUE,
     NOW() - INTERVAL '20 days' + INTERVAL '3 hours',
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT (slug) DO UPDATE SET
   title=EXCLUDED.title,
@@ -1356,7 +1647,7 @@ VALUES
     'Next two weeks (weekday mornings)',
     'Interested in meeting Full Stack cohort students.',
     'new',
-    (SELECT id FROM users WHERE email='admin@digitalhub.com')
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
   )
 ON CONFLICT DO NOTHING;
 
@@ -1366,7 +1657,7 @@ ON CONFLICT DO NOTHING;
 -- Log an example action
 INSERT INTO activity_logs (actor_user_id, action, entity_type, entity_id, message, metadata)
 VALUES (
-  (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'SEED_DATA_INSERTED',
   'system',
   NULL,
@@ -1378,7 +1669,7 @@ ON CONFLICT DO NOTHING;
 -- Create a notification for admin linked to the latest SEED_DATA_INSERTED log
 INSERT INTO admin_notifications (recipient_admin_user_id, log_id, title, body)
 SELECT
-  (SELECT id FROM users WHERE email='admin@digitalhub.com'),
+  (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
   l.id,
   'Seed completed',
   'Seed data inserted successfully.'
@@ -1391,7 +1682,7 @@ INSERT INTO projects (
   student_user_id, title, description, image_url, github_url, live_url, is_public, sort_order
 )
 VALUES (
-  (SELECT id FROM users WHERE email='student@digitalhub.com'),
+  (SELECT id FROM users WHERE email='student@digitalhub.com' ORDER BY id ASC LIMIT 1),
   'Digital Hub Admin Dashboard',
   'Admin dashboard UI with sidebar routing, CMS pages, and clean card/table layouts.',
   'https://your-cdn.com/screenshots/digitalhub-dashboard.png',
@@ -1401,6 +1692,75 @@ VALUES (
   1
 )
 ON CONFLICT (student_user_id, github_url) DO NOTHING;
+
+-- =========================================================
+-- 14) HOME SECTION ORDER + MISSING SECTIONS (featured/newsletter)
+-- =========================================================
+INSERT INTO home_sections (key, title, is_enabled, sort_order, content, updated_by, updated_at)
+VALUES
+  (
+    'featured_participants',
+    'Featured Participants',
+    TRUE,
+    4,
+    jsonb_build_object(
+      'subtitle', 'Featured Participants',
+      'title', 'Meet Active Participants Building Real Work',
+      'description', 'Explore active students currently building projects, growing their skills, and contributing across Digital Hub programs.',
+      'limit', 3,
+      'cta_text', 'View All Participants',
+      'cta_link', '/participants'
+    ),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    NOW()
+  ),
+  (
+    'newsletter',
+    'Newsletter',
+    TRUE,
+    5,
+    jsonb_build_object(
+      'title', 'Stay Updated',
+      'description', 'Get updates on openings, events, and opportunities.',
+      'button_text', 'Subscribe'
+    ),
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+    NOW()
+  )
+ON CONFLICT (key) DO UPDATE
+SET
+  title = EXCLUDED.title,
+  is_enabled = EXCLUDED.is_enabled,
+  sort_order = EXCLUDED.sort_order,
+  content = EXCLUDED.content,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = NOW();
+
+UPDATE home_sections hs
+SET
+  sort_order = ordered.sort_order,
+  updated_by = (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+  updated_at = NOW()
+FROM (
+  VALUES
+    ('hero', 1),
+    ('about', 2),
+    ('programs', 3),
+    ('featured_participants', 4),
+    ('newsletter', 5),
+    ('team', 6),
+    ('announcements', 7),
+    ('features', 8),
+    ('apply_cta', 9)
+) AS ordered(key, sort_order)
+WHERE hs.key = ordered.key;
+
+UPDATE home_sections
+SET
+  content = jsonb_set(COALESCE(content, '{}'::jsonb), '{limit}', to_jsonb(3), true),
+  updated_by = (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1),
+  updated_at = NOW()
+WHERE key = 'team';
 
 COMMIT;
 
@@ -1412,4 +1772,7 @@ COMMIT;
 --   student@digitalhub.com / ChangeMe123!
 --
 -- IMPORTANT: Change passwords immediately in production.
+
+
+
 

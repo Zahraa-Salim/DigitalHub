@@ -4,7 +4,12 @@
 // Notes: This file is part of the Digital Hub Express + TypeScript backend.
 // @ts-nocheck
 import { withTransaction } from "../db/index.js";
-import { createAnnouncement } from "../repositories/announcements.repo.js";
+import {
+  createAnnouncement,
+  deleteAnnouncement,
+  findActiveAutoAnnouncementByCohortId,
+  updateAnnouncement,
+} from "../repositories/announcements.repo.js";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,6 +24,7 @@ import {
   countPrograms,
   createCohort,
   createProgram,
+  deleteCohortInstructor,
   deleteCohort,
   deleteProgram,
   findActiveInstructor,
@@ -146,35 +152,66 @@ function isApplicationsEnabled(status) {
   return status === "open";
 }
 
-async function createComingSoonAnnouncement(adminId, cohort, dbClient) {
+function buildCohortAnnouncementContent(cohort) {
   const cohortName = cohort?.name || `Cohort #${cohort.id}`;
   const programName = cohort?.program_title || "this program";
+  const status = normalizeCohortStatus(cohort?.status) || "coming_soon";
 
-  const announcementResult = await createAnnouncement(
+  if (status === "open") {
+    return {
+      title: `${cohortName} is now open`,
+      body: `Applications are now open for ${cohortName} in ${programName}. Submit your application while enrollment is active.`,
+    };
+  }
+
+  return {
+    title: `${cohortName} is coming soon`,
+    body: `Applications for ${cohortName} in ${programName} will open soon. Stay tuned for enrollment updates.`,
+  };
+}
+
+function shouldShowCohortAnnouncement(cohort, autoAnnounce) {
+  const status = normalizeCohortStatus(cohort?.status);
+  return Boolean(autoAnnounce) && (status === "coming_soon" || status === "open");
+}
+
+async function syncCohortAnnouncement(adminId, cohort, autoAnnounce, dbClient) {
+  if (!cohort?.id) {
+    return;
+  }
+
+  const existingResult = await findActiveAutoAnnouncementByCohortId(cohort.id, dbClient);
+  const existing = existingResult.rows[0] ?? null;
+
+  if (!shouldShowCohortAnnouncement(cohort, autoAnnounce)) {
+    if (existing) {
+      await deleteAnnouncement(existing.id, dbClient);
+    }
+    return;
+  }
+
+  const content = buildCohortAnnouncementContent(cohort);
+  if (existing) {
+    await updateAnnouncement(
+      existing.id,
+      "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, event_id = NULL",
+      [content.title, content.body, "website", true, new Date().toISOString()],
+      dbClient,
+    );
+    return;
+  }
+
+  await createAnnouncement(
     {
-      title: `${cohortName} is coming soon`,
-      body: `Applications for ${cohortName} in ${programName} will open soon. Stay tuned for enrollment updates.`,
+      title: content.title,
+      body: content.body,
       target_audience: "website",
       cohort_id: cohort.id,
+      event_id: null,
       is_auto: true,
       is_published: true,
       publish_at: new Date().toISOString(),
       created_by: adminId,
-    },
-    dbClient,
-  );
-
-  const announcement = announcementResult.rows[0];
-  await logAdminAction(
-    {
-      actorUserId: adminId,
-      action: "create announcement",
-      entityType: "announcements",
-      entityId: announcement.id,
-      message: `Auto announcement created for cohort ${cohortName}.`,
-      metadata: { cohort_id: cohort.id, is_auto: true },
-      title: "Auto Announcement Created",
-      body: `Announcement for ${cohortName} was automatically published.`,
     },
     dbClient,
   );
@@ -185,6 +222,11 @@ export async function createProgramService(adminId, payload) {
     ...payload,
     image_url: payload.image_url === "" ? null : payload.image_url ?? null,
     is_published: payload.is_published ?? true,
+    featured: payload.featured ?? false,
+    featured_rank: payload.featured_rank ?? null,
+    meta_title: payload.meta_title ?? null,
+    meta_description: payload.meta_description ?? null,
+    featured_image_url: payload.featured_image_url === "" ? null : payload.featured_image_url ?? null,
     created_by: adminId,
   });
   const program = result.rows[0];
@@ -239,10 +281,11 @@ export async function patchProgramService(id, adminId, payload) {
   const normalizedPayload = {
     ...payload,
     image_url: payload.image_url === "" ? null : payload.image_url,
+    featured_image_url: payload.featured_image_url === "" ? null : payload.featured_image_url,
   };
   const { setClause, values } = buildUpdateQuery(
     normalizedPayload,
-    ["slug", "title", "summary", "description", "requirements", "image_url", "default_capacity", "is_published"],
+    ["slug", "title", "summary", "description", "requirements", "image_url", "default_capacity", "is_published", "featured", "featured_rank", "meta_title", "meta_description", "featured_image_url"],
     1,
   );
 
@@ -360,6 +403,7 @@ export async function createCohortService(adminId, payload) {
       name: payload.name,
       status: nextStatus,
       allow_applications: isApplicationsEnabled(nextStatus),
+      auto_announce: payload.auto_announce ?? false,
       capacity: payload.capacity ?? null,
       enrollment_open_at: payload.enrollment_open_at ?? null,
       enrollment_close_at: payload.enrollment_close_at ?? null,
@@ -387,11 +431,14 @@ export async function createCohortService(adminId, payload) {
       client,
     );
 
-    if (payload.auto_announce && nextStatus === "coming_soon") {
-      const createdCohortResult = await getCohortStatusById(cohort.id, client);
-      if (createdCohortResult.rowCount) {
-        await createComingSoonAnnouncement(adminId, createdCohortResult.rows[0], client);
-      }
+    const createdCohortResult = await getCohortStatusById(cohort.id, client);
+    if (createdCohortResult.rowCount) {
+      await syncCohortAnnouncement(
+        adminId,
+        createdCohortResult.rows[0],
+        createdCohortResult.rows[0].auto_announce,
+        client,
+      );
     }
 
     return cohort;
@@ -438,6 +485,8 @@ export async function patchCohortService(id, adminId, payload) {
 
     const currentRow = oldStatusResult.rows[0];
     const previousStatus = normalizeCohortStatus(currentRow.status);
+    const shouldAutoAnnounce =
+      payload.auto_announce !== undefined ? Boolean(payload.auto_announce) : Boolean(currentRow.auto_announce);
 
     if (payload.program_id !== undefined) {
       const activeProgramResult = await findActiveProgramById(payload.program_id, client);
@@ -451,9 +500,8 @@ export async function patchCohortService(id, adminId, payload) {
       ...payload,
       status: nextStatus,
       allow_applications: isApplicationsEnabled(nextStatus),
+      auto_announce: shouldAutoAnnounce,
     };
-
-    delete updatePayload.auto_announce;
 
     const { setClause, values } = buildUpdateQuery(
       updatePayload,
@@ -464,6 +512,7 @@ export async function patchCohortService(id, adminId, payload) {
         "use_general_form",
         "application_form_id",
         "allow_applications",
+        "auto_announce",
         "capacity",
         "enrollment_open_at",
         "enrollment_close_at",
@@ -513,11 +562,14 @@ export async function patchCohortService(id, adminId, payload) {
       );
     }
 
-    if (payload.auto_announce && nextStatus === "coming_soon" && previousStatus !== "coming_soon") {
-      const refreshedCohortResult = await getCohortStatusById(id, client);
-      if (refreshedCohortResult.rowCount) {
-        await createComingSoonAnnouncement(adminId, refreshedCohortResult.rows[0], client);
-      }
+    const refreshedCohortResult = await getCohortStatusById(id, client);
+    if (refreshedCohortResult.rowCount) {
+      await syncCohortAnnouncement(
+        adminId,
+        refreshedCohortResult.rows[0],
+        refreshedCohortResult.rows[0].auto_announce,
+        client,
+      );
     }
 
     return updated;
@@ -544,41 +596,65 @@ export async function deleteCohortService(id, adminId) {
 }
 
 export async function openCohortService(id, adminId) {
-  const result = await openCohort(id);
-  if (!result.rowCount) {
-    throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
-  }
+  return withTransaction(async (client) => {
+    const result = await openCohort(id, client);
+    if (!result.rowCount) {
+      throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+    }
 
-  await logAdminAction({
-    actorUserId: adminId,
-    action: "change cohort status",
-    entityType: "cohorts",
-    entityId: id,
-    message: `Cohort ${id} was opened for applications.`,
-    title: "Cohort Opened",
-    body: `Cohort #${id} is now open for applications.`,
+    await logAdminAction({
+      actorUserId: adminId,
+      action: "change cohort status",
+      entityType: "cohorts",
+      entityId: id,
+      message: `Cohort ${id} was opened for applications.`,
+      title: "Cohort Opened",
+      body: `Cohort #${id} is now open for applications.`,
+    }, client);
+
+    const refreshedCohortResult = await getCohortStatusById(id, client);
+    if (refreshedCohortResult.rowCount) {
+      await syncCohortAnnouncement(
+        adminId,
+        refreshedCohortResult.rows[0],
+        refreshedCohortResult.rows[0].auto_announce,
+        client,
+      );
+    }
+
+    return result.rows[0];
   });
-
-  return result.rows[0];
 }
 
 export async function closeCohortService(id, adminId) {
-  const result = await closeCohort(id);
-  if (!result.rowCount) {
-    throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
-  }
+  return withTransaction(async (client) => {
+    const result = await closeCohort(id, client);
+    if (!result.rowCount) {
+      throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+    }
 
-  await logAdminAction({
-    actorUserId: adminId,
-    action: "change cohort status",
-    entityType: "cohorts",
-    entityId: id,
-    message: `Cohort ${id} was closed for new applications.`,
-    title: "Cohort Closed",
-    body: `Cohort #${id} has stopped accepting applications.`,
+    await logAdminAction({
+      actorUserId: adminId,
+      action: "change cohort status",
+      entityType: "cohorts",
+      entityId: id,
+      message: `Cohort ${id} was closed for new applications.`,
+      title: "Cohort Closed",
+      body: `Cohort #${id} has stopped accepting applications.`,
+    }, client);
+
+    const refreshedCohortResult = await getCohortStatusById(id, client);
+    if (refreshedCohortResult.rowCount) {
+      await syncCohortAnnouncement(
+        adminId,
+        refreshedCohortResult.rows[0],
+        refreshedCohortResult.rows[0].auto_announce,
+        client,
+      );
+    }
+
+    return result.rows[0];
   });
-
-  return result.rows[0];
 }
 
 export async function listCohortInstructorsService(id, query) {
@@ -634,5 +710,34 @@ export async function assignInstructorService(cohortId, adminId, input) {
     );
 
     return upsertResult.rows[0];
+  });
+}
+
+export async function unassignInstructorService(cohortId, instructorUserId, adminId) {
+  return withTransaction(async (client) => {
+    const cohortResult = await getCohortStatusById(cohortId, client);
+    if (!cohortResult.rowCount) {
+      throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+    }
+
+    const deleted = await deleteCohortInstructor(cohortId, instructorUserId, client);
+    if (!deleted.rowCount) {
+      throw new AppError(404, "NOT_FOUND", "Instructor assignment not found for this cohort.");
+    }
+
+    await logAdminAction(
+      {
+        actorUserId: adminId,
+        action: "unassign instructor",
+        entityType: "cohort_instructors",
+        entityId: cohortId,
+        message: `Instructor ${instructorUserId} was unassigned from cohort ${cohortId}.`,
+        title: "Instructor Unassigned",
+        body: `Instructor #${instructorUserId} removed from cohort #${cohortId}.`,
+      },
+      client,
+    );
+
+    return deleted.rows[0];
   });
 }

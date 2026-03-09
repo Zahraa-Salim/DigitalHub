@@ -14,6 +14,7 @@ const baseListQuerySchema = z.object({
     status: z.string().trim().min(1).optional(),
     is_public: z.union([z.boolean(), z.string()]).optional(),
     featured: z.union([z.boolean(), z.string()]).optional(),
+    active_only: z.union([z.boolean(), z.string()]).optional(),
     cohort_id: z.union([z.number(), z.string()]).optional(),
 });
 function parseBooleanValue(input, fieldName) {
@@ -63,6 +64,7 @@ export function parseListQuery(query, allowedSortColumns, defaultSortColumn) {
         status: parsed.status,
         isPublic: parseBooleanValue(parsed.is_public, "is_public"),
         featured: parseBooleanValue(parsed.featured, "featured"),
+        activeOnly: parseBooleanValue(parsed.active_only, "active_only"),
         cohortId: parseOptionalInteger(parsed.cohort_id, "cohort_id"),
     };
 }

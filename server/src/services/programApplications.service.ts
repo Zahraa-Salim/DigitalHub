@@ -201,6 +201,146 @@ function toChannelStorage(channel) {
   };
 }
 
+async function dispatchProgramApplicationMessages(programApplicationId, actorUserId, drafts, client) {
+  if (!Array.isArray(drafts) || !drafts.length) {
+    return { sentMessages: [], failedMessages: [], skippedCount: 0 };
+  }
+
+  const tokens = await buildProgramApplicationMessageTokens(programApplicationId, client);
+  const sentMessages = [];
+  const failedMessages = [];
+  let skippedCount = 0;
+
+  for (const draft of drafts) {
+    const channelStorage = toChannelStorage(draft.channel);
+    const toValue = String(draft.to_value || "").trim();
+    if (!toValue) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const trimmedBody = String(draft.body || "").trim();
+    if (!trimmedBody) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const renderedSubject =
+      channelStorage.channel === "email"
+        ? renderTemplateString(draft.subject || "Digital Hub Message", tokens)
+        : null;
+    const renderedBody = renderTemplateString(trimmedBody, tokens);
+
+    const created = await createProgramApplicationMessageDraft(
+      {
+        program_application_id: programApplicationId,
+        channel: channelStorage.channel,
+        to_value: toValue,
+        subject: draft.subject ?? null,
+        body: trimmedBody,
+        template_key: draft.template_key ?? null,
+        status: "draft",
+        created_by: actorUserId,
+        metadata: {
+          ...(channelStorage.metadata || {}),
+          ...(draft.metadata || {}),
+        },
+      },
+      client,
+    );
+
+    if (!created.rowCount || !created.rows[0]?.id) {
+      failedMessages.push({
+        channel: channelStorage.channel,
+        to_value: toValue,
+        status: "failed",
+        error: "MESSAGE_CREATE_FAILED",
+      });
+      continue;
+    }
+
+    const messageId = Number(created.rows[0].id);
+    try {
+      if (channelStorage.channel === "email") {
+        await sendDigitalHubEmail({
+          to: toValue,
+          subject: renderedSubject || "Digital Hub Message",
+          body: renderedBody,
+        });
+      } else {
+        await sendDigitalHubWhatsApp({
+          to: toValue,
+          body: renderedBody,
+        });
+      }
+
+      const sentResult = await markProgramApplicationMessageSent(
+        programApplicationId,
+        messageId,
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+      sentMessages.push({
+        ...(sentResult.rows[0] ?? created.rows[0]),
+        subject: renderedSubject,
+        body: renderedBody,
+      });
+    } catch (error) {
+      const failedResult = await markProgramApplicationMessageFailed(
+        programApplicationId,
+        messageId,
+        String(error?.message || error),
+        renderedSubject,
+        renderedBody,
+        client,
+      );
+      failedMessages.push({
+        ...(failedResult.rows[0] ?? created.rows[0]),
+        subject: renderedSubject,
+        body: renderedBody,
+        status: "failed",
+        error: String(error?.message || error),
+      });
+    }
+  }
+
+  if (sentMessages.length || failedMessages.length) {
+    await logAdminAction(
+      {
+        actorUserId,
+        action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
+        entityType: "program_applications",
+        entityId: programApplicationId,
+        message: `${sentMessages.length} message(s) sent and ${failedMessages.length} failed for program application ${programApplicationId}.`,
+        metadata: {
+          program_application_id: programApplicationId,
+          channels: Array.from(
+            new Set(
+              [...sentMessages, ...failedMessages]
+                .map((item) => item.channel)
+                .filter(Boolean),
+            ),
+          ),
+          sent_count: sentMessages.length,
+          failed_count: failedMessages.length,
+          sent_ids: sentMessages.map((item) => item.id).filter(Boolean),
+          failed_ids: failedMessages.map((item) => item.id).filter(Boolean),
+        },
+        title: failedMessages.length
+          ? "Program Application Messages Processed (With Failures)"
+          : "Program Application Messages Sent",
+        body: failedMessages.length
+          ? `${sentMessages.length} message(s) sent and ${failedMessages.length} failed for program application #${programApplicationId}.`
+          : `${sentMessages.length} message(s) sent for program application #${programApplicationId}.`,
+      },
+      client,
+    );
+  }
+
+  return { sentMessages, failedMessages, skippedCount };
+}
+
 async function sendAccountCredentialsMessageForProgramApplication(
   programApplicationId,
   application,
@@ -515,66 +655,59 @@ export async function scheduleProgramApplicationInterviewService(programApplicat
     );
 
     const channels = payload.channels ?? {};
-    const drafts = [];
+    const outboundMessages = [];
 
     if (channels.email) {
       const toValue = application.applicant_email;
       if (!toValue) {
-        throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required to create an email draft.");
+        throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required to send an email message.");
       }
 
-      const created = await createProgramApplicationMessageDraft(
-        {
-          program_application_id: programApplicationId,
-          channel: "email",
-          to_value: toValue,
-          subject: "Interview Invitation",
-          body:
-            `Dear ${application.applicant_full_name || "Applicant"},\n\n` +
-            `Your interview has been scheduled on ${new Date(payload.scheduled_at).toUTCString()}.\n` +
-            `Duration: ${interviewResult.rows[0].duration_minutes} minutes\n` +
-            `Location Type: ${interviewResult.rows[0].location_type}\n` +
-            `Location Details: ${interviewResult.rows[0].location_details || "-"}\n` +
-            `Application ID: ${programApplicationId}\n` +
-            `Confirm Token: ${confirmToken}\n` +
-            `Confirm here: ${links.confirm_url}\n` +
-            `Reschedule here: ${links.reschedule_url}\n\n` +
-            "Best regards,\nAdmissions Team",
-          template_key: "interview_scheduling",
-          status: "draft",
-          created_by: actorUserId,
-        },
-        client,
-      );
-      drafts.push(created.rows[0]);
+      outboundMessages.push({
+        channel: "email",
+        to_value: toValue,
+        subject: "Interview Invitation",
+        body:
+          `Dear ${application.applicant_full_name || "Applicant"},\n\n` +
+          `Your interview has been scheduled on ${new Date(payload.scheduled_at).toUTCString()}.\n` +
+          `Duration: ${interviewResult.rows[0].duration_minutes} minutes\n` +
+          `Location Type: ${interviewResult.rows[0].location_type}\n` +
+          `Location Details: ${interviewResult.rows[0].location_details || "-"}\n` +
+          `Application ID: ${programApplicationId}\n` +
+          `Confirm Token: ${confirmToken}\n` +
+          `Confirm here: ${links.confirm_url}\n` +
+          `Reschedule here: ${links.reschedule_url}\n\n` +
+          "Best regards,\nAdmissions Team",
+        template_key: "interview_scheduling",
+      });
     }
 
     const sendWhatsApp = Boolean(channels.whatsapp || channels.sms);
     if (sendWhatsApp) {
       const toValue = application.applicant_phone;
       if (!toValue) {
-        throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required to create a WhatsApp draft.");
+        throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required to send a WhatsApp message.");
       }
 
-      const created = await createProgramApplicationMessageDraft(
-        {
-          program_application_id: programApplicationId,
-          channel: "sms",
-          to_value: toValue,
-          subject: null,
-          body:
-            `Interview: ${new Date(payload.scheduled_at).toUTCString()} | ` +
-            `${interviewResult.rows[0].location_type} | ${interviewResult.rows[0].location_details || "-"} | ` +
-            `App#${programApplicationId} | Token:${confirmToken} | Confirm: ${links.confirm_url} | Reschedule: ${links.reschedule_url}`,
-          template_key: "interview_scheduling",
-          status: "draft",
-          created_by: actorUserId,
-          metadata: { provider: "whatsapp" },
-        },
-        client,
-      );
-      drafts.push(created.rows[0]);
+      outboundMessages.push({
+        channel: "sms",
+        to_value: toValue,
+        subject: null,
+        body:
+          `Interview: ${new Date(payload.scheduled_at).toUTCString()} | ` +
+          `${interviewResult.rows[0].location_type} | ${interviewResult.rows[0].location_details || "-"} | ` +
+          `App#${programApplicationId} | Token:${confirmToken} | Confirm: ${links.confirm_url} | Reschedule: ${links.reschedule_url}`,
+        template_key: "interview_scheduling",
+        metadata: { provider: "whatsapp" },
+      });
     }
+
+    const messageDispatch = await dispatchProgramApplicationMessages(
+      programApplicationId,
+      actorUserId,
+      outboundMessages,
+      client,
+    );
 
     await logAdminAction(
       {
@@ -587,7 +720,9 @@ export async function scheduleProgramApplicationInterviewService(programApplicat
           program_application_id: programApplicationId,
           scheduled_at: interviewResult.rows[0].scheduled_at,
           channels: Object.keys(channels).filter((key) => channels[key]),
-          message_draft_count: drafts.length,
+          message_sent_count: messageDispatch.sentMessages.length,
+          message_failed_count: messageDispatch.failedMessages.length,
+          message_skipped_count: messageDispatch.skippedCount,
         },
         title: "Program Interview Scheduled",
         body: `Interview scheduled for program application #${programApplicationId}.`,
@@ -598,7 +733,9 @@ export async function scheduleProgramApplicationInterviewService(programApplicat
     return {
       program_application: stageResult.rows[0],
       interview: interviewResult.rows[0],
-      message_drafts: drafts,
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
+      message_drafts: [...messageDispatch.sentMessages, ...messageDispatch.failedMessages],
       links,
     };
   });
@@ -942,11 +1079,11 @@ export async function decideProgramApplicationService(programApplicationId, acto
     }
 
     const channels = payload.channels ?? {};
-    const drafts = [];
+    const outboundMessages = [];
     if (channels.email) {
       const toValue = applicationResult.rows[0].applicant_email;
       if (!toValue) {
-        throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required to create an email draft.");
+        throw new AppError(400, "VALIDATION_ERROR", "Applicant email is required to send an email message.");
       }
 
       const subject = decision === "accepted" ? "Application Accepted" : "Application Rejected";
@@ -955,49 +1092,42 @@ export async function decideProgramApplicationService(programApplicationId, acto
           ? "Your application has been accepted. If you are sure you want to join, please confirm here: {participation_confirm_url}"
           : "Thank you for applying. Your application was not selected this round.";
 
-      const created = await createProgramApplicationMessageDraft(
-        {
-          program_application_id: programApplicationId,
-          channel: "email",
-          to_value: toValue,
-          subject,
-          body: payload.messageOverride ?? defaultBody,
-          template_key: decision === "accepted" ? "decision_accepted" : "decision_rejected",
-          status: "draft",
-          created_by: actorUserId,
-        },
-        client,
-      );
-      drafts.push(created.rows[0]);
+      outboundMessages.push({
+        channel: "email",
+        to_value: toValue,
+        subject,
+        body: payload.messageOverride ?? defaultBody,
+        template_key: decision === "accepted" ? "decision_accepted" : "decision_rejected",
+      });
     }
 
     const sendWhatsApp = Boolean(channels.whatsapp || channels.sms);
     if (sendWhatsApp) {
       const toValue = applicationResult.rows[0].applicant_phone;
       if (!toValue) {
-        throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required to create a WhatsApp draft.");
+        throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required to send a WhatsApp message.");
       }
 
       const defaultBody =
         decision === "accepted"
           ? "Your application has been accepted. Confirm participation: {participation_confirm_url}"
           : "Your application was not selected this round.";
-      const created = await createProgramApplicationMessageDraft(
-        {
-          program_application_id: programApplicationId,
-          channel: "sms",
-          to_value: toValue,
-          subject: null,
-          body: payload.messageOverride ?? defaultBody,
-          template_key: decision === "accepted" ? "decision_accepted" : "decision_rejected",
-          status: "draft",
-          created_by: actorUserId,
-          metadata: { provider: "whatsapp" },
-        },
-        client,
-      );
-      drafts.push(created.rows[0]);
+      outboundMessages.push({
+        channel: "sms",
+        to_value: toValue,
+        subject: null,
+        body: payload.messageOverride ?? defaultBody,
+        template_key: decision === "accepted" ? "decision_accepted" : "decision_rejected",
+        metadata: { provider: "whatsapp" },
+      });
     }
+
+    const messageDispatch = await dispatchProgramApplicationMessages(
+      programApplicationId,
+      actorUserId,
+      outboundMessages,
+      client,
+    );
 
     await logAdminAction(
       {
@@ -1009,7 +1139,9 @@ export async function decideProgramApplicationService(programApplicationId, acto
         metadata: {
           decision,
           to_stage: nextStage,
-          message_draft_count: drafts.length,
+          message_sent_count: messageDispatch.sentMessages.length,
+          message_failed_count: messageDispatch.failedMessages.length,
+          message_skipped_count: messageDispatch.skippedCount,
         },
         title: "Program Application Decision Recorded",
         body: `Decision '${decision}' was recorded for program application #${programApplicationId}.`,
@@ -1019,7 +1151,9 @@ export async function decideProgramApplicationService(programApplicationId, acto
 
     return {
       program_application: updated.rows[0],
-      message_drafts: drafts,
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
+      message_drafts: [...messageDispatch.sentMessages, ...messageDispatch.failedMessages],
     };
   });
 }

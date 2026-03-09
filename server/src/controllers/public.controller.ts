@@ -6,9 +6,11 @@
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
     getPublicCohortApplicationFormService,
+    getPublicCohortDetailService,
     getPublicEventBySlugService,
     getPublicApplyFormService,
     getPublicHomeService,
+    getPublicPageByKeyService,
     getPublicStudentDetailService,
     getPublicThemeService,
     listPublicAnnouncementsService,
@@ -30,6 +32,10 @@ export async function getPublicCohorts(req, res) {
 }
 export async function getPublicCohortApplicationForm(req, res) {
     const data = await getPublicCohortApplicationFormService(Number(req.params.id));
+    sendSuccess(res, data);
+}
+export async function getPublicCohortById(req, res) {
+    const data = await getPublicCohortDetailService(Number(req.params.id));
     sendSuccess(res, data);
 }
 export async function getPublicApplyForm(req, res) {
@@ -70,6 +76,10 @@ export async function getPublicTheme(_req, res) {
 }
 export async function getPublicHome(_req, res) {
     const data = await getPublicHomeService();
+    sendSuccess(res, data);
+}
+export async function getPublicPageByKey(req, res) {
+    const data = await getPublicPageByKeyService(req.params.slug);
     sendSuccess(res, data);
 }
 export async function submitPublicApply(req, res) {

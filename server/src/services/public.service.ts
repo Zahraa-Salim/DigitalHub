@@ -11,8 +11,12 @@ import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { cacheGetJson, cacheSetJson } from "../utils/cache.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
-import { countPublicResources, getPublicSiteSettings, getPublicStudentBySlug, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { countPublicResources, getPublicPageByKey, getPublicSiteSettings, getPublicStudentBySlug, listPublicHomeSections, listPublicResources, listPublicThemeTokens, } from "../repositories/public.repo.js";
+import { ensureDefaultHomeSections, ensureDefaultPages } from "../repositories/cms.repo.js";
 import {
+    getPublicCohortById,
+    listPublicCohortInstructors,
+    listPublicCohortStudents,
     createApplicantForPublicApply,
     findApplicantByEmailNorm,
     findApplicantByPhoneNorm,
@@ -46,6 +50,8 @@ function isTransientDatabaseError(error) {
         message.includes("getaddrinfo") ||
         message.includes("name or service not known") ||
         message.includes("connection timeout") ||
+        message.includes("timeout exceeded when trying to connect") ||
+        message.includes("connect etimedout") ||
         message.includes("connection terminated unexpectedly"));
 }
 
@@ -66,6 +72,15 @@ async function listPublicResource(query, config) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
     const params = [];
     const where = [...config.extraWhere];
+    if (config.statusFilterExpression && list.status) {
+        const requestedStatus = String(list.status).trim().toLowerCase();
+        const normalizedStatus = config.statusAliases?.[requestedStatus] || requestedStatus;
+        if (config.allowedStatuses && !config.allowedStatuses.includes(normalizedStatus)) {
+            throw new AppError(400, "VALIDATION_ERROR", `Unsupported status value '${list.status}'.`);
+        }
+        params.push(normalizedStatus);
+        where.push(`${config.statusFilterExpression} = $${params.length}`);
+    }
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(config.searchableColumns, params.length));
@@ -73,6 +88,9 @@ async function listPublicResource(query, config) {
     if (config.featuredFilterColumn && list.featured !== undefined) {
         params.push(list.featured);
         where.push(`${config.featuredFilterColumn} = $${params.length}`);
+    }
+    if (config.activeOnlyWhereClause && list.activeOnly === true) {
+        where.push(config.activeOnlyWhereClause);
     }
     const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const countResult = await withDbRetry(() => countPublicResources(config.resourceConfig.tableExpression, whereClause, params));
@@ -104,6 +122,11 @@ const cohortsConfig = {
         selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
         sortPrefix: "c",
     },
+    statusFilterExpression: "(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END)",
+    allowedStatuses: ["open", "coming_soon", "running", "completed", "cancelled"],
+    statusAliases: {
+        planned: "coming_soon",
+    },
 };
 const eventsConfig = {
     sortableColumns: ["id", "starts_at", "created_at", "title"],
@@ -120,10 +143,38 @@ const announcementsConfig = {
     sortableColumns: ["id", "created_at", "publish_at", "title"],
     defaultSort: "created_at",
     searchableColumns: ["a.title", "a.body"],
-    extraWhere: ["a.is_published = TRUE", "a.deleted_at IS NULL", "a.target_audience IN ('website', 'all')"],
+    extraWhere: [
+        "a.is_published = TRUE",
+        "a.deleted_at IS NULL",
+        "a.target_audience IN ('website', 'all')",
+        "(a.cohort_id IS NULL OR (c.id IS NOT NULL AND (CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END) IN ('coming_soon', 'open')))",
+        "(a.event_id IS NULL OR (e.id IS NOT NULL AND e.is_published = TRUE AND COALESCE(e.is_done, FALSE) = FALSE AND e.starts_at >= NOW()))",
+    ],
     resourceConfig: {
-        tableExpression: "announcements a",
-        selectFields: "a.id, a.title, a.body, a.target_audience, a.cohort_id, a.publish_at, a.created_at",
+        tableExpression: `
+          announcements a
+          LEFT JOIN cohorts c ON c.id = a.cohort_id AND c.deleted_at IS NULL
+          LEFT JOIN programs p ON p.id = c.program_id AND p.deleted_at IS NULL
+          LEFT JOIN events e ON e.id = a.event_id AND e.deleted_at IS NULL
+        `,
+        selectFields: `
+          a.id,
+          a.title,
+          a.body,
+          a.target_audience,
+          a.cohort_id,
+          a.event_id,
+          a.publish_at,
+          a.created_at,
+          c.name AS cohort_name,
+          CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS cohort_status,
+          p.title AS program_title,
+          p.image_url AS program_image_url,
+          e.slug AS event_slug,
+          e.title AS event_title,
+          e.starts_at AS event_starts_at,
+          e.featured_image_url AS event_image_url
+        `,
         sortPrefix: "a",
     },
 };
@@ -134,7 +185,7 @@ const managersConfig = {
     extraWhere: ["ap.is_public = TRUE"],
     resourceConfig: {
         tableExpression: "admin_profiles ap",
-        selectFields: "ap.user_id, ap.full_name, ap.avatar_url, ap.bio, ap.job_title, ap.admin_role, ap.linkedin_url, ap.github_url, ap.portfolio_url, ap.sort_order",
+        selectFields: "ap.user_id, ap.full_name, ap.avatar_url, ap.bio, ap.job_title, ap.skills, ap.admin_role, ap.linkedin_url, ap.github_url, ap.portfolio_url, ap.sort_order",
         sortPrefix: "ap",
     },
 };
@@ -145,7 +196,7 @@ const instructorsConfig = {
     extraWhere: ["ip.is_public = TRUE"],
     resourceConfig: {
         tableExpression: "instructor_profiles ip",
-        selectFields: "ip.user_id, ip.full_name, ip.avatar_url, ip.bio, ip.expertise, ip.linkedin_url, ip.github_url, ip.portfolio_url",
+        selectFields: "ip.user_id, ip.full_name, ip.avatar_url, ip.bio, ip.expertise, ip.skills, ip.linkedin_url, ip.github_url, ip.portfolio_url",
         sortPrefix: "ip",
     },
 };
@@ -153,7 +204,8 @@ const studentsConfig = {
     sortableColumns: ["user_id", "full_name", "featured_rank", "created_at"],
     defaultSort: "featured_rank",
     searchableColumns: ["sp.full_name", "COALESCE(sp.bio, '')"],
-    extraWhere: ["sp.is_public = TRUE"],
+    extraWhere: ["sp.is_public = TRUE", "COALESCE(sp.admin_status, 'active') = 'active'"],
+    activeOnlyWhereClause: "EXISTS (SELECT 1 FROM enrollments e_active WHERE e_active.student_user_id = sp.user_id AND e_active.status = 'active')",
     resourceConfig: {
         tableExpression: `
           student_profiles sp
@@ -281,6 +333,25 @@ export function listPublicProgramsService(query) {
 export function listPublicCohortsService(query) {
     return listPublicResource(query, cohortsConfig);
 }
+export async function getPublicCohortDetailService(cohortId) {
+    const normalizedId = Number(cohortId);
+    if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+        throw new AppError(400, "VALIDATION_ERROR", "Cohort id is required.");
+    }
+    const cohortResult = await withDbRetry(() => getPublicCohortById(normalizedId));
+    if (!cohortResult.rowCount) {
+        throw new AppError(404, "NOT_FOUND", "Cohort not found.");
+    }
+    const [instructorsResult, studentsResult] = await Promise.all([
+        withDbRetry(() => listPublicCohortInstructors(normalizedId)),
+        withDbRetry(() => listPublicCohortStudents(normalizedId)),
+    ]);
+    return {
+        ...cohortResult.rows[0],
+        instructors: instructorsResult.rows,
+        students: studentsResult.rows,
+    };
+}
 export async function getPublicCohortApplicationFormService(cohortId) {
     const data = await getCohortFormService(cohortId);
     return {
@@ -321,7 +392,10 @@ export async function getPublicStudentDetailService(publicSlug) {
         throw new AppError(404, "NOT_FOUND", "Student profile not found.");
     }
     const profile = profileResult.rows[0];
-    const projectsResult = await listPublicProjectsByStudentUserId(Number(profile.user_id));
+    const studentUserId = Number(profile.user_id);
+    const projectsResult = Number.isInteger(studentUserId) && studentUserId > 0
+        ? await listPublicProjectsByStudentUserId(studentUserId)
+        : { rows: [] };
     return {
         ...profile,
         projects: projectsResult.rows,
@@ -329,29 +403,81 @@ export async function getPublicStudentDetailService(publicSlug) {
 }
 export async function getPublicThemeService() {
     const cacheKey = "public:theme";
+    const lastKnownGoodCacheKey = "public:theme:last_known_good";
     const cached = await cacheGetJson(cacheKey);
     if (cached !== null) {
         return cached;
     }
-    const result = await listPublicThemeTokens();
-    const data = result.rows;
-    await cacheSetJson(cacheKey, data, 600);
-    return data;
+    try {
+        const result = await withDbRetry(() => listPublicThemeTokens());
+        const data = result.rows;
+        await cacheSetJson(cacheKey, data, 600);
+        await cacheSetJson(lastKnownGoodCacheKey, data, 86400);
+        return data;
+    }
+    catch (error) {
+        if (!isTransientDatabaseError(error)) {
+            throw error;
+        }
+        const lastKnownGood = await cacheGetJson(lastKnownGoodCacheKey);
+        if (lastKnownGood !== null) {
+            return lastKnownGood;
+        }
+        return [];
+    }
 }
 export async function getPublicHomeService() {
     const cacheKey = "public:home";
+    const lastKnownGoodCacheKey = "public:home:last_known_good";
     const cached = await cacheGetJson(cacheKey);
     if (cached !== null) {
         return cached;
     }
-    const [sectionsResult, settingsResult] = await Promise.all([
-        listPublicHomeSections(),
-        getPublicSiteSettings(),
-    ]);
-    const data = {
-        sections: sectionsResult.rows,
-        site_settings: settingsResult.rowCount ? settingsResult.rows[0] : null,
-    };
+    try {
+        await withDbRetry(() => ensureDefaultHomeSections());
+        const [sectionsResult, settingsResult] = await Promise.all([
+            withDbRetry(() => listPublicHomeSections()),
+            withDbRetry(() => getPublicSiteSettings()),
+        ]);
+        const data = {
+            sections: sectionsResult.rows,
+            site_settings: settingsResult.rowCount ? settingsResult.rows[0] : null,
+        };
+        await cacheSetJson(cacheKey, data, 60);
+        await cacheSetJson(lastKnownGoodCacheKey, data, 86400);
+        return data;
+    }
+    catch (error) {
+        if (!isTransientDatabaseError(error)) {
+            throw error;
+        }
+        const lastKnownGood = await cacheGetJson(lastKnownGoodCacheKey);
+        if (lastKnownGood !== null) {
+            return lastKnownGood;
+        }
+        return { sections: [], site_settings: null };
+    }
+}
+
+export async function getPublicPageByKeyService(pageKey) {
+    const normalized = String(pageKey || "").trim().toLowerCase();
+    if (!normalized) {
+        throw new AppError(400, "VALIDATION_ERROR", "Page key is required.");
+    }
+    const cacheKey = `public:page:${normalized}`;
+    const cached = await cacheGetJson(cacheKey);
+    if (cached !== null) {
+        return cached;
+    }
+    let result = await withDbRetry(() => getPublicPageByKey(normalized));
+    if (!result.rowCount) {
+        await withDbRetry(() => ensureDefaultPages());
+        result = await withDbRetry(() => getPublicPageByKey(normalized));
+    }
+    if (!result.rowCount) {
+        throw new AppError(404, "NOT_FOUND", "Page not found.");
+    }
+    const data = result.rows[0];
     await cacheSetJson(cacheKey, data, 60);
     return data;
 }

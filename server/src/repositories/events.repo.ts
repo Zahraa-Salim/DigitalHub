@@ -7,9 +7,9 @@ import { pool } from "../db/index.js";
 export async function createEvent(input, db = pool) {
     return db.query(`
       INSERT INTO events
-        (slug, title, description, post_body, location, starts_at, ends_at, is_published, is_done, completion_image_urls, created_by, created_at, updated_at)
+        (slug, title, description, post_body, location, starts_at, ends_at, is_published, is_done, auto_announce, completion_image_urls, created_by, created_at, updated_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, $9::jsonb, $10, NOW(), NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, $9, $10::jsonb, $11, NOW(), NOW())
       RETURNING *
     `, [
         input.slug,
@@ -20,6 +20,7 @@ export async function createEvent(input, db = pool) {
         input.starts_at,
         input.ends_at ?? null,
         input.is_published,
+        input.auto_announce ?? false,
         JSON.stringify(input.completion_image_urls ?? []),
         input.created_by,
     ]);

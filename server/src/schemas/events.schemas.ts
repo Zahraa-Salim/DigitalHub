@@ -26,7 +26,11 @@ export const eventCreateSchema = z
     starts_at: z.string().datetime(),
     ends_at: z.string().datetime().nullable().optional(),
     is_published: z.boolean().optional(),
+    auto_announce: z.boolean().optional(),
     completion_image_urls: z.array(imageUrlSchema).max(24).optional(),
+    // Priority 2: Events - Add capacity and featured image
+    capacity: z.number().int().min(0).nullable().optional(),
+    featured_image_url: z.union([z.literal(""), z.string().trim().max(2048)]).nullable().optional(),
 })
     .strict();
 export const eventPatchSchema = z
@@ -39,9 +43,13 @@ export const eventPatchSchema = z
     starts_at: z.string().datetime().optional(),
     ends_at: z.string().datetime().nullable().optional(),
     is_published: z.boolean().optional(),
+    auto_announce: z.boolean().optional(),
     is_done: z.boolean().optional(),
     done_at: z.string().datetime().nullable().optional(),
     completion_image_urls: z.array(imageUrlSchema).max(24).optional(),
+    // Priority 2: Events - Add capacity and featured image
+    capacity: z.number().int().min(0).nullable().optional(),
+    featured_image_url: z.union([z.literal(""), z.string().trim().max(2048)]).nullable().optional(),
 })
     .strict()
     .refine((payload) => Object.keys(payload).length > 0, { message: "At least one field is required." });
@@ -53,5 +61,4 @@ export const eventImageUploadSchema = z
     data_base64: z.string().trim().min(1),
 })
     .strict();
-
 

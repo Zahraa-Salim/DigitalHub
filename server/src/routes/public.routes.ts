@@ -16,12 +16,14 @@ import {
   getPublicAnnouncements,
   getPublicApplyForm,
   getPublicCohortApplicationForm,
+  getPublicCohortById,
   getPublicCohorts,
   getPublicEventBySlug,
   getPublicEvents,
   getPublicHome,
   getPublicInstructors,
   getPublicManagers,
+  getPublicPageByKey,
   getPublicPrograms,
   getPublicStudentBySlug,
   getPublicStudents,
@@ -42,10 +44,16 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 const publicRouter = Router();
 publicRouter.get("/theme", asyncHandler(getPublicTheme));
 publicRouter.get("/home", asyncHandler(getPublicHome));
+publicRouter.get("/pages/:slug", validateRequest({ params: eventSlugParamsSchema }), asyncHandler(getPublicPageByKey));
 publicRouter.get("/apply/form", asyncHandler(getPublicApplyForm));
 publicRouter.post("/apply", validateRequest({ body: publicApplyBodySchema }), asyncHandler(submitPublicApply));
 publicRouter.get("/programs", asyncHandler(getPublicPrograms));
 publicRouter.get("/cohorts", asyncHandler(getPublicCohorts));
+publicRouter.get(
+  "/cohorts/:id",
+  validateRequest({ params: idParamsSchema }),
+  asyncHandler(getPublicCohortById),
+);
 publicRouter.get(
   "/cohorts/:id/form",
   validateRequest({ params: idParamsSchema }),

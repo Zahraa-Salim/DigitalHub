@@ -40,16 +40,21 @@ async function queryAdminUserWithRetry(userId) {
         LEFT JOIN admin_profiles ap ON ap.user_id = u.id
         WHERE u.id = $1
       `;
-    try {
-        return await pool.query(queryText, [userId]);
-    }
-    catch (error) {
-        if (!isTransientDatabaseError(error)) {
-            throw error;
+    const maxAttempts = 3;
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+        try {
+            return await pool.query(queryText, [userId]);
         }
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        return pool.query(queryText, [userId]);
+        catch (error) {
+            attempt += 1;
+            if (!isTransientDatabaseError(error) || attempt >= maxAttempts) {
+                throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+        }
     }
+    throw new AppError(503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
 }
 export async function verifyAdminAuth(req, _res, next) {
     try {
