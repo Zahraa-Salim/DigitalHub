@@ -1,7 +1,9 @@
-// File Summary: server/src/constants/errorCodes.ts
-// Layer: constants
-// Purpose: Declares the API error-code catalog used by AppError and error responses.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/constants/errorCodes.ts
+// What this code does:
+// 1) Declares shared constants used across backend modules.
+// 2) Centralizes canonical values to avoid hard-coded strings.
+// 3) Keeps API/domain identifiers consistent across layers.
+// 4) Reduces drift between validation, services, and responses.
 // @ts-nocheck
 export const errorCodes = [
     "VALIDATION_ERROR",

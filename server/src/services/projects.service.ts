@@ -1,7 +1,9 @@
-// File Summary: server/src/services/projects.service.ts
-// Layer: services
-// Purpose: Handles business logic for admin and public project endpoints.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/services/projects.service.ts
+// What this code does:
+// 1) Implements core business rules and workflow decisions.
+// 2) Performs data access through DB helpers and utilities.
+// 3) Enforces domain constraints before state changes.
+// 4) Returns structured results for controller/route layers.
 // @ts-nocheck
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";

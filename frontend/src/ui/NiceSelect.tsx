@@ -1,6 +1,9 @@
-// File: src/ui/NiceSelect.tsx
-// Purpose: Reusable UI control component shared by multiple features.
-// If you change this file: Changing component API or behavior can affect interaction patterns and break callers that depend on current props.
+// File: frontend/src/ui/NiceSelect.tsx
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 "use client"
 import React, { useState, useCallback, useRef, FC, ChangeEvent } from "react";
 import { useClickAway } from "react-use";

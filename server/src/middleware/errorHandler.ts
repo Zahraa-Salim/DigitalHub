@@ -1,25 +1,27 @@
-// File Summary: server/src/middleware/errorHandler.ts
-// Layer: middleware
-// Purpose: Applies cross-cutting request rules like auth, validation, and errors.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
-// @ts-nocheck
+// File: server/src/middleware/errorHandler.ts
+// What this code does:
+// 1) Runs in the request pipeline before/after route handlers.
+// 2) Enforces cross-cutting rules like auth, validation, and errors.
+// 3) Normalizes request/response behavior for downstream code.
+// 4) Removes duplicated policy logic from controllers.
+import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { AppError } from "../utils/appError.js";
 import { sendError } from "../utils/httpResponse.js";
-export function notFound(_req, _res, next) {
-    next(new AppError(404, "NOT_FOUND", "Route not found."));
+export function notFound(_req: Request, _res: Response, next: NextFunction) {
+    next(new AppError(404, "NOT_FOUND", "Route not found.", undefined));
 }
-function buildZodFieldErrors(error) {
-    const fieldErrors = {};
+function buildZodFieldErrors(error: ZodError<unknown>) {
+    const fieldErrors: Record<string, string> = {};
     for (const issue of error.issues) {
-        const field = issue.path.join(".") || "request";
+        const field = issue.path.map(String).join(".") || "request";
         if (!fieldErrors[field]) {
             fieldErrors[field] = issue.message;
         }
     }
     return { fieldErrors };
 }
-export function errorHandler(error, _req, res, _next) {
+export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
     const rawCode = typeof error === "object" && error !== null && "code" in error
       ? String(error.code).toUpperCase()
       : "";
@@ -32,29 +34,34 @@ export function errorHandler(error, _req, res, _next) {
         return;
     }
     if (error instanceof AppError) {
-        sendError(res, error.statusCode, error.code, error.message, error.details);
+        const appError = error as AppError & {
+          statusCode: number;
+          code: string;
+          details?: unknown;
+        };
+        sendError(res, appError.statusCode, appError.code, appError.message, appError.details);
         return;
     }
   if (typeof error === "object" && error !== null && "code" in error) {
     const dbCode = String(error.code);
     if (dbCode === "23505") {
-      sendError(res, 409, "VALIDATION_ERROR", "Duplicate value violates a unique constraint.");
+      sendError(res, 409, "VALIDATION_ERROR", "Duplicate value violates a unique constraint.", undefined);
       return;
         }
     if (dbCode === "23503") {
-      sendError(res, 422, "VALIDATION_ERROR", "Related resource was not found.");
+      sendError(res, 422, "VALIDATION_ERROR", "Related resource was not found.", undefined);
       return;
     }
     if (dbCode === "22P02") {
-      sendError(res, 400, "VALIDATION_ERROR", "Invalid value format.");
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid value format.", undefined);
       return;
     }
     if (dbCode === "23514") {
-      sendError(res, 400, "VALIDATION_ERROR", "Value violates a check constraint.");
+      sendError(res, 400, "VALIDATION_ERROR", "Value violates a check constraint.", undefined);
       return;
     }
     if (dbCode === "08P01" || dbCode === "08006" || dbCode === "08001" || dbCode === "57P01") {
-      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.", undefined);
       return;
     }
   }
@@ -68,13 +75,13 @@ export function errorHandler(error, _req, res, _next) {
       rawMessage.includes("connection terminated unexpectedly") ||
       rawMessage.includes("getaddrinfo")
     ) {
-      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+      sendError(res, 503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.", undefined);
       return;
     }
 
     // Log unexpected errors for easier operational debugging.
     console.error("Unhandled error:", error);
-    sendError(res, 500, "INTERNAL_ERROR", "Internal server error");
+    sendError(res, 500, "INTERNAL_ERROR", "Internal server error", undefined);
 }
 
 

@@ -1,6 +1,9 @@
-// File: src/redux/features/courseSlice.ts
-// Purpose: Redux store/slice module controlling application state and selectors.
-// If you change this file: Changing state shape, reducers, or selectors can break hooks/components that rely on this state contract.
+// File: frontend/src/redux/features/courseSlice.ts
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import courses from '@/data/mock/courseCatalogData';
 

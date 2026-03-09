@@ -1,7 +1,9 @@
-// File Summary: server/src/db/index.ts
-// Layer: db
-// Purpose: Provides PostgreSQL pool setup and transaction helper behavior.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/db/index.ts
+// What this code does:
+// 1) Builds DB connection config from env vars (DATABASE_URL or PGHOST/PGPORT/...).
+// 2) Applies SSL rules using PGSSLMODE/PGSSL/sslmode + rejectUnauthorized policy.
+// 3) Creates and exports a shared PostgreSQL pool with timeout/keepAlive settings.
+// 4) Exports withTransaction(handler): BEGIN -> COMMIT, with ROLLBACK on error.
 // @ts-nocheck
 import pkg from "pg";
 import dns from "node:dns";

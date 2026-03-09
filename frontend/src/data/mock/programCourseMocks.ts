@@ -1,6 +1,9 @@
-// File: src/data/mock/programCourseMocks.ts
-// Purpose: Static/mock dataset consumed by UI components and/or state layers.
-// If you change this file: Changing field names, shapes, or values can break filters, mapping logic, or any consumer expecting the current schema.
+// File: frontend/src/data/mock/programCourseMocks.ts
+// What this code does:
+// 1) Stores static/mock data used by UI and development flows.
+// 2) Defines predictable fixtures for cards, tables, and previews.
+// 3) Supports testing UI states without live API dependency.
+// 4) Keeps sample content centralized and reusable.
 import type { StaticImageData } from "@/components/common/Image";
 import {
   dbCohortsTemplate,

@@ -1,7 +1,9 @@
-// File Summary: server/src/utils/mailer.ts
-// Layer: utils
-// Purpose: Sends outbound emails through configured SMTP using a fixed sender identity.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/utils/mailer.ts
+// What this code does:
+// 1) Provides reusable helper functions for backend modules.
+// 2) Encapsulates common formatting, parsing, and safety checks.
+// 3) Keeps route/controller code focused on workflow logic.
+// 4) Avoids duplicating low-level utility code across files.
 // @ts-nocheck
 import nodemailer from "nodemailer";
 import { pool } from "../db/index.js";

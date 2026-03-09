@@ -1,6 +1,9 @@
-// File: src/svg/SvgDashed.tsx
-// Purpose: Reusable SVG/icon component used across UI elements.
-// If you change this file: Changing SVG markup or props can affect icon rendering and alignment in all consumers.
+// File: frontend/src/svg/SvgDashed.tsx
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 const SvgDashed = () => {
    return (
       <>

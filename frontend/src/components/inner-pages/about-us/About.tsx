@@ -1,3 +1,9 @@
+// File: frontend/src/components/inner-pages/about-us/About.tsx
+// What this code does:
+// 1) Defines reusable UI components used across pages.
+// 2) Renders props-driven sections and interactive elements.
+// 3) Encapsulates local UI behavior and presentation details.
+// 4) Provides building blocks for higher-level page composition.
 "use client";
 
 import Image from "@/components/common/Image";

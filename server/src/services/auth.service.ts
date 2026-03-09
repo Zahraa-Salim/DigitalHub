@@ -1,7 +1,9 @@
-// File Summary: server/src/services/auth.service.ts
-// Layer: services
-// Purpose: Contains business logic, orchestration, and transaction-level behavior.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/services/auth.service.ts
+// What this code does:
+// 1) Implements core business rules and workflow decisions.
+// 2) Performs data access through DB helpers and utilities.
+// 3) Enforces domain constraints before state changes.
+// 4) Returns structured results for controller/route layers.
 // @ts-nocheck
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";

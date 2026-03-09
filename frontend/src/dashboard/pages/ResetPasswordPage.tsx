@@ -1,3 +1,9 @@
+// File: frontend/src/dashboard/pages/ResetPasswordPage.tsx
+// What this code does:
+// 1) Implements admin dashboard screens and operator workflows.
+// 2) Loads and binds management data to interactive controls.
+// 3) Coordinates tables, forms, filters, and modal state.
+// 4) Triggers API actions and surfaces user-facing feedback.
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api } from "../utils/api";

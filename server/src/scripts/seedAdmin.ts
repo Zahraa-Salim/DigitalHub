@@ -1,7 +1,9 @@
-// File Summary: server/src/scripts/seedAdmin.ts
-// Layer: scripts
-// Purpose: Seeds an admin user from env variables for initial system access.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/scripts/seedAdmin.ts
+// What this code does:
+// 1) Implements module-specific behavior for this code unit.
+// 2) Coordinates inputs, internal processing, and outputs.
+// 3) Uses shared utilities to keep logic consistent and reusable.
+// 4) Exports functions/components used by other project modules.
 // @ts-nocheck
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";

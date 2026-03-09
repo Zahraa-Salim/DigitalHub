@@ -1,7 +1,9 @@
-// File Summary: server/src/services/admins.service.ts
-// Layer: services
-// Purpose: Contains business logic for super-admin management of admin accounts.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/services/admins.service.ts
+// What this code does:
+// 1) Implements core business rules and workflow decisions.
+// 2) Performs data access through DB helpers and utilities.
+// 3) Enforces domain constraints before state changes.
+// 4) Returns structured results for controller/route layers.
 // @ts-nocheck
 
 import bcrypt from "bcryptjs";

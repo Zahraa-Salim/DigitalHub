@@ -1,6 +1,9 @@
-// File: src/main.tsx
-// Purpose: Bootstraps the React app and mounts global providers/styles.
-// If you change this file: Changing imports or bootstrap order can break app startup, routing, or global UI behavior.
+// File: frontend/src/main.tsx
+// What this code does:
+// 1) Bootstraps the React application in the browser runtime.
+// 2) Registers global providers, store, styles, and fonts.
+// 3) Enables startup utilities required by app behavior.
+// 4) Mounts the root app component into the DOM container.
 import App from "@/App";
 import { enableDefaultLazyMedia } from "@/lib/lazyMedia";
 import store from "@/redux/store";

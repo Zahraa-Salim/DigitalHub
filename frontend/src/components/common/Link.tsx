@@ -1,6 +1,9 @@
-// File: src/components/common/Link.tsx
-// Purpose: UI component responsible for rendering part of the interface (common/Link.tsx).
-// If you change this file: Changing props, markup, or logic here will directly affect the rendered section and can break callers using this component API.
+// File: frontend/src/components/common/Link.tsx
+// What this code does:
+// 1) Defines reusable UI components used across pages.
+// 2) Renders props-driven sections and interactive elements.
+// 3) Encapsulates local UI behavior and presentation details.
+// 4) Provides building blocks for higher-level page composition.
 import React from "react";
 import { Link as RouterLink } from "react-router-dom";
 

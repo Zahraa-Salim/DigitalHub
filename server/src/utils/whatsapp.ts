@@ -1,7 +1,9 @@
-// File Summary: server/src/utils/whatsapp.ts
-// Layer: utils
-// Purpose: Sends WhatsApp messages through provider configuration with a mock fallback.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/utils/whatsapp.ts
+// What this code does:
+// 1) Provides reusable helper functions for backend modules.
+// 2) Encapsulates common formatting, parsing, and safety checks.
+// 3) Keeps route/controller code focused on workflow logic.
+// 4) Avoids duplicating low-level utility code across files.
 // @ts-nocheck
 import { AppError } from "./appError.js";
 

@@ -1,8 +1,9 @@
-// File Summary: server/db/index.js
-// Layer: db
-// Purpose: Legacy JavaScript DB entry exposing pool and transaction helpers.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
-
+// File: server/db/index.js
+// What this code does:
+// 1) Implements module-specific behavior for this code unit.
+// 2) Coordinates inputs, internal processing, and outputs.
+// 3) Uses shared utilities to keep logic consistent and reusable.
+// 4) Exports functions/components used by other project modules.
 import dotenv from "dotenv";
 import pkg from "pg";
 

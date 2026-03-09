@@ -1,8 +1,9 @@
-// File Summary: server/src/constants/adminActions.ts
-// Layer: constants
-// Purpose: Defines canonical admin action codes used for activity logs and notifications.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
-
+// File: server/src/constants/adminActions.ts
+// What this code does:
+// 1) Declares shared constants used across backend modules.
+// 2) Centralizes canonical values to avoid hard-coded strings.
+// 3) Keeps API/domain identifiers consistent across layers.
+// 4) Reduces drift between validation, services, and responses.
 export const ADMIN_ACTIONS = {
   ADMIN_CREATED: "ADMIN_CREATED",
   ADMIN_UPDATED: "ADMIN_UPDATED",

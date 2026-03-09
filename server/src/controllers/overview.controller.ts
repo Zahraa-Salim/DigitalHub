@@ -1,7 +1,9 @@
-// File Summary: server/src/controllers/overview.controller.ts
-// Layer: controllers
-// Purpose: Maps overview HTTP requests to service and returns standardized response.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/controllers/overview.controller.ts
+// What this code does:
+// 1) Reads validated request input from params, query, and body.
+// 2) Calls service-layer functions to execute business operations.
+// 3) Maps operation results into consistent API responses.
+// 4) Keeps HTTP transport concerns separate from business logic.
 // @ts-nocheck
 import { getAdminOverviewService } from "../services/overview.service.js";
 import { listOverviewMessagesService, retryFailedOverviewMessagesService } from "../services/overview.service.js";

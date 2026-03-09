@@ -1,7 +1,9 @@
-// File Summary: server/src/scripts/seedEventsDemo.ts
-// Layer: scripts
-// Purpose: Seeds/upserts demo public events with gallery images and post content.
-// Notes: Run with: npm run seed:events
+// File: server/src/scripts/seedEventsDemo.ts
+// What this code does:
+// 1) Implements module-specific behavior for this code unit.
+// 2) Coordinates inputs, internal processing, and outputs.
+// 3) Uses shared utilities to keep logic consistent and reusable.
+// 4) Exports functions/components used by other project modules.
 // @ts-nocheck
 import dotenv from "dotenv";
 import { pool } from "../db/index.js";

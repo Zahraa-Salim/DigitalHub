@@ -1,7 +1,9 @@
-// File Summary: server/src/index.ts
-// Layer: root
-// Purpose: Bootstraps Express, mounts all route modules, and starts the API server.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/index.ts
+// What this code does:
+// 1) Creates and configures the Express application instance.
+// 2) Registers middleware, route modules, and global error handlers.
+// 3) Initializes runtime dependencies before serving requests.
+// 4) Starts the HTTP server using environment-based configuration.
 // @ts-nocheck
 import cors from "cors";
 import bcrypt from "bcryptjs";

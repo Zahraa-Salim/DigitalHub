@@ -1,6 +1,9 @@
-// File: src/hooks/useWishlistInfo.ts
-// Purpose: Reusable React hook encapsulating shared state, side effects, or behavior.
-// If you change this file: Changing return values, timing, or side effects can impact every component that consumes this hook.
+// File: frontend/src/hooks/useWishlistInfo.ts
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 "use client";
 import { useSelector } from "react-redux";
 

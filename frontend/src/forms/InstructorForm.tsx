@@ -1,6 +1,9 @@
-// File: src/forms/InstructorForm.tsx
-// Purpose: Form component that handles user input, validation, and submission flow.
-// If you change this file: Changing field names, validation rules, or handlers can break form behavior or submitted payload structures.
+// File: frontend/src/forms/InstructorForm.tsx
+// What this code does:
+// 1) Implements form fields, validation, and submission flows.
+// 2) Normalizes user input before API requests are sent.
+// 3) Handles loading, error, and success feedback states.
+// 4) Keeps form behavior consistent across intake workflows.
 "use client"
 import BtnArrow from "@/svg/BtnArrow"
 

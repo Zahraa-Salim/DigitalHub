@@ -1,3 +1,9 @@
+// File: frontend/vite.config.ts
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'node:path'

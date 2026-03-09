@@ -1,7 +1,9 @@
-// File Summary: server/src/middleware/rateLimit.ts
-// Layer: middleware
-// Purpose: Adds Redis-backed rate limiting with graceful fallback when Redis is unavailable.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/middleware/rateLimit.ts
+// What this code does:
+// 1) Runs in the request pipeline before/after route handlers.
+// 2) Enforces cross-cutting rules like auth, validation, and errors.
+// 3) Normalizes request/response behavior for downstream code.
+// 4) Removes duplicated policy logic from controllers.
 // @ts-nocheck
 import { AppError } from "../utils/appError.js";
 import { getRedis } from "../utils/redis.js";

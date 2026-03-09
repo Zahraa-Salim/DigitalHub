@@ -1,3 +1,9 @@
+// File: frontend/src/dashboard/utils/exportData.ts
+// What this code does:
+// 1) Implements admin dashboard screens and operator workflows.
+// 2) Loads and binds management data to interactive controls.
+// 3) Coordinates tables, forms, filters, and modal state.
+// 4) Triggers API actions and surfaces user-facing feedback.
 /**
  * Data Export Utilities
  * Provides functionality to export data to various formats (CSV, JSON, Excel-ready)

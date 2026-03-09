@@ -1,7 +1,9 @@
-// File Summary: server/src/utils/cache.ts
-// Layer: utils
-// Purpose: Exposes safe cache helpers that no-op when Redis is unavailable.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/utils/cache.ts
+// What this code does:
+// 1) Provides reusable helper functions for backend modules.
+// 2) Encapsulates common formatting, parsing, and safety checks.
+// 3) Keeps route/controller code focused on workflow logic.
+// 4) Avoids duplicating low-level utility code across files.
 // @ts-nocheck
 import { getRedis } from "./redis.js";
 

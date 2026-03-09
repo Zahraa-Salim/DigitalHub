@@ -1,6 +1,9 @@
-// File: src/routes/AppRoutes.tsx
-// Purpose: Application routing configuration that defines route-to-page mapping.
-// If you change this file: Changing route rules can make pages unreachable or map users to incorrect screens.
+// File: frontend/src/routes/AppRoutes.tsx
+// What this code does:
+// 1) Composes route-level views and page section structure.
+// 2) Orchestrates page-level data loading and state.
+// 3) Connects reusable components to navigation flow.
+// 4) Exports page modules consumed by the router.
 import NotFoundPage from "@/pages/not-found";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";

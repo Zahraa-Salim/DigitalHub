@@ -1,6 +1,9 @@
-// File: src/sections/people.sections.tsx
-// Purpose: Page composition module that combines reusable components into a full section/page flow.
-// If you change this file: Changing composition order or included components will alter page structure and user experience on related routes.
+// File: frontend/src/sections/people.sections.tsx
+// What this code does:
+// 1) Composes route-level views and page section structure.
+// 2) Orchestrates page-level data loading and state.
+// 3) Connects reusable components to navigation flow.
+// 4) Exports page modules consumed by the router.
 import BreadcrumbOne from "@/components/common/breadcrumb/BreadcrumbOne";
 import PeopleDirectory from "@/components/inner-pages/people/PeopleDirectory";
 import FooterOne from "@/layouts/footers/FooterOne";

@@ -1,7 +1,9 @@
-// File: src/lib/lazyMedia.ts
-// Purpose: Apply safe default lazy-loading to media elements that do not explicitly set loading behavior.
-// If you change this file: It affects image/iframe loading strategy across the entire app.
-
+// File: frontend/src/lib/lazyMedia.ts
+// What this code does:
+// 1) Provides shared frontend helpers and API client utilities.
+// 2) Centralizes fetch, parsing, and cross-page helper logic.
+// 3) Reduces duplicated behavior across pages/components.
+// 4) Exports reusable functions consumed by app modules.
 function applyLazyAttributesToElement(element: Element) {
   if (element instanceof HTMLImageElement) {
     if (!element.getAttribute("loading")) {

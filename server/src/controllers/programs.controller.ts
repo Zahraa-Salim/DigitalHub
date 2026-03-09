@@ -1,7 +1,9 @@
-// File Summary: server/src/controllers/programs.controller.ts
-// Layer: controllers
-// Purpose: Maps validated HTTP input to service calls and sends standardized responses.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/controllers/programs.controller.ts
+// What this code does:
+// 1) Reads validated request input from params, query, and body.
+// 2) Calls service-layer functions to execute business operations.
+// 3) Maps operation results into consistent API responses.
+// 4) Keeps HTTP transport concerns separate from business logic.
 // @ts-nocheck
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, unassignInstructorService, uploadProgramImageService, } from "../services/programs.service.js";

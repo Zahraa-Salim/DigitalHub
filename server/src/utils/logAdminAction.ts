@@ -1,7 +1,9 @@
-// File Summary: server/src/utils/logAdminAction.ts
-// Layer: utils
-// Purpose: Provides shared utility helpers reused by multiple backend layers.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/utils/logAdminAction.ts
+// What this code does:
+// 1) Provides reusable helper functions for backend modules.
+// 2) Encapsulates common formatting, parsing, and safety checks.
+// 3) Keeps route/controller code focused on workflow logic.
+// 4) Avoids duplicating low-level utility code across files.
 // @ts-nocheck
 import { pool } from "../db/index.js";
 export async function logAdminAction(input, client = pool) {

@@ -1,7 +1,9 @@
-// File Summary: server/src/repositories/profiles.repository.ts
-// Layer: repositories
-// Purpose: Executes parameterized SQL queries for student profiles, users, and projects.
-// Notes: Handles joined queries across users, student_profiles, and projects tables.
+// File: server/src/repositories/profiles.repository.ts
+// What this code does:
+// 1) Implements module-specific behavior for this code unit.
+// 2) Coordinates inputs, internal processing, and outputs.
+// 3) Uses shared utilities to keep logic consistent and reusable.
+// 4) Exports functions/components used by other project modules.
 // @ts-nocheck
 import { pool } from "../db/index.js";
 

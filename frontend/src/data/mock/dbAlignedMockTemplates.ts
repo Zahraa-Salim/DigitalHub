@@ -1,6 +1,9 @@
-// File: src/data/mock/dbAlignedMockTemplates.ts
-// Purpose: Provides database-aligned mock data templates and mapping helpers for current website cards.
-// If you change this file: Changing field mappings can alter filters/cards behavior if output no longer matches UI mock types.
+// File: frontend/src/data/mock/dbAlignedMockTemplates.ts
+// What this code does:
+// 1) Stores static/mock data used by UI and development flows.
+// 2) Defines predictable fixtures for cards, tables, and previews.
+// 3) Supports testing UI states without live API dependency.
+// 4) Keeps sample content centralized and reusable.
 export type ProgramCardMock = {
   id: number;
   title: string;

@@ -1,6 +1,9 @@
-// File: src/hooks/useScrollToTop.ts
-// Purpose: Hook that automatically scrolls page to top when route changes.
-// If you change this file: The page scroll behavior on navigation will be affected.
+// File: frontend/src/hooks/useScrollToTop.ts
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 

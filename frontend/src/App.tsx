@@ -1,6 +1,9 @@
-// File: src/App.tsx
-// Purpose: Root application component that wires top-level app structure.
-// If you change this file: Changing this component can affect all routes, shared wrappers, and global rendering flow.
+// File: frontend/src/App.tsx
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 import AppRoutes from "@/routes/AppRoutes";
 
 const App = () => {

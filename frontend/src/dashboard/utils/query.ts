@@ -1,3 +1,9 @@
+// File: frontend/src/dashboard/utils/query.ts
+// What this code does:
+// 1) Implements admin dashboard screens and operator workflows.
+// 2) Loads and binds management data to interactive controls.
+// 3) Coordinates tables, forms, filters, and modal state.
+// 4) Triggers API actions and surfaces user-facing feedback.
 export type QueryValue = string | number | boolean | Array<string | number | boolean> | null | undefined;
 
 export function buildQueryString(params: Record<string, QueryValue>): string {

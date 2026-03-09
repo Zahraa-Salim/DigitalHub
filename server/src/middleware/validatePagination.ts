@@ -1,7 +1,9 @@
-// File Summary: server/src/middleware/validatePagination.ts
-// Layer: middleware
-// Purpose: Applies cross-cutting request rules like auth, validation, and errors.
-// Notes: This file is part of the Digital Hub Express + TypeScript backend.
+// File: server/src/middleware/validatePagination.ts
+// What this code does:
+// 1) Runs in the request pipeline before/after route handlers.
+// 2) Enforces cross-cutting rules like auth, validation, and errors.
+// 3) Normalizes request/response behavior for downstream code.
+// 4) Removes duplicated policy logic from controllers.
 // @ts-nocheck
 import { z } from "zod";
 const paginationSchema = z.object({

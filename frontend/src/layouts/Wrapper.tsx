@@ -1,6 +1,9 @@
-// File: src/layouts/Wrapper.tsx
-// Purpose: Shared layout container used across pages and sections.
-// If you change this file: Changing structure or wrapper logic can affect navigation, shared UI placement, and consistency across routes.
+// File: frontend/src/layouts/Wrapper.tsx
+// What this code does:
+// 1) Implements frontend module behavior for this feature area.
+// 2) Combines UI, state, and side effects for this module.
+// 3) Connects shared utilities/components where required.
+// 4) Exports artifacts consumed by routes or parent modules.
 "use client";
 import { ReactNode, useEffect } from "react";
 import { ToastContainer } from "react-toastify";

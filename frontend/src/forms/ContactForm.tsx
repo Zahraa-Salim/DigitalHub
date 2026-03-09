@@ -1,3 +1,9 @@
+// File: frontend/src/forms/ContactForm.tsx
+// What this code does:
+// 1) Implements form fields, validation, and submission flows.
+// 2) Normalizes user input before API requests are sent.
+// 3) Handles loading, error, and success feedback states.
+// 4) Keeps form behavior consistent across intake workflows.
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
