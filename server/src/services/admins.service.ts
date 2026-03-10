@@ -1,10 +1,8 @@
 // File: server/src/services/admins.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for admins.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 
 import bcrypt from "bcryptjs";
 import { withTransaction } from "../db/index.js";
@@ -26,6 +24,55 @@ import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 
 const ROLE_VALUES = new Set(["admin", "super_admin"]);
 
+type AdminRole = "admin" | "super_admin";
+
+type AdminListQuery = Record<string, unknown> & {
+  role?: string;
+  admin_role?: string;
+  is_active?: string | boolean;
+};
+
+type AdminPayload = {
+  email: string;
+  password: string;
+  full_name?: string;
+  avatar_url?: string | null;
+  job_title?: string | null;
+  admin_role?: AdminRole;
+  is_public?: boolean;
+  sort_order?: number;
+};
+
+type AdminPatchPayload = {
+  is_active?: boolean;
+  full_name?: string;
+  job_title?: string | null;
+  avatar_url?: string | null;
+  is_public?: boolean;
+  sort_order?: number;
+  admin_role?: AdminRole;
+};
+
+type AdminRow = {
+  user_id: number;
+  email: string;
+  is_active: boolean;
+  created_at: string | Date;
+  last_login_at: string | Date | null;
+  full_name: string | null;
+  job_title: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  linkedin_url: string | null;
+  github_url: string | null;
+  portfolio_url: string | null;
+  is_public: boolean | null;
+  sort_order: number | null;
+  admin_role: AdminRole | null;
+};
+
+type UniqueViolationError = { code?: string };
+
 const SORT_COLUMN_MAP = {
   created_at: "u.created_at",
   last_login_at: "u.last_login_at",
@@ -36,7 +83,8 @@ const SORT_COLUMN_MAP = {
   sort_order: "COALESCE(ap.sort_order, 0)",
 };
 
-function toAdminDto(row) {
+// Handles 'toAdminDto' workflow for this module.
+function toAdminDto(row: AdminRow) {
   return {
     user_id: row.user_id,
     email: row.email,
@@ -54,7 +102,8 @@ function toAdminDto(row) {
   };
 }
 
-function normalizeRoleQuery(value) {
+// Handles 'normalizeRoleQuery' workflow for this module.
+function normalizeRoleQuery(value: unknown): AdminRole | undefined {
   if (value === undefined || value === null || value === "") {
     return undefined;
   }
@@ -63,10 +112,11 @@ function normalizeRoleQuery(value) {
   if (!ROLE_VALUES.has(role)) {
     throw new AppError(400, "VALIDATION_ERROR", "Query param 'role' must be one of: admin, super_admin.");
   }
-  return role;
+  return role as AdminRole;
 }
 
-export async function listAdminsService(query) {
+// Handles 'listAdminsService' workflow for this module.
+export async function listAdminsService(query: AdminListQuery) {
   const list = parseListQuery(
     query,
     ["created_at", "last_login_at", "email", "full_name", "admin_role", "is_active", "sort_order"],
@@ -76,7 +126,7 @@ export async function listAdminsService(query) {
   const role = normalizeRoleQuery(query.role ?? query.admin_role);
   const isActive = parseQueryBoolean(query.is_active, "is_active");
 
-  const params = [];
+  const params: Array<string | boolean> = [];
   const where = ["u.is_admin = TRUE"];
 
   if (list.search) {
@@ -95,7 +145,7 @@ export async function listAdminsService(query) {
   }
 
   const whereClause = `WHERE ${where.join(" AND ")}`;
-  const sortColumn = SORT_COLUMN_MAP[list.sortBy];
+  const sortColumn = SORT_COLUMN_MAP[list.sortBy as keyof typeof SORT_COLUMN_MAP];
   const countResult = await countAdmins(whereClause, params);
   const total = Number(countResult.rows[0]?.total ?? 0);
   const dataResult = await listAdmins(whereClause, sortColumn, list.order, params, list.limit, list.offset);
@@ -106,8 +156,9 @@ export async function listAdminsService(query) {
   };
 }
 
-export async function createAdminService(actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createAdminService' workflow for this module.
+export async function createAdminService(actorUserId: number, payload: AdminPayload) {
+  return withTransaction(async (client: Parameters<typeof createAdminUser>[1]) => {
     try {
       const email = String(payload.email || "").trim().toLowerCase();
       const passwordHash = await bcrypt.hash(payload.password, 10);
@@ -153,7 +204,7 @@ export async function createAdminService(actorUserId, payload) {
       );
 
       return adminDto;
-    } catch (error) {
+    } catch (error: unknown) {
       if (isUniqueViolation(error)) {
         throw new AppError(409, "CONFLICT", "An account with this email already exists.");
       }
@@ -162,19 +213,20 @@ export async function createAdminService(actorUserId, payload) {
   });
 }
 
-export async function patchAdminService(targetUserId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchAdminService' workflow for this module.
+export async function patchAdminService(targetUserId: number, actorUserId: number, payload: AdminPatchPayload) {
+  return withTransaction(async (client: Parameters<typeof findAdminForUpdate>[1]) => {
     const existingResult = await findAdminForUpdate(targetUserId, client);
     if (!existingResult.rowCount) {
       throw new AppError(404, "NOT_FOUND", "Admin user not found.");
     }
 
-    const existing = existingResult.rows[0];
+    const existing = existingResult.rows[0] as AdminRow;
     if (targetUserId === actorUserId && payload.admin_role && payload.admin_role !== existing.admin_role) {
       throw new AppError(400, "VALIDATION_ERROR", "You cannot change your own admin role.");
     }
 
-    const userPayload = {};
+    const userPayload: { is_active?: boolean } = {};
     if (payload.is_active !== undefined) {
       userPayload.is_active = payload.is_active;
     }
@@ -237,16 +289,19 @@ export async function patchAdminService(targetUserId, actorUserId, payload) {
   });
 }
 
-export async function deactivateAdminService(targetUserId, actorUserId) {
+// Handles 'deactivateAdminService' workflow for this module.
+export async function deactivateAdminService(targetUserId: number, actorUserId: number) {
   return setAdminActivationService(targetUserId, actorUserId, false);
 }
 
-export async function activateAdminService(targetUserId, actorUserId) {
+// Handles 'activateAdminService' workflow for this module.
+export async function activateAdminService(targetUserId: number, actorUserId: number) {
   return setAdminActivationService(targetUserId, actorUserId, true);
 }
 
-async function setAdminActivationService(targetUserId, actorUserId, nextState) {
-  return withTransaction(async (client) => {
+// Handles 'setAdminActivationService' workflow for this module.
+async function setAdminActivationService(targetUserId: number, actorUserId: number, nextState: boolean) {
+  return withTransaction(async (client: Parameters<typeof findAdminForUpdate>[1]) => {
     const existingResult = await findAdminForUpdate(targetUserId, client);
     if (!existingResult.rowCount) {
       throw new AppError(404, "NOT_FOUND", "Admin user not found.");
@@ -278,6 +333,8 @@ async function setAdminActivationService(targetUserId, actorUserId, nextState) {
   });
 }
 
-function isUniqueViolation(error) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+// Handles 'isUniqueViolation' workflow for this module.
+function isUniqueViolation(error: unknown): error is UniqueViolationError {
+  return typeof error === "object" && error !== null && "code" in error && (error as UniqueViolationError).code === "23505";
 }
+

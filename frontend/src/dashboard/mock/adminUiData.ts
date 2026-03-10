@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/mock/adminUiData.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/mock/adminUiData.ts
+// Purpose: Provides mock dashboard data for admin UI data.
+// It supports local UI development before or alongside live backend data.
+
 export type AppStatus = "pending" | "approved" | "rejected";
 export type CohortStatus = "planned" | "open" | "running" | "completed" | "cancelled";
 export type PublishStatus = "published" | "draft";
@@ -128,3 +126,4 @@ export const profileMock = {
   department: "Operations",
   timezone: "UTC+02:00",
 };
+

@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/ApplicationsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/ApplicationsPage.tsx
+// Purpose: Renders the admin applications page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -167,7 +165,7 @@ export function ApplicationsPage() {
     const timeoutId = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
       delete toastTimersRef.current[id];
-    }, 3400);
+    }, 5000);
     toastTimersRef.current[id] = timeoutId;
   };
 
@@ -988,8 +986,10 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">{applicantDisplayName(selected)}</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
             </header>
             <p className="post-details__line">
               {selected.email || "N/A"} • {cohortDisplayName(selected)}
@@ -1068,7 +1068,6 @@ export function ApplicationsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setReviewModal(null)}>X</button>
               <h3 className="modal-title">
                 {reviewModal.action === "approve" ? "Send Accepted Group" : "Send Rejected Group"}
               </h3>
@@ -1201,3 +1200,4 @@ export function ApplicationsPage() {
     </PageShell>
   );
 }
+

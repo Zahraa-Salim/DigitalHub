@@ -1,15 +1,12 @@
-// File: server/src/middleware/verifySuperAdminAuth.ts
-// What this code does:
-// 1) Runs in the request pipeline before/after route handlers.
-// 2) Enforces cross-cutting rules like auth, validation, and errors.
-// 3) Normalizes request/response behavior for downstream code.
-// 4) Removes duplicated policy logic from controllers.
-// @ts-nocheck
+﻿// File: server/src/middleware/verifySuperAdminAuth.ts
+// Purpose: Authenticates bearer tokens and only allows super admin users through.
+// It verifies the current admin role before protected super admin routes continue.
 
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../utils/appError.js";
 import { verifyAdminAuth } from "./verifyAdminAuth.js";
 
+// Handles 'verifySuperAdminAuth' workflow for this module.
 export async function verifySuperAdminAuth(req: Request, res: Response, next: NextFunction) {
   try {
     await new Promise<void>((resolve, reject) => {
@@ -23,7 +20,7 @@ export async function verifySuperAdminAuth(req: Request, res: Response, next: Ne
     });
 
     if (req.user?.role !== "super_admin") {
-      throw new AppError(403, "FORBIDDEN", "Super admin access required.");
+      throw new AppError(403, "FORBIDDEN", "Super admin access required.", undefined);
     }
 
     next();
@@ -31,3 +28,4 @@ export async function verifySuperAdminAuth(req: Request, res: Response, next: Ne
     next(error);
   }
 }
+

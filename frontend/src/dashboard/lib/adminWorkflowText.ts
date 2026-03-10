@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/lib/adminWorkflowText.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/lib/adminWorkflowText.ts
+// Purpose: Provides dashboard helper logic for admin workflow text.
+// It keeps admin-specific text, API helpers, and derived behavior out of page components.
+
 import { ApiError } from "../utils/api";
 
 export type WorkflowStage =
@@ -66,3 +64,4 @@ export function toFriendlyDeliveryFailure(message: string): string {
   }
   return message;
 }
+

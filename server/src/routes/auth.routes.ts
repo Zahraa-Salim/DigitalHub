@@ -1,10 +1,9 @@
-// File: server/src/routes/auth.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/auth.routes.ts
+// Purpose: Registers the Express routes for auth.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { forgotPassword, getAdmins, getMe, getUsers, login, patchAdmin, patchMe, postUsersMessage, resetPassword } from "../controllers/auth.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -35,5 +34,4 @@ authRouter.get("/users", verifyAdminAuth, asyncHandler(getUsers));
 authRouter.post("/users/messages", verifyAdminAuth, validateRequest({ body: sendMessagingUsersBodySchema }), asyncHandler(postUsersMessage));
 authRouter.patch("/admins/:userId", verifyAdminAuth, validateRequest({ params: adminUserIdParamsSchema, body: superAdminUpdateAdminBodySchema }), asyncHandler(patchAdmin));
 export { authRouter };
-
 

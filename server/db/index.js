@@ -1,9 +1,7 @@
-// File: server/db/index.js
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/db/index.js
+// Purpose: Contains backend code for index.
+// It supports this part of the server feature set.
+
 import dotenv from "dotenv";
 import pkg from "pg";
 
@@ -22,6 +20,7 @@ export const pool = new Pool({
   ssl: sslEnabled ? { rejectUnauthorized: false, sslmode: 'verify-full' } : undefined,
 });
 
+// Handles 'withTransaction' workflow for this module.
 export async function withTransaction(handler) {
   const client = await pool.connect();
 
@@ -37,3 +36,4 @@ export async function withTransaction(handler) {
     client.release();
   }
 }
+

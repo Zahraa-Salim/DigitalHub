@@ -1,9 +1,7 @@
-// File: frontend/src/routes/AppRoutes.tsx
-// What this code does:
-// 1) Composes route-level views and page section structure.
-// 2) Orchestrates page-level data loading and state.
-// 3) Connects reusable components to navigation flow.
-// 4) Exports page modules consumed by the router.
+﻿// File: frontend/src/routes/AppRoutes.tsx
+// Purpose: Defines route elements for app routes.
+// It maps URL paths to the React pages and layout wrappers used by the app.
+
 import NotFoundPage from "@/pages/not-found";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -67,3 +65,4 @@ const AppRoutes = () => {
 };
 
 export default AppRoutes;
+

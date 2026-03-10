@@ -1,9 +1,7 @@
-// File: frontend/src/App.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/App.tsx
+// Purpose: Composes the top-level route tree for the public site and dashboard.
+// It decides which route groups render inside the frontend application shell.
+
 import AppRoutes from "@/routes/AppRoutes";
 
 const App = () => {
@@ -11,3 +9,4 @@ const App = () => {
 };
 
 export default App;
+

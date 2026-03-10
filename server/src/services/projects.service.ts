@@ -1,10 +1,8 @@
 // File: server/src/services/projects.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for projects.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
@@ -21,7 +19,29 @@ import {
 
 const projectSortWhitelist = ["created_at", "updated_at", "sort_order", "title"];
 
-function parsePositiveInteger(value, fieldName) {
+type ProjectPayload = {
+  student_user_id: number;
+  cohort_id?: number | null;
+  title: string;
+  description?: string | null;
+  image_url?: string | null;
+  github_url?: string | null;
+  live_url?: string | null;
+  is_public?: boolean;
+  sort_order?: number;
+};
+
+type ProjectListQuery = Record<string, unknown> & {
+  student_user_id?: string | number;
+};
+
+type ProjectListOptions = {
+  publicOnly?: boolean;
+  publicSlug?: string;
+};
+
+// Handles 'parsePositiveInteger' workflow for this module.
+function parsePositiveInteger(value: unknown, fieldName: string): number | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -34,7 +54,8 @@ function parsePositiveInteger(value, fieldName) {
   return parsed;
 }
 
-export async function createProjectService(adminId, payload) {
+// Handles 'createProjectService' workflow for this module.
+export async function createProjectService(adminId: number, payload: ProjectPayload) {
   if (payload.cohort_id !== undefined && payload.cohort_id !== null) {
     const cohortResult = await findCohortById(payload.cohort_id);
     if (!cohortResult.rowCount) {
@@ -74,11 +95,12 @@ export async function createProjectService(adminId, payload) {
   return created;
 }
 
-export async function listProjectsService(query, options = {}) {
+// Handles 'listProjectsService' workflow for this module.
+export async function listProjectsService(query: ProjectListQuery, options: ProjectListOptions = {}) {
   const list = parseListQuery(query, projectSortWhitelist, "created_at");
 
-  const params = [];
-  const where = [];
+  const params: Array<string | number | boolean> = [];
+  const where: string[] = [];
 
   if (options.publicOnly) {
     where.push("p.is_public = TRUE");
@@ -131,7 +153,8 @@ export async function listProjectsService(query, options = {}) {
   };
 }
 
-export async function patchProjectService(id, adminId, payload) {
+// Handles 'patchProjectService' workflow for this module.
+export async function patchProjectService(id: number, adminId: number, payload: Partial<ProjectPayload>) {
   if (payload.cohort_id !== undefined && payload.cohort_id !== null) {
     const cohortResult = await findCohortById(payload.cohort_id);
     if (!cohortResult.rowCount) {
@@ -170,7 +193,8 @@ export async function patchProjectService(id, adminId, payload) {
   return updated;
 }
 
-export async function deleteProjectService(id, adminId) {
+// Handles 'deleteProjectService' workflow for this module.
+export async function deleteProjectService(id: number, adminId: number) {
   const result = await deleteProject(id);
   if (!result.rowCount) {
     throw new AppError(404, "NOT_FOUND", "Project not found.");
@@ -195,7 +219,8 @@ export async function deleteProjectService(id, adminId) {
   return { id };
 }
 
-export async function getPublicProjectByIdService(id) {
+// Handles 'getPublicProjectByIdService' workflow for this module.
+export async function getPublicProjectByIdService(id: number) {
   const result = await getPublicProjectById(id);
   if (!result.rowCount) {
     throw new AppError(404, "NOT_FOUND", "Project not found.");
@@ -203,3 +228,4 @@ export async function getPublicProjectByIdService(id) {
 
   return result.rows[0];
 }
+

@@ -1,10 +1,8 @@
 // File: server/src/services/messageTemplates.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for message templates.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import {
@@ -21,6 +19,24 @@ import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery, parseQueryBoolean } from "../utils/pagination.js";
 import { buildUpdateQuery } from "../utils/sql.js";
+
+type MessageTemplatePayload = {
+  key?: string;
+  label?: string;
+  description?: string | null;
+  channel?: string;
+  subject?: string | null;
+  body?: string;
+  is_active?: boolean;
+  sort_order?: number;
+};
+
+type MessageTemplatesQuery = Record<string, unknown> & {
+  include_inactive?: string | boolean;
+  order?: string;
+};
+
+type MessageTemplatesDbClient = NonNullable<Parameters<typeof ensureMessageTemplatesTable>[0]>;
 
 const DEFAULT_MESSAGE_TEMPLATES = [
   {
@@ -127,7 +143,7 @@ const DEFAULT_MESSAGE_TEMPLATES = [
 
 const MESSAGE_TEMPLATES_ENSURE_LOCK_KEY = 42100421;
 let defaultsEnsured = false;
-let defaultsEnsurePromise = null;
+let defaultsEnsurePromise: Promise<void> | null = null;
 const MESSAGE_TEMPLATE_SORT_COLUMN_MAP = {
   sort_order: "sort_order",
   key: "key",
@@ -136,14 +152,16 @@ const MESSAGE_TEMPLATE_SORT_COLUMN_MAP = {
   updated_at: "updated_at",
 };
 
-function normalizeOptionalText(value) {
+// Handles 'normalizeOptionalText' workflow for this module.
+function normalizeOptionalText(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
   const trimmed = String(value).trim();
   return trimmed || null;
 }
 
-function toSafeTemplateKey(value) {
+// Handles 'toSafeTemplateKey' workflow for this module.
+function toSafeTemplateKey(value: unknown): string {
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -152,7 +170,8 @@ function toSafeTemplateKey(value) {
     .slice(0, 120);
 }
 
-async function runEnsureDefaults(client) {
+// Handles 'runEnsureDefaults' workflow for this module.
+async function runEnsureDefaults(client: MessageTemplatesDbClient): Promise<void> {
   await client.query("SELECT pg_advisory_xact_lock($1)", [MESSAGE_TEMPLATES_ENSURE_LOCK_KEY]);
   await ensureMessageTemplatesTable(client);
   for (const template of DEFAULT_MESSAGE_TEMPLATES) {
@@ -161,7 +180,8 @@ async function runEnsureDefaults(client) {
   await setMessageTemplateActiveByKey("participation_confirmation", false, client);
 }
 
-async function ensureDefaults(client) {
+// Handles 'ensureDefaults' workflow for this module.
+async function ensureDefaults(client: MessageTemplatesDbClient): Promise<void> {
   if (defaultsEnsured) return;
 
   if (!defaultsEnsurePromise) {
@@ -177,12 +197,13 @@ async function ensureDefaults(client) {
   await defaultsEnsurePromise;
 }
 
-export async function listMessageTemplatesService(query) {
-  return withTransaction(async (client) => {
+// Handles 'listMessageTemplatesService' workflow for this module.
+export async function listMessageTemplatesService(query: MessageTemplatesQuery) {
+  return withTransaction(async (client: MessageTemplatesDbClient) => {
     await ensureDefaults(client);
     const includeInactive = parseQueryBoolean(query?.include_inactive, "include_inactive") ?? false;
     const list = parseListQuery(query, Object.keys(MESSAGE_TEMPLATE_SORT_COLUMN_MAP), "sort_order");
-    const sortBy = MESSAGE_TEMPLATE_SORT_COLUMN_MAP[list.sortBy];
+    const sortBy = MESSAGE_TEMPLATE_SORT_COLUMN_MAP[list.sortBy as keyof typeof MESSAGE_TEMPLATE_SORT_COLUMN_MAP];
     const order = query?.order === undefined ? "asc" : list.order;
 
     const countResult = await countMessageTemplates(includeInactive, client);
@@ -195,8 +216,9 @@ export async function listMessageTemplatesService(query) {
   });
 }
 
-export async function updateMessageTemplateService(key, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'updateMessageTemplateService' workflow for this module.
+export async function updateMessageTemplateService(key: string, actorUserId: number, payload: MessageTemplatePayload) {
+  return withTransaction(async (client: MessageTemplatesDbClient) => {
     await ensureDefaults(client);
     const normalizedKey = String(key || "").trim().toLowerCase();
     const existingResult = await getMessageTemplateByKey(normalizedKey, client);
@@ -243,8 +265,9 @@ export async function updateMessageTemplateService(key, actorUserId, payload) {
   });
 }
 
-export async function createMessageTemplateService(actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createMessageTemplateService' workflow for this module.
+export async function createMessageTemplateService(actorUserId: number, payload: MessageTemplatePayload) {
+  return withTransaction(async (client: MessageTemplatesDbClient) => {
     await ensureDefaults(client);
 
     const key = toSafeTemplateKey(payload.key || payload.label);
@@ -293,3 +316,4 @@ export async function createMessageTemplateService(actorUserId, payload) {
     return created;
   });
 }
+

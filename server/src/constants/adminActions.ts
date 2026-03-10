@@ -1,9 +1,7 @@
-// File: server/src/constants/adminActions.ts
-// What this code does:
-// 1) Declares shared constants used across backend modules.
-// 2) Centralizes canonical values to avoid hard-coded strings.
-// 3) Keeps API/domain identifiers consistent across layers.
-// 4) Reduces drift between validation, services, and responses.
+﻿// File: server/src/constants/adminActions.ts
+// Purpose: Defines constant values for admin actions.
+// It keeps repeated identifiers and fixed options in one shared place.
+
 export const ADMIN_ACTIONS = {
   ADMIN_CREATED: "ADMIN_CREATED",
   ADMIN_UPDATED: "ADMIN_UPDATED",
@@ -22,6 +20,7 @@ export const ADMIN_ACTIONS = {
   USER_CREATED_FROM_APPLICATION: "USER_CREATED_FROM_APPLICATION",
   APPLICATION_MESSAGE_DRAFT_CREATED: "APPLICATION_MESSAGE_DRAFT_CREATED",
   APPLICATION_MESSAGE_SENT: "APPLICATION_MESSAGE_SENT",
+  APPLICATION_MESSAGE_DELETED: "APPLICATION_MESSAGE_DELETED",
   GENERAL_APPLY_SUBMITTED: "GENERAL_APPLY_SUBMITTED",
   INTERVIEW_CONFIRMED_BY_APPLICANT: "INTERVIEW_CONFIRMED_BY_APPLICANT",
   INTERVIEW_RESCHEDULE_REQUESTED: "INTERVIEW_RESCHEDULE_REQUESTED",
@@ -34,3 +33,4 @@ export const ADMIN_ACTIONS = {
 } as const;
 
 export type AdminActionCode = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];
+

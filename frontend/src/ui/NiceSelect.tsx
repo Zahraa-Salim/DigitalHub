@@ -1,9 +1,7 @@
-// File: frontend/src/ui/NiceSelect.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/ui/NiceSelect.tsx
+// Purpose: Contains frontend code for nice select.
+// It supports this part of the user interface and page behavior.
+
 "use client"
 import React, { useState, useCallback, useRef, FC, ChangeEvent } from "react";
 import { useClickAway } from "react-use";
@@ -79,3 +77,4 @@ const NiceSelect: FC<NiceSelectProps> = ({
 };
 
 export default NiceSelect;
+

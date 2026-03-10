@@ -1,16 +1,22 @@
 // File: server/src/utils/redis.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
-import Redis from "ioredis";
+// Purpose: Provides shared helper logic for redis.
+// It supports other backend modules with reusable utility functions.
 
-let redisClient = null;
+
+import { Redis } from "ioredis";
+
+let redisClient: Redis | null = null;
 let redisDisabled = false;
 
-export function getRedis() {
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+// Handles 'getRedis' workflow for this module.
+export function getRedis(): Redis | null {
   if (redisDisabled) {
     return null;
   }
@@ -32,8 +38,8 @@ export function getRedis() {
       connectTimeout: 2000,
     });
 
-    redisClient.on("error", (error) => {
-      console.error("[redis] unavailable:", error?.message ?? error);
+    redisClient.on("error", (error: unknown) => {
+      console.error("[redis] unavailable:", toErrorMessage(error));
       redisDisabled = true;
       try {
         redisClient?.disconnect();
@@ -44,9 +50,10 @@ export function getRedis() {
 
     return redisClient;
   } catch (error) {
-    console.error("[redis] init failed:", error?.message ?? error);
+    console.error("[redis] init failed:", toErrorMessage(error));
     redisDisabled = true;
     redisClient = null;
     return null;
   }
 }
+

@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/AttendancePage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/AttendancePage.tsx
+// Purpose: Renders the admin attendance page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -109,7 +107,7 @@ export function AttendancePage() {
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((entry) => entry.id !== id));
-    }, 3600);
+    }, 5000);
   }, []);
 
   const selectedCohort = useMemo(
@@ -439,3 +437,4 @@ export function AttendancePage() {
     </PageShell>
   );
 }
+

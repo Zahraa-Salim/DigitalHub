@@ -1,10 +1,9 @@
-// File: server/src/repositories/profiles.repository.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/profiles.repository.ts
+// Purpose: Runs the database queries used for profiles.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 
 /**
@@ -292,6 +291,7 @@ export async function getUserById(userId, db = pool) {
   );
 }
 
+// Handles 'getStudentEnrollments' workflow for this module.
 export async function getStudentEnrollments(userId, db = pool) {
   return db.query(
     `
@@ -316,6 +316,7 @@ export async function getStudentEnrollments(userId, db = pool) {
   );
 }
 
+// Handles 'countStudentProfilesForAdmin' workflow for this module.
 export async function countStudentProfilesForAdmin(whereClause, params, db = pool) {
   return db.query(
     `
@@ -328,6 +329,7 @@ export async function countStudentProfilesForAdmin(whereClause, params, db = poo
   );
 }
 
+// Handles 'listStudentProfilesForAdmin' workflow for this module.
 export async function listStudentProfilesForAdmin(whereClause, sortBy, order, params, limit, offset, db = pool) {
   return db.query(
     `
@@ -408,6 +410,7 @@ export async function listStudentProfilesForAdmin(whereClause, sortBy, order, pa
   );
 }
 
+// Handles 'updateStudentAdminStatus' workflow for this module.
 export async function updateStudentAdminStatus(
   userId,
   status,
@@ -439,3 +442,4 @@ export async function updateStudentAdminStatus(
     [status, reason, actorUserId, userId],
   );
 }
+

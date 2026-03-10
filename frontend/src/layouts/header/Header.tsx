@@ -1,9 +1,7 @@
-// File: frontend/src/layouts/header/Header.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/layouts/header/Header.tsx
+// Purpose: Provides the shared layout structure for header.
+// It wraps pages with the common shell pieces needed by this part of the UI.
+
 "use client";
 
 import Image from "@/components/common/Image";
@@ -181,3 +179,4 @@ const Header = () => {
 };
 
 export default Header;
+

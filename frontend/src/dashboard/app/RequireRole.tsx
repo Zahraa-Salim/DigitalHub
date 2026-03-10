@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/app/RequireRole.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/app/RequireRole.tsx
+// Purpose: Defines dashboard app behavior for require role.
+// It wires route guards, layouts, and route configuration for the admin experience.
+
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import type { AdminRole } from "../utils/auth";
@@ -24,3 +22,4 @@ export function RequireRole({ allowedRoles, children }: RequireRoleProps) {
 
   return <>{children}</>;
 }
+

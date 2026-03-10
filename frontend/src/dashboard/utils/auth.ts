@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/utils/auth.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/utils/auth.ts
+// Purpose: Provides dashboard utility functions for auth.
+// It supports repeated admin-side formatting, query, or state logic.
+
 const TOKEN_KEY = "dh_admin_token";
 const USER_KEY = "dh_admin_user";
 
@@ -137,3 +135,4 @@ export function clearAuth(): void {
 export function isAuthenticated(): boolean {
   return Boolean(getToken());
 }
+

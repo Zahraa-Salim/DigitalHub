@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/app/RequireSuperAdmin.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/app/RequireSuperAdmin.tsx
+// Purpose: Defines dashboard app behavior for require super admin.
+// It wires route guards, layouts, and route configuration for the admin experience.
+
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { getUser, isSuperAdminUser } from "../utils/auth";
@@ -22,3 +20,4 @@ export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
 
   return <>{children}</>;
 }
+

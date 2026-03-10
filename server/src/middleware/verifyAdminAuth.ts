@@ -1,20 +1,37 @@
-// File: server/src/middleware/verifyAdminAuth.ts
-// What this code does:
-// 1) Runs in the request pipeline before/after route handlers.
-// 2) Enforces cross-cutting rules like auth, validation, and errors.
-// 3) Normalizes request/response behavior for downstream code.
-// 4) Removes duplicated policy logic from controllers.
-// @ts-nocheck
+﻿// File: server/src/middleware/verifyAdminAuth.ts
+// Purpose: Authenticates admin requests from the bearer token and loads the current admin user.
+// It verifies the JWT, checks admin status in the database, and populates req.user.
+
+import type { NextFunction, Request, Response } from "express";
+import type { QueryResult } from "pg";
 import jwt from "jsonwebtoken";
 import { pool } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 
-function isTransientDatabaseError(error) {
-    if (!error || typeof error !== "object") {
+type AdminUserRow = {
+  id: number;
+  is_admin: boolean;
+  is_active: boolean;
+  admin_role: string;
+  job_title: string;
+};
+
+type AuthJwtPayload = jwt.JwtPayload & {
+  userId: number;
+  isAdmin?: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+// Handles 'isTransientDatabaseError' workflow for this module.
+function isTransientDatabaseError(error: unknown): boolean {
+    if (!isRecord(error)) {
         return false;
     }
-    const code = String(error.code || "").toUpperCase();
-    const message = String(error.message || "").toLowerCase();
+    const code = String(error.code ?? "").toUpperCase();
+    const message = String(error.message ?? "").toLowerCase();
     return (code === "08P01" ||
         code === "08006" ||
         code === "08001" ||
@@ -30,7 +47,8 @@ function isTransientDatabaseError(error) {
         message.includes("connection terminated unexpectedly"));
 }
 
-async function queryAdminUserWithRetry(userId) {
+// Handles 'queryAdminUserWithRetry' workflow for this module.
+async function queryAdminUserWithRetry(userId: number): Promise<QueryResult<AdminUserRow>> {
     const queryText = `
         SELECT
           u.id,
@@ -46,7 +64,7 @@ async function queryAdminUserWithRetry(userId) {
     let attempt = 0;
     while (attempt < maxAttempts) {
         try {
-            return await pool.query(queryText, [userId]);
+            return await pool.query<AdminUserRow>(queryText, [userId]);
         }
         catch (error) {
             attempt += 1;
@@ -56,51 +74,67 @@ async function queryAdminUserWithRetry(userId) {
             await new Promise((resolve) => setTimeout(resolve, attempt * 200));
         }
     }
-    throw new AppError(503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+    throw new AppError(503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.", undefined);
 }
-export async function verifyAdminAuth(req, _res, next) {
+// Handles 'verifyAdminAuth' workflow for this module.
+export async function verifyAdminAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader?.startsWith("Bearer ")) {
-            throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+            throw new AppError(401, "UNAUTHORIZED", "Authentication required", undefined);
         }
         const token = authHeader.slice("Bearer ".length);
         const secret = process.env.JWT_SECRET;
         if (!secret) {
-            throw new AppError(500, "INTERNAL_ERROR", "JWT_SECRET is not configured.");
+            throw new AppError(500, "INTERNAL_ERROR", "JWT_SECRET is not configured.", undefined);
         }
-        let payload;
+        let payload: AuthJwtPayload;
         try {
-            payload = jwt.verify(token, secret);
+            const decoded = jwt.verify(token, secret);
+            if (typeof decoded === "string" || !isRecord(decoded)) {
+                throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.", undefined);
+            }
+
+            const rawUserId = decoded.userId;
+            const userId = typeof rawUserId === "number" ? rawUserId : Number(rawUserId);
+            if (!Number.isFinite(userId)) {
+                throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.", undefined);
+            }
+
+            payload = {
+                ...(decoded as jwt.JwtPayload),
+                userId,
+                isAdmin: Boolean(decoded.isAdmin),
+            };
         }
         catch (error) {
             if (error instanceof jwt.TokenExpiredError) {
-                throw new AppError(401, "TOKEN_EXPIRED", "Authentication token has expired.");
+                throw new AppError(401, "TOKEN_EXPIRED", "Authentication token has expired.", undefined);
             }
-            throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.");
+            throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.", undefined);
         }
         if (!payload.userId) {
-            throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.");
+            throw new AppError(401, "TOKEN_INVALID", "Invalid authentication token.", undefined);
         }
-        let userResult;
+        let userResult: QueryResult<AdminUserRow>;
         try {
             userResult = await queryAdminUserWithRetry(payload.userId);
         }
         catch (error) {
             if (isTransientDatabaseError(error)) {
-                throw new AppError(503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.");
+                throw new AppError(503, "DB_UNAVAILABLE", "Database connection is temporarily unavailable. Please try again.", undefined);
             }
             throw error;
         }
         if (!userResult.rowCount) {
-            throw new AppError(401, "USER_NOT_FOUND", "User not found.");
+            throw new AppError(401, "USER_NOT_FOUND", "User not found.", undefined);
         }
-        const user = userResult.rows[0];
+        const user = userResult.rows[0] as AdminUserRow;
         if (!user.is_active) {
-            throw new AppError(401, "USER_INACTIVE", "User account is inactive.");
+            throw new AppError(401, "USER_INACTIVE", "User account is inactive.", undefined);
         }
         if (!user.is_admin || !payload.isAdmin) {
-            throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action");
+            throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action", undefined);
         }
         const normalizedJobTitle = String(user.job_title || "").trim().toLowerCase();
         const roleFromProfile = user.admin_role === "super_admin" ? "super_admin" : "admin";
@@ -116,5 +150,4 @@ export async function verifyAdminAuth(req, _res, next) {
         next(error);
     }
 }
-
 

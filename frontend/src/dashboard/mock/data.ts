@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/mock/data.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/mock/data.ts
+// Purpose: Provides mock dashboard data for data.
+// It supports local UI development before or alongside live backend data.
+
 export type Program = {
   id: number;
   title: string;
@@ -94,3 +92,4 @@ export const overviewStats = [
   { label: "Pending Applications", value: applications.filter((item) => item.status === "pending").length.toString(), hint: "Need review" },
   { label: "Unread Notifications", value: notifications.filter((item) => !item.is_read).length.toString(), hint: "Admin dashboard alerts" },
 ];
+

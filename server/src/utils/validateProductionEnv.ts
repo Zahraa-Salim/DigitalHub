@@ -1,18 +1,18 @@
 // File: server/src/utils/validateProductionEnv.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
+// Purpose: Provides shared helper logic for validate production env.
+// It supports other backend modules with reusable utility functions.
+
+
 
 import { AppError } from "./appError.js";
 
+// Handles 'isTruthy' workflow for this module.
 function isTruthy(value: string | undefined): boolean {
   const normalized = String(value || "").trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
 }
 
+// Handles 'looksLikePlaceholder' workflow for this module.
 function looksLikePlaceholder(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return true;
@@ -24,6 +24,7 @@ function looksLikePlaceholder(value: string): boolean {
   );
 }
 
+// Handles 'requireEnv' workflow for this module.
 function requireEnv(name: string, minLen = 1): string {
   const value = String(process.env[name] || "").trim();
   if (!value || value.length < minLen) {
@@ -35,6 +36,7 @@ function requireEnv(name: string, minLen = 1): string {
   return value;
 }
 
+// Handles 'validateProductionEnv' workflow for this module.
 export function validateProductionEnv() {
   const nodeEnv = String(process.env.NODE_ENV || "").trim().toLowerCase();
   if (nodeEnv !== "production") return;

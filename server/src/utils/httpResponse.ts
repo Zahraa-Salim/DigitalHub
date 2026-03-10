@@ -1,25 +1,39 @@
 // File: server/src/utils/httpResponse.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
-export function sendSuccess(res, data, message, statusCode = 200) {
+// Purpose: Provides shared helper logic for http response.
+// It supports other backend modules with reusable utility functions.
+
+import type { Response } from "express";
+
+type PaginationMeta = {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+};
+
+export function sendSuccess<T>(res: Response, data: T, message?: string, statusCode = 200): void {
     res.status(statusCode).json({
         success: true,
         data,
         ...(message ? { message } : {}),
     });
 }
-export function sendList(res, data, pagination, statusCode = 200) {
+// Handles 'sendList' workflow for this module.
+export function sendList<T>(res: Response, data: T, pagination: PaginationMeta, statusCode = 200): void {
     res.status(statusCode).json({
         success: true,
         data,
         pagination,
     });
 }
-export function sendError(res, statusCode, code, message, details) {
+// Handles 'sendError' workflow for this module.
+export function sendError(
+    res: Response,
+    statusCode: number,
+    code: string,
+    message: string,
+    details?: unknown,
+): void {
     res.status(statusCode).json({
         success: false,
         error: {
@@ -29,5 +43,4 @@ export function sendError(res, statusCode, code, message, details) {
         },
     });
 }
-
 

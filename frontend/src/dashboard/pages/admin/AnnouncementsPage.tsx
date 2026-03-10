@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/AnnouncementsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/AnnouncementsPage.tsx
+// Purpose: Renders the admin announcements page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -119,7 +117,7 @@ export function AnnouncementsPage() {
     const timeoutId = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
       delete toastTimersRef.current[id];
-    }, 3400);
+    }, 5000);
     toastTimersRef.current[id] = timeoutId;
   };
 
@@ -612,8 +610,10 @@ export function AnnouncementsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Announcement Details</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
             </header>
             <div className="post-details">
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
@@ -697,8 +697,4 @@ export function AnnouncementsPage() {
     </PageShell>
   );
 }
-
-
-
-
 

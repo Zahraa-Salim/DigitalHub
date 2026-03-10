@@ -1,12 +1,12 @@
-// File: server/src/repositories/attendance.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/attendance.repo.ts
+// Purpose: Runs the database queries used for attendance.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 
+// Handles 'listRunningCohortsForAttendance' workflow for this module.
 export async function listRunningCohortsForAttendance(db = pool) {
   return db.query(
     `
@@ -38,6 +38,7 @@ export async function listRunningCohortsForAttendance(db = pool) {
   );
 }
 
+// Handles 'getCohortForAttendance' workflow for this module.
 export async function getCohortForAttendance(cohortId, db = pool) {
   return db.query(
     `
@@ -63,6 +64,7 @@ export async function getCohortForAttendance(cohortId, db = pool) {
   );
 }
 
+// Handles 'listCohortStudentsForAttendance' workflow for this module.
 export async function listCohortStudentsForAttendance(cohortId, db = pool) {
   return db.query(
     `
@@ -84,6 +86,7 @@ export async function listCohortStudentsForAttendance(cohortId, db = pool) {
   );
 }
 
+// Handles 'getAttendanceSessionByCohortDate' workflow for this module.
 export async function getAttendanceSessionByCohortDate(cohortId, attendanceDate, db = pool) {
   return db.query(
     `
@@ -105,6 +108,7 @@ export async function getAttendanceSessionByCohortDate(cohortId, attendanceDate,
   );
 }
 
+// Handles 'listAttendanceRecordsBySession' workflow for this module.
 export async function listAttendanceRecordsBySession(sessionId, db = pool) {
   return db.query(
     `
@@ -126,6 +130,7 @@ export async function listAttendanceRecordsBySession(sessionId, db = pool) {
   );
 }
 
+// Handles 'upsertAttendanceSession' workflow for this module.
 export async function upsertAttendanceSession(input, db = pool) {
   return db.query(
     `
@@ -145,6 +150,7 @@ export async function upsertAttendanceSession(input, db = pool) {
   );
 }
 
+// Handles 'upsertAttendanceRecord' workflow for this module.
 export async function upsertAttendanceRecord(input, db = pool) {
   return db.query(
     `
@@ -165,6 +171,7 @@ export async function upsertAttendanceRecord(input, db = pool) {
   );
 }
 
+// Handles 'deleteAttendanceRecordsNotInStudentList' workflow for this module.
 export async function deleteAttendanceRecordsNotInStudentList(sessionId, studentIds, db = pool) {
   return db.query(
     `
@@ -176,6 +183,7 @@ export async function deleteAttendanceRecordsNotInStudentList(sessionId, student
   );
 }
 
+// Handles 'listStudentAttendanceHistory' workflow for this module.
 export async function listStudentAttendanceHistory(userId, limit = 30, db = pool) {
   return db.query(
     `
@@ -203,3 +211,4 @@ export async function listStudentAttendanceHistory(userId, limit = 30, db = pool
     [userId, limit],
   );
 }
+

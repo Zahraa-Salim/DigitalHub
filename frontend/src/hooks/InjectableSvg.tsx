@@ -1,9 +1,7 @@
-// File: frontend/src/hooks/InjectableSvg.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/hooks/InjectableSvg.tsx
+// Purpose: Provides the injectable svg hook or helper component.
+// It packages reusable view or state behavior for other frontend modules.
+
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -29,7 +27,7 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
       const currentImg = imgRef.current;
       if (!currentImg) return;
 
-      // ✅ ضمان المسار يكون ROOT absolute
+      // Ensure the SVG path is root-absolute.
       const safeSrc = src.startsWith("/") ? src : `/${src}`;
 
       try {
@@ -73,7 +71,7 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
     };
   }, [src]);
 
-  // ✅ img src آمن
+  // Keep image src normalized and safe.
   const finalSrc = src.startsWith("/") ? src : `/${src}`;
 
   return (
@@ -87,3 +85,4 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
 };
 
 export default InjectableSvg;
+

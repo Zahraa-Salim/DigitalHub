@@ -1,10 +1,9 @@
-// File: server/src/routes/profiles.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/profiles.routes.ts
+// Purpose: Registers the Express routes for profiles.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile } from "../controllers/profiles.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
@@ -51,3 +50,4 @@ profilesRouter.patch("/managers/:userId/visibility", validateRequest({ params: u
 profilesRouter.patch("/students/:userId/visibility", validateRequest({ params: userIdParamsSchema, body: visibilitySchema }), asyncHandler(patchStudentVisibility));
 
 export { profilesRouter };
+

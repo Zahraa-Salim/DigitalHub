@@ -1,10 +1,9 @@
 // File: server/src/controllers/forms.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for forms.
+// It reads request data, calls the matching service methods, and sends API responses.
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   createFormFieldService,
@@ -28,22 +27,26 @@ import {
   saveGeneralFormService,
 } from "../services/forms.service.js";
 
-export async function getGeneralForm(_req, res) {
+// Handles 'getGeneralForm' workflow for this module.
+export async function getGeneralForm(_req: Request, res: Response) {
   const data = await getGeneralFormService();
   sendSuccess(res, data);
 }
 
-export async function getCohortApplicationForm(_req, res) {
+// Handles 'getCohortApplicationForm' workflow for this module.
+export async function getCohortApplicationForm(_req: Request, res: Response) {
   const data = await getCohortApplicationFormService();
   sendSuccess(res, data);
 }
 
-export async function putGeneralForm(req, res) {
-  const data = await saveGeneralFormService(req.user.id, req.body);
+// Handles 'putGeneralForm' workflow for this module.
+export async function putGeneralForm(req: Request, res: Response) {
+  const data = await saveGeneralFormService(req.user!.id, req.body);
   sendSuccess(res, data, "General form saved successfully.");
 }
 
-export async function getFormCohorts(_req, res) {
+// Handles 'getFormCohorts' workflow for this module.
+export async function getFormCohorts(_req: Request, res: Response) {
   const rows = await listFormCohortsService();
   sendList(res, rows, {
     page: 1,
@@ -53,48 +56,58 @@ export async function getFormCohorts(_req, res) {
   });
 }
 
-export async function getCohortForm(req, res) {
+// Handles 'getCohortForm' workflow for this module.
+export async function getCohortForm(req: Request, res: Response) {
   const data = await getCohortFormService(Number(req.params.id));
   sendSuccess(res, data);
 }
 
-export async function putCohortForm(req, res) {
-  const data = await saveCohortFormService(Number(req.params.id), req.user.id, req.body);
+// Handles 'putCohortForm' workflow for this module.
+export async function putCohortForm(req: Request, res: Response) {
+  const data = await saveCohortFormService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Cohort form saved successfully.");
 }
 
-export async function assignCohortForm(req, res) {
-  const data = await assignCohortFormService(Number(req.params.id), req.user.id, req.body.mode);
+// Handles 'assignCohortForm' workflow for this module.
+export async function assignCohortForm(req: Request, res: Response) {
+  const data = await assignCohortFormService(Number(req.params.id), req.user!.id, req.body.mode);
   sendSuccess(res, data, "Cohort form assignment saved successfully.");
 }
 
-export async function patchForm(req, res) {
-  const data = await patchFormByIdService(Number(req.params.id), req.user.id, req.body);
+// Handles 'patchForm' workflow for this module.
+export async function patchForm(req: Request, res: Response) {
+  const data = await patchFormByIdService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Form updated successfully.");
 }
 
-export async function patchFormFields(req, res) {
-  const data = await patchFormFieldsService(req.body.form_id, req.body.fields, req.user.id);
+// Handles 'patchFormFields' workflow for this module.
+export async function patchFormFields(req: Request, res: Response) {
+  const data = await patchFormFieldsService(req.body.form_id, req.body.fields, req.user!.id);
   sendSuccess(res, data, "Form fields updated successfully.");
 }
 
-export async function getProgramApplicationForm(_req, res) {
+// Handles 'getProgramApplicationForm' workflow for this module.
+export async function getProgramApplicationForm(_req: Request, res: Response) {
   const data = await getProgramApplicationFormService();
   sendSuccess(res, data);
 }
 
-export async function patchProgramApplicationForm(req, res) {
-  const data = await patchProgramApplicationFormService(req.user.id, req.body);
+// Handles 'patchProgramApplicationForm' workflow for this module.
+export async function patchProgramApplicationForm(req: Request, res: Response) {
+  const data = await patchProgramApplicationFormService(req.user!.id, req.body);
   sendSuccess(res, data, "Program application form updated successfully.");
 }
 
-export async function patchProgramApplicationFormFields(req, res) {
-  const data = await patchProgramApplicationFormFieldsService(req.user.id, req.body.fields);
+// Handles 'patchProgramApplicationFormFields' workflow for this module.
+export async function patchProgramApplicationFormFields(req: Request, res: Response) {
+  const data = await patchProgramApplicationFormFieldsService(req.user!.id, req.body.fields);
   sendSuccess(res, data, "Program application form fields updated successfully.");
 }
 
-export async function listForms(req, res) {
-  const rows = await listFormsService(req.query.scope);
+// Handles 'listForms' workflow for this module.
+export async function listForms(req: Request, res: Response) {
+  const scope = typeof req.query.scope === "string" ? req.query.scope : undefined;
+  const rows = await listFormsService(scope);
   sendList(res, rows, {
     page: 1,
     limit: rows.length,
@@ -103,32 +116,43 @@ export async function listForms(req, res) {
   });
 }
 
-export async function getFormByIdWithFields(req, res) {
+// Handles 'getFormByIdWithFields' workflow for this module.
+export async function getFormByIdWithFields(req: Request, res: Response) {
   const data = await getFormByIdWithFieldsService(Number(req.params.id));
   sendSuccess(res, data);
 }
 
-export async function postForm(req, res) {
-  const data = await createFormService(req.user.id, req.body);
+// Handles 'postForm' workflow for this module.
+export async function postForm(req: Request, res: Response) {
+  const data = await createFormService(req.user!.id, req.body);
   sendSuccess(res, data, "Form created successfully.", 201);
 }
 
-export async function postFormField(req, res) {
-  const data = await createFormFieldService(Number(req.params.id), req.user.id, req.body);
+// Handles 'postFormField' workflow for this module.
+export async function postFormField(req: Request, res: Response) {
+  const data = await createFormFieldService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Form field created successfully.", 201);
 }
 
-export async function patchFormField(req, res) {
-  const data = await patchFormFieldByIdService(Number(req.params.id), req.user.id, req.body);
+// Handles 'patchFormField' workflow for this module.
+export async function patchFormField(req: Request, res: Response) {
+  const data = await patchFormFieldByIdService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Form field updated successfully.");
 }
 
-export async function removeFormField(req, res) {
-  const data = await deleteFormFieldByIdService(Number(req.params.id), req.user.id);
+// Handles 'removeFormField' workflow for this module.
+export async function removeFormField(req: Request, res: Response) {
+  const data = await deleteFormFieldByIdService(Number(req.params.id), req.user!.id);
   sendSuccess(res, data, "Form field deleted successfully.");
 }
 
-export async function postFormFieldsReorder(req, res) {
-  const data = await reorderFormFieldsService(Number(req.params.id), req.body.orderedFieldIds, req.user.id);
+// Handles 'postFormFieldsReorder' workflow for this module.
+export async function postFormFieldsReorder(req: Request, res: Response) {
+  const data = await reorderFormFieldsService(Number(req.params.id), req.body.orderedFieldIds, req.user!.id);
   sendSuccess(res, data, "Form fields reordered successfully.");
 }
+
+
+
+
+

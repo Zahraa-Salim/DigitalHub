@@ -1,13 +1,13 @@
-// File: server/src/repositories/admins.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/admins.repo.ts
+// Purpose: Runs the database queries used for admins.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 
 import { pool } from "../db/index.js";
 
+// Handles 'countAdmins' workflow for this module.
 export async function countAdmins(whereClause, params, db = pool) {
   return db.query(
     `
@@ -20,6 +20,7 @@ export async function countAdmins(whereClause, params, db = pool) {
   );
 }
 
+// Handles 'listAdmins' workflow for this module.
 export async function listAdmins(whereClause, sortBy, order, params, limit, offset, db = pool) {
   return db.query(
     `
@@ -50,6 +51,7 @@ export async function listAdmins(whereClause, sortBy, order, params, limit, offs
   );
 }
 
+// Handles 'createAdminUser' workflow for this module.
 export async function createAdminUser(input, db = pool) {
   return db.query(
     `
@@ -61,6 +63,7 @@ export async function createAdminUser(input, db = pool) {
   );
 }
 
+// Handles 'setAdminActiveByUserId' workflow for this module.
 export async function setAdminActiveByUserId(userId, isActive, db = pool) {
   return db.query(
     `
@@ -74,6 +77,7 @@ export async function setAdminActiveByUserId(userId, isActive, db = pool) {
   );
 }
 
+// Handles 'updateAdminUserById' workflow for this module.
 export async function updateAdminUserById(userId, setClause, values, db = pool) {
   return db.query(
     `
@@ -87,6 +91,7 @@ export async function updateAdminUserById(userId, setClause, values, db = pool) 
   );
 }
 
+// Handles 'findAdminForUpdate' workflow for this module.
 export async function findAdminForUpdate(userId, db = pool) {
   return db.query(
     `
@@ -117,6 +122,7 @@ export async function findAdminForUpdate(userId, db = pool) {
   );
 }
 
+// Handles 'findAdminByUserId' workflow for this module.
 export async function findAdminByUserId(userId, db = pool) {
   return db.query(
     `
@@ -145,3 +151,4 @@ export async function findAdminByUserId(userId, db = pool) {
     [userId],
   );
 }
+

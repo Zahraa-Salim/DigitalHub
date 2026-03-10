@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/ToastStack.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/ToastStack.tsx
+// Purpose: Renders the dashboard toast stack component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 type ToastTone = "success" | "error";
 
 export type ToastItem = {
@@ -35,3 +33,4 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
     </div>
   );
 }
+

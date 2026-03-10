@@ -1,16 +1,18 @@
-// File: server/src/middleware/errorHandler.ts
-// What this code does:
-// 1) Runs in the request pipeline before/after route handlers.
-// 2) Enforces cross-cutting rules like auth, validation, and errors.
-// 3) Normalizes request/response behavior for downstream code.
-// 4) Removes duplicated policy logic from controllers.
+﻿// File: server/src/middleware/errorHandler.ts
+// Purpose: Formats thrown errors into consistent API responses for Express routes.
+// It normalizes known validation, auth, and application errors before sending JSON.
+
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { AppError } from "../utils/appError.js";
 import { sendError } from "../utils/httpResponse.js";
+
+// For unmatched routes, forward a standardized 404 error into the global handler.
 export function notFound(_req: Request, _res: Response, next: NextFunction) {
     next(new AppError(404, "NOT_FOUND", "Route not found.", undefined));
 }
+
+// Converts Zod validation issues into a simple field-to-message map for API responses.
 function buildZodFieldErrors(error: ZodError<unknown>) {
     const fieldErrors: Record<string, string> = {};
     for (const issue of error.issues) {
@@ -21,6 +23,8 @@ function buildZodFieldErrors(error: ZodError<unknown>) {
     }
     return { fieldErrors };
 }
+
+// Central error middleware that normalizes known errors and sends consistent HTTP error payloads.
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
     const rawCode = typeof error === "object" && error !== null && "code" in error
       ? String(error.code).toUpperCase()
@@ -83,5 +87,4 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     console.error("Unhandled error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "Internal server error", undefined);
 }
-
 

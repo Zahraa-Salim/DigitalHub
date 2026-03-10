@@ -1,9 +1,7 @@
-// File: frontend/src/main.tsx
-// What this code does:
-// 1) Bootstraps the React application in the browser runtime.
-// 2) Registers global providers, store, styles, and fonts.
-// 3) Enables startup utilities required by app behavior.
-// 4) Mounts the root app component into the DOM container.
+﻿// File: frontend/src/main.tsx
+// Purpose: Boots the frontend app and mounts the main React tree.
+// It wires the router, providers, and global styles into the browser entry point.
+
 import App from "@/App";
 import { enableDefaultLazyMedia } from "@/lib/lazyMedia";
 import store from "@/redux/store";
@@ -37,3 +35,4 @@ createRoot(document.getElementById('root')!).render(
     </Provider>
   </StrictMode>,
 )
+

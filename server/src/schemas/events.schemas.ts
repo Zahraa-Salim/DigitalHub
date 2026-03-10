@@ -1,10 +1,9 @@
-// File: server/src/schemas/events.schemas.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/schemas/events.schemas.ts
+// Purpose: Defines the Zod schemas for events.
+// It describes the request shapes and validation rules used before service logic runs.
+
 // @ts-nocheck
+
 import { z } from "zod";
 
 const imageUrlSchema = z.string().trim().min(1).max(2048);

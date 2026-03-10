@@ -1,11 +1,11 @@
-// File: server/src/repositories/contact.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/contact.repo.ts
+// Purpose: Runs the database queries used for contact.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
+// Handles 'createContactMessage' workflow for this module.
 export async function createContactMessage(input, db = pool) {
     return db.query(`
       INSERT INTO contact_messages
@@ -27,9 +27,11 @@ export async function createContactMessage(input, db = pool) {
         input.visit_notes ?? null,
     ]);
 }
+// Handles 'countContactMessages' workflow for this module.
 export async function countContactMessages(whereClause, params, db = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM contact_messages ${whereClause}`, params);
 }
+// Handles 'listContactMessages' workflow for this module.
 export async function listContactMessages(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT *
@@ -40,6 +42,7 @@ export async function listContactMessages(whereClause, sortBy, order, params, li
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'updateContactStatus' workflow for this module.
 export async function updateContactStatus(id, status, resolvedAtClause, db = pool) {
     return db.query(`
       UPDATE contact_messages
@@ -48,6 +51,7 @@ export async function updateContactStatus(id, status, resolvedAtClause, db = poo
       RETURNING *
     `, [status, id]);
 }
+// Handles 'markContactReplied' workflow for this module.
 export async function markContactReplied(id, db = pool) {
     return db.query(`
       UPDATE contact_messages
@@ -56,6 +60,7 @@ export async function markContactReplied(id, db = pool) {
       RETURNING *
     `, [id]);
 }
+// Handles 'getContactMessageById' workflow for this module.
 export async function getContactMessageById(id, db = pool) {
     return db.query(`
       SELECT *
@@ -64,3 +69,4 @@ export async function getContactMessageById(id, db = pool) {
       LIMIT 1
     `, [id]);
 }
+

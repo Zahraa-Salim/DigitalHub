@@ -1,9 +1,7 @@
-// File: frontend/src/components/courses/course/CourseSidebar.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/courses/course/CourseSidebar.tsx
+// Purpose: Renders the course sidebar UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 "use client";
 
 import { useState } from "react";
@@ -198,3 +196,4 @@ const CourseSidebar = ({ allCourses, setCourses }: CourseSidebarProps) => {
 };
 
 export default CourseSidebar;
+

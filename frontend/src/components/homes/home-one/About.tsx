@@ -1,9 +1,7 @@
-// File: frontend/src/components/homes/home-one/About.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/homes/home-one/About.tsx
+// Purpose: Renders the about UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 "use client"
 import Image, { VideoPopup } from "@/components/common/Image"
 import Link from "@/components/common/Link"
@@ -98,5 +96,4 @@ const About = ({ content }: AboutProps) => {
 }
 
 export default About
-
 

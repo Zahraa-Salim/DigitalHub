@@ -1,13 +1,14 @@
 // File: server/src/repositories/programApplications.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
-// @ts-nocheck
-import { pool } from "../db/index.js";
+// Purpose: Runs the database queries used for program applications.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-export async function programApplicationsTableExists(db = pool) {
+// @ts-nocheck
+
+import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+// Handles 'programApplicationsTableExists' workflow for this module.
+export async function programApplicationsTableExists(db: DbClient = pool) {
   const result = await db.query(
     `
       SELECT to_regclass('public.program_applications') IS NOT NULL AS exists
@@ -16,7 +17,8 @@ export async function programApplicationsTableExists(db = pool) {
   return Boolean(result.rows[0]?.exists);
 }
 
-async function applicationMessagesHasMetadataColumn(db = pool) {
+// Handles 'applicationMessagesHasMetadataColumn' workflow for this module.
+async function applicationMessagesHasMetadataColumn(db: DbClient = pool) {
   const result = await db.query(
     `
       SELECT EXISTS (
@@ -31,7 +33,8 @@ async function applicationMessagesHasMetadataColumn(db = pool) {
   return Boolean(result.rows[0]?.exists);
 }
 
-export async function countProgramApplications(whereClause, params, db = pool) {
+// Handles 'countProgramApplications' workflow for this module.
+export async function countProgramApplications(whereClause, params, db: DbClient = pool) {
   return db.query(
     `
       SELECT COUNT(*)::int AS total
@@ -44,7 +47,8 @@ export async function countProgramApplications(whereClause, params, db = pool) {
   );
 }
 
-export async function listProgramApplications(whereClause, sortBy, order, params, limit, offset, db = pool) {
+// Handles 'listProgramApplications' workflow for this module.
+export async function listProgramApplications(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -107,7 +111,8 @@ export async function listProgramApplications(whereClause, sortBy, order, params
   );
 }
 
-export async function getProgramApplicationById(programApplicationId, db = pool) {
+// Handles 'getProgramApplicationById' workflow for this module.
+export async function getProgramApplicationById(programApplicationId, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -148,7 +153,8 @@ export async function getProgramApplicationById(programApplicationId, db = pool)
   );
 }
 
-export async function getProgramApplicationForUpdate(programApplicationId, db = pool) {
+// Handles 'getProgramApplicationForUpdate' workflow for this module.
+export async function getProgramApplicationForUpdate(programApplicationId, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -168,7 +174,8 @@ export async function getProgramApplicationForUpdate(programApplicationId, db = 
   );
 }
 
-export async function getInterviewByProgramApplicationId(programApplicationId, db = pool) {
+// Handles 'getInterviewByProgramApplicationId' workflow for this module.
+export async function getInterviewByProgramApplicationId(programApplicationId, db: DbClient = pool) {
   return db.query(
     `
       SELECT *
@@ -181,7 +188,8 @@ export async function getInterviewByProgramApplicationId(programApplicationId, d
   );
 }
 
-export async function listProgramApplicationMessages(programApplicationId, db = pool) {
+// Handles 'listProgramApplicationMessages' workflow for this module.
+export async function listProgramApplicationMessages(programApplicationId, db: DbClient = pool) {
   return db.query(
     `
       SELECT *
@@ -193,12 +201,13 @@ export async function listProgramApplicationMessages(programApplicationId, db = 
   );
 }
 
+// Handles 'updateProgramApplicationStage' workflow for this module.
 export async function updateProgramApplicationStage(
   programApplicationId,
   stage,
   reviewerId,
   reviewMessage,
-  db = pool,
+  db: DbClient = pool,
 ) {
   return db.query(
     `
@@ -215,11 +224,12 @@ export async function updateProgramApplicationStage(
   );
 }
 
+// Handles 'updateProgramApplicationStageIfMatch' workflow for this module.
 export async function updateProgramApplicationStageIfMatch(
   programApplicationId,
   currentStage,
   nextStage,
-  db = pool,
+  db: DbClient = pool,
 ) {
   return db.query(
     `
@@ -234,11 +244,12 @@ export async function updateProgramApplicationStageIfMatch(
   );
 }
 
+// Handles 'markProgramApplicationParticipationConfirmed' workflow for this module.
 export async function markProgramApplicationParticipationConfirmed(
   programApplicationId,
   reviewerId,
   note,
-  db = pool,
+  db: DbClient = pool,
 ) {
   return db.query(
     `
@@ -256,7 +267,8 @@ export async function markProgramApplicationParticipationConfirmed(
   );
 }
 
-export async function setProgramApplicationCreatedUser(programApplicationId, userId, db = pool) {
+// Handles 'setProgramApplicationCreatedUser' workflow for this module.
+export async function setProgramApplicationCreatedUser(programApplicationId, userId, db: DbClient = pool) {
   return db.query(
     `
       UPDATE program_applications
@@ -270,7 +282,8 @@ export async function setProgramApplicationCreatedUser(programApplicationId, use
   );
 }
 
-export async function upsertInterviewByProgramApplicationId(input, db = pool) {
+// Handles 'upsertInterviewByProgramApplicationId' workflow for this module.
+export async function upsertInterviewByProgramApplicationId(input, db: DbClient = pool) {
   const existing = await getInterviewByProgramApplicationId(input.program_application_id, db);
   if (existing.rowCount) {
     return db.query(
@@ -408,7 +421,8 @@ export async function upsertInterviewByProgramApplicationId(input, db = pool) {
   );
 }
 
-export async function markProgramInterviewCompleted(programApplicationId, db = pool) {
+// Handles 'markProgramInterviewCompleted' workflow for this module.
+export async function markProgramInterviewCompleted(programApplicationId, db: DbClient = pool) {
   const interviewResult = await getInterviewByProgramApplicationId(programApplicationId, db);
   if (!interviewResult.rowCount) {
     return interviewResult;
@@ -426,7 +440,8 @@ export async function markProgramInterviewCompleted(programApplicationId, db = p
   );
 }
 
-export async function createProgramApplicationMessageDraft(input, db = pool) {
+// Handles 'createProgramApplicationMessageDraft' workflow for this module.
+export async function createProgramApplicationMessageDraft(input, db: DbClient = pool) {
   const linkedApplicationId = await ensureLinkedApplicationIdForProgramApplication(
     input.program_application_id,
     db,
@@ -529,7 +544,8 @@ export async function createProgramApplicationMessageDraft(input, db = pool) {
   );
 }
 
-export async function ensureLinkedApplicationIdForProgramApplication(programApplicationId, db = pool) {
+// Handles 'ensureLinkedApplicationIdForProgramApplication' workflow for this module.
+export async function ensureLinkedApplicationIdForProgramApplication(programApplicationId, db: DbClient = pool) {
   const baseResult = await db.query(
     `
       SELECT
@@ -692,12 +708,13 @@ export async function ensureLinkedApplicationIdForProgramApplication(programAppl
   return Number(created.rows[0].id);
 }
 
+// Handles 'markProgramApplicationMessageSent' workflow for this module.
 export async function markProgramApplicationMessageSent(
   programApplicationId,
   messageId,
-  renderedSubject = null,
-  renderedBody = null,
-  db = pool,
+  renderedSubject: string | null = null,
+  renderedBody: string | null = null,
+  db: DbClient = pool,
 ) {
   return db.query(
     `
@@ -714,13 +731,14 @@ export async function markProgramApplicationMessageSent(
   );
 }
 
+// Handles 'markProgramApplicationMessageFailed' workflow for this module.
 export async function markProgramApplicationMessageFailed(
   programApplicationId,
   messageId,
   errorMessage,
-  renderedSubject = null,
-  renderedBody = null,
-  db = pool,
+  renderedSubject: string | null = null,
+  renderedBody: string | null = null,
+  db: DbClient = pool,
 ) {
   const hasMetadata = await applicationMessagesHasMetadataColumn(db);
   if (hasMetadata) {
@@ -755,7 +773,8 @@ export async function markProgramApplicationMessageFailed(
   );
 }
 
-export async function getProgramApplicationMessageForSend(programApplicationId, messageId, db = pool) {
+// Handles 'getProgramApplicationMessageForSend' workflow for this module.
+export async function getProgramApplicationMessageForSend(programApplicationId, messageId, db: DbClient = pool) {
   return db.query(
     `
       SELECT *
@@ -768,7 +787,8 @@ export async function getProgramApplicationMessageForSend(programApplicationId, 
   );
 }
 
-export async function getProgramApplicationMessageById(messageId, db = pool) {
+// Handles 'getProgramApplicationMessageById' workflow for this module.
+export async function getProgramApplicationMessageById(messageId, db: DbClient = pool) {
   return db.query(
     `
       SELECT *
@@ -781,7 +801,8 @@ export async function getProgramApplicationMessageById(messageId, db = pool) {
   );
 }
 
-export async function findUserByEmail(email, db = pool) {
+// Handles 'findUserByEmail' workflow for this module.
+export async function findUserByEmail(email, db: DbClient = pool) {
   return db.query(
     `
       SELECT id, is_student
@@ -793,7 +814,8 @@ export async function findUserByEmail(email, db = pool) {
   );
 }
 
-export async function findUserByPhone(phone, db = pool) {
+// Handles 'findUserByPhone' workflow for this module.
+export async function findUserByPhone(phone, db: DbClient = pool) {
   return db.query(
     `
       SELECT id, is_student
@@ -805,7 +827,8 @@ export async function findUserByPhone(phone, db = pool) {
   );
 }
 
-export async function createStudentUserForProgramApplication(email, phone, passwordHash, db = pool) {
+// Handles 'createStudentUserForProgramApplication' workflow for this module.
+export async function createStudentUserForProgramApplication(email, phone, passwordHash, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO users (email, phone, password_hash, is_student, is_active, created_at, updated_at)
@@ -816,7 +839,8 @@ export async function createStudentUserForProgramApplication(email, phone, passw
   );
 }
 
-export async function setUserAsStudent(userId, db = pool) {
+// Handles 'setUserAsStudent' workflow for this module.
+export async function setUserAsStudent(userId, db: DbClient = pool) {
   return db.query(
     `
       UPDATE users
@@ -827,7 +851,8 @@ export async function setUserAsStudent(userId, db = pool) {
   );
 }
 
-export async function upsertStudentProfile(userId, fullName, db = pool) {
+// Handles 'upsertStudentProfile' workflow for this module.
+export async function upsertStudentProfile(userId, fullName, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO student_profiles (
@@ -853,7 +878,8 @@ export async function upsertStudentProfile(userId, fullName, db = pool) {
   );
 }
 
-export async function upsertEnrollmentFromProgramApplication(studentUserId, cohortId, db = pool) {
+// Handles 'upsertEnrollmentFromProgramApplication' workflow for this module.
+export async function upsertEnrollmentFromProgramApplication(studentUserId, cohortId, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO enrollments (student_user_id, cohort_id, application_id, status, enrolled_at)
@@ -868,10 +894,11 @@ export async function upsertEnrollmentFromProgramApplication(studentUserId, coho
   );
 }
 
+// Handles 'markProgramApplicationParticipationConfirmedByLinkedApplicationId' workflow for this module.
 export async function markProgramApplicationParticipationConfirmedByLinkedApplicationId(
   applicationId,
   note = null,
-  db = pool,
+  db: DbClient = pool,
 ) {
   return db.query(
     `
@@ -897,7 +924,8 @@ export async function markProgramApplicationParticipationConfirmedByLinkedApplic
   );
 }
 
-export async function hasAcceptedProgramApplicationLinkedToApplication(applicationId, db = pool) {
+// Handles 'hasAcceptedProgramApplicationLinkedToApplication' workflow for this module.
+export async function hasAcceptedProgramApplicationLinkedToApplication(applicationId, db: DbClient = pool) {
   return db.query(
     `
       SELECT 1
@@ -919,3 +947,4 @@ export async function hasAcceptedProgramApplicationLinkedToApplication(applicati
     [applicationId],
   );
 }
+

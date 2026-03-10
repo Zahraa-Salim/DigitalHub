@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/ForgotPasswordPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/ForgotPasswordPage.tsx
+// Purpose: Renders the dashboard forgot password page page.
+// It handles the route-level UI and logic for this dashboard screen.
+
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, api } from "../utils/api";
@@ -85,3 +83,4 @@ export function ForgotPasswordPage() {
     </main>
   );
 }
+

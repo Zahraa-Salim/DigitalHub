@@ -1,11 +1,11 @@
-// File: server/src/repositories/profiles.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/profiles.repo.ts
+// Purpose: Runs the database queries used for profiles.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
+// Handles 'countProfiles' workflow for this module.
 export async function countProfiles(tableName, whereClause, params, db = pool) {
     return db.query(`
       SELECT COUNT(*)::int AS total
@@ -14,6 +14,7 @@ export async function countProfiles(tableName, whereClause, params, db = pool) {
       ${whereClause}
     `, params);
 }
+// Handles 'listProfiles' workflow for this module.
 export async function listProfiles(tableName, whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT p.*, u.email, u.phone, u.is_active
@@ -25,6 +26,7 @@ export async function listProfiles(tableName, whereClause, sortBy, order, params
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'updateProfile' workflow for this module.
 export async function updateProfile(tableName, userId, setClause, values, db = pool) {
     return db.query(`
       UPDATE ${tableName}
@@ -33,6 +35,7 @@ export async function updateProfile(tableName, userId, setClause, values, db = p
       RETURNING *
     `, [...values, userId]);
 }
+// Handles 'updateProfileVisibility' workflow for this module.
 export async function updateProfileVisibility(tableName, userId, isPublic, db = pool) {
     return db.query(`
       UPDATE ${tableName}
@@ -42,6 +45,7 @@ export async function updateProfileVisibility(tableName, userId, isPublic, db = 
     `, [isPublic, userId]);
 }
 
+// Handles 'createInstructorUser' workflow for this module.
 export async function createInstructorUser(input, db = pool) {
     return db.query(`
       INSERT INTO users (
@@ -58,6 +62,7 @@ export async function createInstructorUser(input, db = pool) {
     `, [input.email ?? null, input.phone ?? null, input.password_hash]);
 }
 
+// Handles 'createInstructorProfile' workflow for this module.
 export async function createInstructorProfile(userId, payload, db = pool) {
     return db.query(`
       INSERT INTO instructor_profiles (
@@ -90,6 +95,7 @@ export async function createInstructorProfile(userId, payload, db = pool) {
     ]);
 }
 
+// Handles 'getInstructorProfileByUserId' workflow for this module.
 export async function getInstructorProfileByUserId(userId, db = pool) {
     return db.query(`
       SELECT
@@ -104,6 +110,7 @@ export async function getInstructorProfileByUserId(userId, db = pool) {
     `, [userId]);
 }
 
+// Handles 'setInstructorActiveByUserId' workflow for this module.
 export async function setInstructorActiveByUserId(userId, isActive, db = pool) {
     return db.query(`
       UPDATE users
@@ -113,5 +120,4 @@ export async function setInstructorActiveByUserId(userId, isActive, db = pool) {
       RETURNING id
     `, [isActive, userId]);
 }
-
 

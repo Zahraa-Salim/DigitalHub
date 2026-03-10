@@ -1,9 +1,7 @@
-// File: frontend/src/lib/publicApi.ts
-// What this code does:
-// 1) Provides shared frontend helpers and API client utilities.
-// 2) Centralizes fetch, parsing, and cross-page helper logic.
-// 3) Reduces duplicated behavior across pages/components.
-// 4) Exports reusable functions consumed by app modules.
+﻿// File: frontend/src/lib/publicApi.ts
+// Purpose: Calls the public backend endpoints used by the website pages.
+// It centralizes fetch logic, fallback URLs, and response handling for public content.
+
 const resolveFallbackApiUrl = () => {
   if (typeof window === "undefined") {
     return "http://localhost:5000";
@@ -39,6 +37,9 @@ export type PublicCohort = {
   program_id: number;
   program_title: string;
   program_image_url?: string | null;
+  program_summary?: string | null;
+  program_description?: string | null;
+  program_requirements?: string | null;
   name: string;
   status: "coming_soon" | "open" | "running" | "completed" | "cancelled" | "planned";
   allow_applications: boolean;
@@ -183,6 +184,9 @@ export type PublicCohortFormResolution = {
     name: string;
     program_id: number;
     program_title: string;
+    program_summary?: string | null;
+    program_description?: string | null;
+    program_requirements?: string | null;
     status: string;
     use_general_form: boolean;
     application_form_id: number | null;
@@ -583,3 +587,4 @@ export async function submitPublicContact(payload: PublicContactPayload) {
   if (json?.data) return json.data;
   throw new Error("Invalid payload from /contact");
 }
+

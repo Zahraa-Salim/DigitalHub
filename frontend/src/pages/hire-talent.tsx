@@ -1,9 +1,7 @@
-// File: frontend/src/pages/hire-talent.tsx
-// What this code does:
-// 1) Composes route-level views and page section structure.
-// 2) Orchestrates page-level data loading and state.
-// 3) Connects reusable components to navigation flow.
-// 4) Exports page modules consumed by the router.
+﻿// File: frontend/src/pages/hire-talent.tsx
+// Purpose: Acts as the route entry for the hire talent page.
+// It composes the shared layout with the main section component for this route.
+
 import Wrapper from "@/layouts/Wrapper";
 import { HireTalent } from "@/sections/hire-talent.sections";
 
@@ -16,3 +14,4 @@ const HireTalentPage = () => {
 };
 
 export default HireTalentPage;
+

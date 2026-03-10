@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/profiles-students/StudentsTable.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/profiles-students/StudentsTable.tsx
+// Purpose: Renders the admin students table page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { Badge } from "../../../components/Badge";
 import type { StudentRow } from "./types";
 import { getStudentStatus, summarizeCohorts } from "./types";
@@ -101,3 +99,4 @@ export function StudentsTable({
     </section>
   );
 }
+

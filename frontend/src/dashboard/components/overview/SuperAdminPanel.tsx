@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview/SuperAdminPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview/SuperAdminPanel.tsx
+// Purpose: Renders the overview super admin panel panel in the dashboard.
+// It presents one focused slice of overview data, actions, or health signals.
+
 import { Badge } from "../Badge";
 import { Card } from "../Card";
 import { formatDateTime } from "../../utils/format";
@@ -48,3 +46,4 @@ export function SuperAdminPanel({ admins }: SuperAdminPanelProps) {
     </Card>
   );
 }
+

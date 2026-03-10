@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/AdminCreatePage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/AdminCreatePage.tsx
+// Purpose: Renders the admin admin create page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/Card";

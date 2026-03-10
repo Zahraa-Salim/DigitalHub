@@ -1,9 +1,7 @@
-// File: frontend/src/components/homes/home-one/Blog.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/homes/home-one/Blog.tsx
+// Purpose: Renders the blog UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 import { blog_data } from "@/data/home/homeContentData"
 import Image from "@/components/common/Image"
 import Link from "@/components/common/Link"
@@ -53,6 +51,4 @@ const Blog = ({ style }: StyleType) => {
 }
 
 export default Blog
-
-
 

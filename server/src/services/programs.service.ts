@@ -1,10 +1,8 @@
 // File: server/src/services/programs.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for programs.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import {
   createAnnouncement,
@@ -19,6 +17,7 @@ import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
+import type { DbClient } from "../db/index.js";
 import {
   closeCohort,
   countCohortInstructors,
@@ -44,7 +43,10 @@ import {
 
 const COHORT_STATUSES = ["coming_soon", "open", "running", "completed", "cancelled"];
 
-const PROGRAM_IMAGE_MIME_TO_EXT = {
+type AnyRecord = Record<string, any>;
+type QueryParams = Record<string, any>;
+
+const PROGRAM_IMAGE_MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
@@ -53,7 +55,8 @@ const PROGRAM_IMAGE_MIME_TO_EXT = {
 
 const MAX_PROGRAM_IMAGE_BYTES = 3 * 1024 * 1024;
 
-function sanitizeFilenamePart(value) {
+// Handles 'sanitizeFilenamePart' workflow for this module.
+function sanitizeFilenamePart(value: unknown) {
   return String(value || "program-image")
     .toLowerCase()
     .replace(/[^a-z0-9-_]+/g, "-")
@@ -62,7 +65,8 @@ function sanitizeFilenamePart(value) {
     .slice(0, 48) || "program-image";
 }
 
-function normalizeCohortStatus(status) {
+// Handles 'normalizeCohortStatus' workflow for this module.
+function normalizeCohortStatus(status: unknown) {
   if (!status) {
     return undefined;
   }
@@ -71,22 +75,44 @@ function normalizeCohortStatus(status) {
   return normalized === "planned" ? "coming_soon" : normalized;
 }
 
-function assertValidStatus(status) {
+// Handles 'assertValidStatus' workflow for this module.
+function assertValidStatus(status: string) {
   if (!COHORT_STATUSES.includes(status)) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid cohort status value.");
   }
 }
 
-function toDate(value) {
+// Handles 'toDate' workflow for this module.
+function toDate(value: unknown) {
   if (!value) {
     return null;
   }
 
-  const parsed = new Date(value);
+  const parsed =
+    value instanceof Date
+      ? value
+      : typeof value === "string" || typeof value === "number"
+        ? new Date(value)
+        : new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function deriveCohortStatusFromDates(input) {
+// Handles 'toJsonbValue' workflow for this module.
+function toJsonbValue(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+// Handles 'deriveCohortStatusFromDates' workflow for this module.
+function deriveCohortStatusFromDates(input: AnyRecord) {
   const now = new Date();
   const enrollmentOpenAt = toDate(input.enrollment_open_at);
   const enrollmentCloseAt = toDate(input.enrollment_close_at);
@@ -124,7 +150,8 @@ function deriveCohortStatusFromDates(input) {
   return "coming_soon";
 }
 
-function resolveNextStatus(payload, existingRow = null) {
+// Handles 'resolveNextStatus' workflow for this module.
+function resolveNextStatus(payload: AnyRecord, existingRow: AnyRecord | null = null) {
   const requestedStatus = normalizeCohortStatus(payload.status);
   if (requestedStatus) {
     assertValidStatus(requestedStatus);
@@ -150,11 +177,13 @@ function resolveNextStatus(payload, existingRow = null) {
   });
 }
 
-function isApplicationsEnabled(status) {
+// Handles 'isApplicationsEnabled' workflow for this module.
+function isApplicationsEnabled(status: string | undefined) {
   return status === "open";
 }
 
-function buildCohortAnnouncementContent(cohort) {
+// Handles 'buildCohortAnnouncementContent' workflow for this module.
+function buildCohortAnnouncementContent(cohort: AnyRecord) {
   const cohortName = cohort?.name || `Cohort #${cohort.id}`;
   const programName = cohort?.program_title || "this program";
   const status = normalizeCohortStatus(cohort?.status) || "coming_soon";
@@ -172,12 +201,14 @@ function buildCohortAnnouncementContent(cohort) {
   };
 }
 
-function shouldShowCohortAnnouncement(cohort, autoAnnounce) {
+// Handles 'shouldShowCohortAnnouncement' workflow for this module.
+function shouldShowCohortAnnouncement(cohort: AnyRecord, autoAnnounce: boolean) {
   const status = normalizeCohortStatus(cohort?.status);
   return Boolean(autoAnnounce) && (status === "coming_soon" || status === "open");
 }
 
-async function syncCohortAnnouncement(adminId, cohort, autoAnnounce, dbClient) {
+// Handles 'syncCohortAnnouncement' workflow for this module.
+async function syncCohortAnnouncement(adminId: number, cohort: AnyRecord, autoAnnounce: boolean, dbClient: DbClient) {
   if (!cohort?.id) {
     return;
   }
@@ -219,7 +250,8 @@ async function syncCohortAnnouncement(adminId, cohort, autoAnnounce, dbClient) {
   );
 }
 
-export async function createProgramService(adminId, payload) {
+// Handles 'createProgramService' workflow for this module.
+export async function createProgramService(adminId: number, payload: AnyRecord) {
   const result = await createProgram({
     ...payload,
     image_url: payload.image_url === "" ? null : payload.image_url ?? null,
@@ -245,7 +277,8 @@ export async function createProgramService(adminId, payload) {
   return program;
 }
 
-export async function listProgramsService(query) {
+// Handles 'listProgramsService' workflow for this module.
+export async function listProgramsService(query: QueryParams) {
   const normalizedQuery = { ...query };
   if (normalizedQuery.limit !== undefined) {
     const parsedLimit = Number(normalizedQuery.limit);
@@ -255,8 +288,8 @@ export async function listProgramsService(query) {
   }
 
   const list = parseListQuery(normalizedQuery, ["id", "title", "slug", "created_at", "updated_at"], "updated_at");
-  const params = [];
-  const where = [];
+  const params: Array<string | number | boolean | null> = [];
+  const where: string[] = [];
 
   if (list.search) {
     params.push(`%${list.search}%`);
@@ -279,7 +312,8 @@ export async function listProgramsService(query) {
   };
 }
 
-export async function patchProgramService(id, adminId, payload) {
+// Handles 'patchProgramService' workflow for this module.
+export async function patchProgramService(id: number, adminId: number, payload: AnyRecord) {
   const normalizedPayload = {
     ...payload,
     image_url: payload.image_url === "" ? null : payload.image_url,
@@ -310,7 +344,8 @@ export async function patchProgramService(id, adminId, payload) {
   return result.rows[0];
 }
 
-export async function uploadProgramImageService(actorUserId, payload) {
+// Handles 'uploadProgramImageService' workflow for this module.
+export async function uploadProgramImageService(actorUserId: number, payload: AnyRecord) {
   const mimeType = String(payload.mime_type || "").trim().toLowerCase();
   const extension = PROGRAM_IMAGE_MIME_TO_EXT[mimeType];
   if (!extension) {
@@ -365,8 +400,9 @@ export async function uploadProgramImageService(actorUserId, payload) {
   return { image_url: imageUrl };
 }
 
-export async function deleteProgramService(id, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'deleteProgramService' workflow for this module.
+export async function deleteProgramService(id: number, adminId: number) {
+  return withTransaction(async (client: DbClient) => {
     const result = await deleteProgram(id, client);
     if (!result.rowCount) {
       throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
@@ -391,8 +427,9 @@ export async function deleteProgramService(id, adminId) {
   });
 }
 
-export async function createCohortService(adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createCohortService' workflow for this module.
+export async function createCohortService(adminId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const activeProgramResult = await findActiveProgramById(payload.program_id, client);
     if (!activeProgramResult.rowCount) {
       throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
@@ -411,7 +448,7 @@ export async function createCohortService(adminId, payload) {
       enrollment_close_at: payload.enrollment_close_at ?? null,
       start_date: payload.start_date ?? null,
       end_date: payload.end_date ?? null,
-      attendance_days: payload.attendance_days ?? null,
+      attendance_days: toJsonbValue(payload.attendance_days ?? null),
       attendance_start_time: payload.attendance_start_time ?? null,
       attendance_end_time: payload.attendance_end_time ?? null,
     };
@@ -447,10 +484,11 @@ export async function createCohortService(adminId, payload) {
   });
 }
 
-export async function listCohortsService(query) {
+// Handles 'listCohortsService' workflow for this module.
+export async function listCohortsService(query: QueryParams) {
   const list = parseListQuery(query, ["id", "name", "status", "created_at", "updated_at", "start_date"], "updated_at");
-  const params = [];
-  const where = [];
+  const params: Array<string | number | boolean | null> = [];
+  const where: string[] = [];
 
   if (list.search) {
     params.push(`%${list.search}%`);
@@ -458,8 +496,11 @@ export async function listCohortsService(query) {
   }
 
   if (list.status) {
-    params.push(normalizeCohortStatus(list.status));
-    where.push(`(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END) = $${params.length}`);
+    const normalizedStatus = normalizeCohortStatus(list.status);
+    if (normalizedStatus) {
+      params.push(normalizedStatus);
+      where.push(`(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END) = $${params.length}`);
+    }
   }
 
   if (list.cohortId) {
@@ -478,8 +519,9 @@ export async function listCohortsService(query) {
   };
 }
 
-export async function patchCohortService(id, adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchCohortService' workflow for this module.
+export async function patchCohortService(id: number, adminId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const oldStatusResult = await getCohortStatusById(id, client);
     if (!oldStatusResult.rowCount) {
       throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -500,6 +542,10 @@ export async function patchCohortService(id, adminId, payload) {
     const nextStatus = resolveNextStatus(payload, currentRow);
     const updatePayload = {
       ...payload,
+      attendance_days:
+        payload.attendance_days !== undefined
+          ? toJsonbValue(payload.attendance_days)
+          : payload.attendance_days,
       status: nextStatus,
       allow_applications: isApplicationsEnabled(nextStatus),
       auto_announce: shouldAutoAnnounce,
@@ -578,7 +624,8 @@ export async function patchCohortService(id, adminId, payload) {
   });
 }
 
-export async function deleteCohortService(id, adminId) {
+// Handles 'deleteCohortService' workflow for this module.
+export async function deleteCohortService(id: number, adminId: number) {
   const result = await deleteCohort(id);
   if (!result.rowCount) {
     throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -597,8 +644,9 @@ export async function deleteCohortService(id, adminId) {
   return { id };
 }
 
-export async function openCohortService(id, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'openCohortService' workflow for this module.
+export async function openCohortService(id: number, adminId: number) {
+  return withTransaction(async (client: DbClient) => {
     const result = await openCohort(id, client);
     if (!result.rowCount) {
       throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -628,8 +676,9 @@ export async function openCohortService(id, adminId) {
   });
 }
 
-export async function closeCohortService(id, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'closeCohortService' workflow for this module.
+export async function closeCohortService(id: number, adminId: number) {
+  return withTransaction(async (client: DbClient) => {
     const result = await closeCohort(id, client);
     if (!result.rowCount) {
       throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -659,10 +708,11 @@ export async function closeCohortService(id, adminId) {
   });
 }
 
-export async function listCohortInstructorsService(id, query) {
+// Handles 'listCohortInstructorsService' workflow for this module.
+export async function listCohortInstructorsService(id: number, query: QueryParams) {
   const list = parseListQuery(query, ["instructor_user_id", "full_name", "cohort_role"], "full_name");
-  const params = [id];
-  const where = ["ci.cohort_id = $1"];
+  const params: Array<string | number> = [id];
+  const where: string[] = ["ci.cohort_id = $1"];
 
   if (list.search) {
     params.push(`%${list.search}%`);
@@ -680,8 +730,9 @@ export async function listCohortInstructorsService(id, query) {
   };
 }
 
-export async function assignInstructorService(cohortId, adminId, input) {
-  return withTransaction(async (client) => {
+// Handles 'assignInstructorService' workflow for this module.
+export async function assignInstructorService(cohortId: number, adminId: number, input: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const cohortResult = await getCohortStatusById(cohortId, client);
     if (!cohortResult.rowCount) {
       throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -715,8 +766,9 @@ export async function assignInstructorService(cohortId, adminId, input) {
   });
 }
 
-export async function unassignInstructorService(cohortId, instructorUserId, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'unassignInstructorService' workflow for this module.
+export async function unassignInstructorService(cohortId: number, instructorUserId: number, adminId: number) {
+  return withTransaction(async (client: DbClient) => {
     const cohortResult = await getCohortStatusById(cohortId, client);
     if (!cohortResult.rowCount) {
       throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
@@ -743,3 +795,4 @@ export async function unassignInstructorService(cohortId, instructorUserId, admi
     return deleted.rows[0];
   });
 }
+

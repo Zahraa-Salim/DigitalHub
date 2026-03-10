@@ -1,10 +1,9 @@
 // File: server/src/controllers/profiles.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for profiles.
+// It reads request data, calls the matching service methods, and sends API responses.
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   createInstructorProfileService,
@@ -19,25 +18,31 @@ import {
   uploadInstructorAvatarService,
   updateStudentProfileAdmin,
 } from "../services/profiles.service.js";
-function createListHandler(tableName, sortColumns) {
-    return async (req, res) => {
+
+type ProfileTableName = "admin_profiles" | "instructor_profiles" | "student_profiles";
+// Handles 'createListHandler' workflow for this module.
+function createListHandler(tableName: ProfileTableName, sortColumns: readonly string[]) {
+    return async (req: Request, res: Response) => {
         const result = await listProfilesService(tableName, sortColumns, req.query);
         sendList(res, result.data, result.pagination);
     };
 }
-function createPatchHandler(tableName, allowedUpdates) {
-    return async (req, res) => {
-        const data = await patchProfileService(tableName, allowedUpdates, Number(req.params.userId), req.user.id, req.user.role, req.body);
+// Handles 'createPatchHandler' workflow for this module.
+function createPatchHandler(tableName: ProfileTableName, allowedUpdates: readonly string[]) {
+    return async (req: Request, res: Response) => {
+        const data = await patchProfileService(tableName, allowedUpdates, Number(req.params.userId), req.user!.id, req.user!.role, req.body);
         sendSuccess(res, data, "Profile updated successfully.");
     };
 }
-function createVisibilityHandler(tableName) {
-    return async (req, res) => {
-        const data = await patchProfileVisibilityService(tableName, Number(req.params.userId), req.user.id, req.user.role, req.body.is_public);
+// Handles 'createVisibilityHandler' workflow for this module.
+function createVisibilityHandler(tableName: ProfileTableName) {
+    return async (req: Request, res: Response) => {
+        const data = await patchProfileVisibilityService(tableName, Number(req.params.userId), req.user!.id, req.user!.role, req.body.is_public);
         sendSuccess(res, data, "Profile visibility updated successfully.");
     };
 }
-export async function getStudentProfiles(req, res) {
+// Handles 'getStudentProfiles' workflow for this module.
+export async function getStudentProfiles(req: Request, res: Response) {
     const result = await listStudentProfilesAdminService(req.query);
     sendList(res, result.data, result.pagination);
 }
@@ -57,10 +62,11 @@ export const patchStudentProfile = createPatchHandler("student_profiles", [
     "company_work_for",
 ]);
 export const patchStudentVisibility = createVisibilityHandler("student_profiles");
-export async function patchStudentStatus(req, res) {
+// Handles 'patchStudentStatus' workflow for this module.
+export async function patchStudentStatus(req: Request, res: Response) {
     const data = await patchStudentStatusService(
-      req.user.id,
-      req.user.role,
+      req.user!.id,
+      req.user!.role,
       Number(req.params.userId),
       req.body,
     );
@@ -83,20 +89,24 @@ export const patchInstructorProfile = createPatchHandler("instructor_profiles", 
     "sort_order",
 ]);
 export const patchInstructorVisibility = createVisibilityHandler("instructor_profiles");
-export async function postInstructorProfile(req, res) {
-    const data = await createInstructorProfileService(req.user.id, req.body);
+// Handles 'postInstructorProfile' workflow for this module.
+export async function postInstructorProfile(req: Request, res: Response) {
+    const data = await createInstructorProfileService(req.user!.id, req.body);
     sendSuccess(res, data, "Instructor created successfully.", 201);
 }
-export async function postInstructorAvatar(req, res) {
-    const data = await uploadInstructorAvatarService(req.user.id, req.body);
+// Handles 'postInstructorAvatar' workflow for this module.
+export async function postInstructorAvatar(req: Request, res: Response) {
+    const data = await uploadInstructorAvatarService(req.user!.id, req.body);
     sendSuccess(res, data, "Instructor avatar uploaded successfully.", 201);
 }
-export async function activateInstructor(req, res) {
-    const data = await setInstructorActivationService(req.user.id, Number(req.params.userId), true);
+// Handles 'activateInstructor' workflow for this module.
+export async function activateInstructor(req: Request, res: Response) {
+    const data = await setInstructorActivationService(req.user!.id, Number(req.params.userId), true);
     sendSuccess(res, data, "Instructor activated successfully.");
 }
-export async function deactivateInstructor(req, res) {
-    const data = await setInstructorActivationService(req.user.id, Number(req.params.userId), false);
+// Handles 'deactivateInstructor' workflow for this module.
+export async function deactivateInstructor(req: Request, res: Response) {
+    const data = await setInstructorActivationService(req.user!.id, Number(req.params.userId), false);
     sendSuccess(res, data, "Instructor deactivated successfully.");
 }
 export const getManagerProfiles = createListHandler("admin_profiles", [
@@ -130,7 +140,7 @@ export const patchManagerVisibility = createVisibilityHandler("admin_profiles");
  * Fetch student profile with user data and projects
  * Admin only access
  */
-export async function getStudentProfileHandler(req, res) {
+export async function getStudentProfileHandler(req: Request, res: Response) {
   const { userId } = req.params;
   const data = await getStudentProfile(Number(userId));
   sendSuccess(res, data, "Student profile loaded successfully.");
@@ -141,9 +151,9 @@ export async function getStudentProfileHandler(req, res) {
  * Update student profile
  * Admin only access
  */
-export async function updateStudentProfileHandler(req, res) {
+export async function updateStudentProfileHandler(req: Request, res: Response) {
   const { userId } = req.params;
-  const data = await updateStudentProfileAdmin(req.user.id, Number(userId), req.body);
+  const data = await updateStudentProfileAdmin(req.user!.id, Number(userId), req.body);
   sendSuccess(res, data, "Student profile updated successfully.");
 }
 
@@ -152,8 +162,15 @@ export async function updateStudentProfileHandler(req, res) {
  * Fetch public student profile
  * Public access (no auth required)
  */
-export async function getPublicStudentProfileHandler(req, res) {
-  const { public_slug } = req.params;
-  const data = await getPublicStudentProfile(public_slug);
+export async function getPublicStudentProfileHandler(req: Request, res: Response) {
+  const publicSlug = Array.isArray(req.params.public_slug)
+    ? req.params.public_slug[0]
+    : req.params.public_slug;
+  const data = await getPublicStudentProfile(String(publicSlug || ""));
   sendSuccess(res, data, "Public profile loaded successfully.");
 }
+
+
+
+
+

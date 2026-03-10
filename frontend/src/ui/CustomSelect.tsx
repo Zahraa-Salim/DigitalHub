@@ -1,9 +1,7 @@
-// File: frontend/src/ui/CustomSelect.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/ui/CustomSelect.tsx
+// Purpose: Contains frontend code for custom select.
+// It supports this part of the user interface and page behavior.
+
 "use client"
 import React from 'react';
 import Select, { type SingleValue } from 'react-select';
@@ -58,3 +56,4 @@ const CustomSelect = ({ value, onChange }: CustomSelectProps) => {
 };
 
 export default CustomSelect;
+

@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/app/AppRouter.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/app/AppRouter.tsx
+// Purpose: Defines dashboard app behavior for app router.
+// It wires route guards, layouts, and route configuration for the admin experience.
+
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "./AdminLayout";
@@ -81,3 +79,4 @@ export function AppRouter() {
     </BrowserRouter>
   );
 }
+

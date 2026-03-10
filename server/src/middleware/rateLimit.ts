@@ -1,22 +1,28 @@
-// File: server/src/middleware/rateLimit.ts
-// What this code does:
-// 1) Runs in the request pipeline before/after route handlers.
-// 2) Enforces cross-cutting rules like auth, validation, and errors.
-// 3) Normalizes request/response behavior for downstream code.
-// 4) Removes duplicated policy logic from controllers.
-// @ts-nocheck
+﻿// File: server/src/middleware/rateLimit.ts
+// Purpose: Creates the rate limiting rules used by sensitive API endpoints.
+// It helps protect auth and public routes from abusive request bursts.
+
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { AppError } from "../utils/appError.js";
 import { getRedis } from "../utils/redis.js";
 
-export function rateLimit({ keyPrefix, windowSec, max, keyFn }) {
-  return async (req, _res, next) => {
+type RateLimitOptions = {
+  keyPrefix: string;
+  windowSec: number;
+  max: number;
+  keyFn?: (req: Request) => string | number | null | undefined;
+};
+
+// Handles 'rateLimit' workflow for this module.
+export function rateLimit({ keyPrefix, windowSec, max, keyFn }: RateLimitOptions): RequestHandler {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const redis = getRedis();
     if (!redis) {
       next();
       return;
     }
 
-    const identity = (keyFn ? keyFn(req) : req.ip) || "unknown";
+    const identity = String((keyFn ? keyFn(req) : req.ip) ?? "unknown");
     const redisKey = `${keyPrefix}:${identity}`;
 
     try {
@@ -27,7 +33,7 @@ export function rateLimit({ keyPrefix, windowSec, max, keyFn }) {
       }
 
       if (count > max) {
-        throw new AppError(429, "RATE_LIMITED", "Too many requests. Please try again later.");
+        throw new AppError(429, "RATE_LIMITED", "Too many requests. Please try again later.", undefined);
       }
 
       next();
@@ -42,3 +48,4 @@ export function rateLimit({ keyPrefix, windowSec, max, keyFn }) {
     }
   };
 }
+

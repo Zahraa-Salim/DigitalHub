@@ -1,10 +1,8 @@
 // File: server/src/services/attendance.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for attendance.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
@@ -22,26 +20,70 @@ import {
 
 const DEFAULT_ATTENDANCE_DAYS = ["monday", "tuesday", "wednesday", "thursday"];
 
+type AttendanceSheetQuery = {
+  cohort_id?: string | number;
+  date?: string;
+  limit?: string | number;
+};
+
+type AttendanceRecordInput = {
+  student_user_id: string | number;
+  status: "present" | "absent" | "late";
+  note?: string | null;
+};
+
+type AttendanceSheetPayload = {
+  cohort_id: string | number;
+  attendance_date: string;
+  location_type?: "remote" | "on_site";
+  records?: AttendanceRecordInput[];
+};
+
+type CohortAttendanceRow = {
+  id: number;
+  name: string;
+  program_id: number | null;
+  program_title: string | null;
+  status: string;
+  start_date: string | Date | null;
+  end_date: string | Date | null;
+  attendance_days: unknown;
+  attendance_start_time: string | null;
+  attendance_end_time: string | null;
+};
+
+type AttendanceStudentRow = {
+  student_user_id: number | string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  enrollment_status: string | null;
+};
+
+// Handles 'getTodayIsoDate' workflow for this module.
 function getTodayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function normalizeAttendanceDays(value) {
+// Handles 'normalizeAttendanceDays' workflow for this module.
+function normalizeAttendanceDays(value: unknown): string[] {
   if (!Array.isArray(value)) return DEFAULT_ATTENDANCE_DAYS;
   const normalized = value
-    .map((entry) => String(entry || "").trim().toLowerCase())
-    .filter((entry) => entry.length > 0);
+    .map((entry: unknown) => String(entry || "").trim().toLowerCase())
+    .filter((entry: string) => entry.length > 0);
   return normalized.length ? [...new Set(normalized)] : DEFAULT_ATTENDANCE_DAYS;
 }
 
-function toTimeValue(value) {
+// Handles 'toTimeValue' workflow for this module.
+function toTimeValue(value: unknown): string | null {
   const text = String(value || "").trim();
   if (!text) return null;
   const hhmm = text.match(/^(\d{2}:\d{2})/);
   return hhmm ? hhmm[1] : null;
 }
 
-function toCohortAttendanceMeta(row) {
+// Handles 'toCohortAttendanceMeta' workflow for this module.
+function toCohortAttendanceMeta(row: CohortAttendanceRow) {
   return {
     id: row.id,
     name: row.name,
@@ -56,7 +98,8 @@ function toCohortAttendanceMeta(row) {
   };
 }
 
-function mapStudentAttendanceRow(row) {
+// Handles 'mapStudentAttendanceRow' workflow for this module.
+function mapStudentAttendanceRow(row: AttendanceStudentRow) {
   return {
     student_user_id: Number(row.student_user_id),
     full_name: String(row.full_name || "").trim() || "Student",
@@ -66,6 +109,7 @@ function mapStudentAttendanceRow(row) {
   };
 }
 
+// Handles 'listRunningAttendanceCohortsService' workflow for this module.
 export async function listRunningAttendanceCohortsService() {
   const result = await listRunningCohortsForAttendance();
   return {
@@ -73,7 +117,8 @@ export async function listRunningAttendanceCohortsService() {
   };
 }
 
-export async function getAttendanceSheetService(query) {
+// Handles 'getAttendanceSheetService' workflow for this module.
+export async function getAttendanceSheetService(query: AttendanceSheetQuery) {
   const cohortId = Number(query.cohort_id);
   const attendanceDate = String(query.date || getTodayIsoDate());
 
@@ -91,11 +136,11 @@ export async function getAttendanceSheetService(query) {
   const cohort = toCohortAttendanceMeta(cohortResult.rows[0]);
   const session = sessionResult.rows[0] ?? null;
 
-  let recordMap = new Map();
+  let recordMap = new Map<number, { status: string; note: string | null }>();
   if (session?.id) {
     const recordResult = await listAttendanceRecordsBySession(session.id);
     recordMap = new Map(
-      (recordResult.rows || []).map((entry) => [
+      (recordResult.rows || []).map((entry: any) => [
         Number(entry.student_user_id),
         {
           status: entry.attendance_status,
@@ -125,8 +170,9 @@ export async function getAttendanceSheetService(query) {
   };
 }
 
-export async function saveAttendanceSheetService(actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'saveAttendanceSheetService' workflow for this module.
+export async function saveAttendanceSheetService(actorUserId: number, payload: AttendanceSheetPayload) {
+  return withTransaction(async (client: Parameters<typeof upsertAttendanceSession>[1]) => {
     const cohortId = Number(payload.cohort_id);
     const attendanceDate = String(payload.attendance_date || "").trim();
     const locationType = payload.location_type === "remote" ? "remote" : "on_site";
@@ -137,12 +183,12 @@ export async function saveAttendanceSheetService(actorUserId, payload) {
     }
 
     const studentsResult = await listCohortStudentsForAttendance(cohortId, client);
-    const validStudentIds = new Set((studentsResult.rows || []).map((entry) => Number(entry.student_user_id)));
+    const validStudentIds = new Set((studentsResult.rows || []).map((entry: any) => Number(entry.student_user_id)));
     if (!validStudentIds.size) {
       throw new AppError(400, "VALIDATION_ERROR", "No enrolled students were found for this cohort.");
     }
 
-    const dedup = new Map();
+    const dedup = new Map<number, { student_user_id: number; attendance_status: "present" | "absent" | "late"; note: string | null }>();
     for (const item of payload.records || []) {
       const studentUserId = Number(item.student_user_id);
       if (!validStudentIds.has(studentUserId)) {
@@ -228,11 +274,13 @@ export async function saveAttendanceSheetService(actorUserId, payload) {
   });
 }
 
-export async function getStudentAttendanceService(userId, query) {
+// Handles 'getStudentAttendanceService' workflow for this module.
+export async function getStudentAttendanceService(userId: number, query: AttendanceSheetQuery) {
   const limitRaw = Number(query.limit ?? 30);
   const limit = Number.isFinite(limitRaw) ? Math.min(120, Math.max(1, limitRaw)) : 30;
   const result = await listStudentAttendanceHistory(userId, limit);
-  const entries = (result.rows || []).map((row) => ({
+  // Handles 'entries' workflow for this module.
+  const entries = (result.rows || []).map((row: any) => ({
     id: row.id,
     session_id: row.session_id,
     attendance_date: row.attendance_date,
@@ -265,3 +313,4 @@ export async function getStudentAttendanceService(userId, query) {
     entries,
   };
 }
+

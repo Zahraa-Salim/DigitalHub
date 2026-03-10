@@ -1,10 +1,9 @@
-// File: server/src/constants/errorCodes.ts
-// What this code does:
-// 1) Declares shared constants used across backend modules.
-// 2) Centralizes canonical values to avoid hard-coded strings.
-// 3) Keeps API/domain identifiers consistent across layers.
-// 4) Reduces drift between validation, services, and responses.
+﻿// File: server/src/constants/errorCodes.ts
+// Purpose: Defines constant values for error codes.
+// It keeps repeated identifiers and fixed options in one shared place.
+
 // @ts-nocheck
+
 export const errorCodes = [
     "VALIDATION_ERROR",
     "NOT_FOUND",
@@ -61,5 +60,4 @@ export const errorCodes = [
     "NOTIFICATION_NOT_FOUND",
     "NOTIFICATION_ALREADY_READ",
 ];
-
 

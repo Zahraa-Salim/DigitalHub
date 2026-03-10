@@ -1,12 +1,13 @@
 // File: server/src/repositories/announcements.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+// Purpose: Runs the database queries used for announcements.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
-export async function createAnnouncement(input, db = pool) {
+import type { DbClient } from "../db/index.js";
+// Handles 'createAnnouncement' workflow for this module.
+export async function createAnnouncement(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO announcements
         (title, body, target_audience, cohort_id, event_id, is_auto, is_published, publish_at, created_by, created_at)
@@ -25,11 +26,13 @@ export async function createAnnouncement(input, db = pool) {
         input.created_by,
     ]);
 }
-export async function countAnnouncements(whereClause, params, db = pool) {
+// Handles 'countAnnouncements' workflow for this module.
+export async function countAnnouncements(whereClause, params, db: DbClient = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`SELECT COUNT(*)::int AS total FROM announcements ${scopedWhere}`, params);
 }
-export async function listAnnouncements(whereClause, sortBy, order, params, limit, offset, db = pool) {
+// Handles 'listAnnouncements' workflow for this module.
+export async function listAnnouncements(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
       SELECT *
@@ -40,7 +43,8 @@ export async function listAnnouncements(whereClause, sortBy, order, params, limi
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
-export async function updateAnnouncement(id, setClause, values, db = pool) {
+// Handles 'updateAnnouncement' workflow for this module.
+export async function updateAnnouncement(id, setClause, values, db: DbClient = pool) {
     return db.query(`
       UPDATE announcements
       SET ${setClause}
@@ -49,7 +53,8 @@ export async function updateAnnouncement(id, setClause, values, db = pool) {
       RETURNING *
     `, [...values, id]);
 }
-export async function deleteAnnouncement(id, db = pool) {
+// Handles 'deleteAnnouncement' workflow for this module.
+export async function deleteAnnouncement(id, db: DbClient = pool) {
     return db.query(`
       UPDATE announcements
       SET deleted_at = NOW(), is_published = FALSE
@@ -59,7 +64,8 @@ export async function deleteAnnouncement(id, db = pool) {
     `, [id]);
 }
 
-export async function findActiveAutoAnnouncementByCohortId(cohortId, db = pool) {
+// Handles 'findActiveAutoAnnouncementByCohortId' workflow for this module.
+export async function findActiveAutoAnnouncementByCohortId(cohortId, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM announcements
@@ -71,7 +77,8 @@ export async function findActiveAutoAnnouncementByCohortId(cohortId, db = pool) 
     `, [cohortId]);
 }
 
-export async function findActiveAutoAnnouncementByEventId(eventId, db = pool) {
+// Handles 'findActiveAutoAnnouncementByEventId' workflow for this module.
+export async function findActiveAutoAnnouncementByEventId(eventId, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM announcements
@@ -82,5 +89,4 @@ export async function findActiveAutoAnnouncementByEventId(eventId, db = pool) {
       LIMIT 1
     `, [eventId]);
 }
-
 

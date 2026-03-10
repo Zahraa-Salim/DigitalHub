@@ -1,9 +1,7 @@
-// File: frontend/src/components/inner-pages/error/ErrorArea.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/inner-pages/error/ErrorArea.tsx
+// Purpose: Renders the error area UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 import InjectableSvg from "@/hooks/InjectableSvg"
 import BtnArrow from "@/svg/BtnArrow"
 import Link from "@/components/common/Link"
@@ -41,5 +39,4 @@ const ErrorArea = () => {
 }
 
 export default ErrorArea
-
 

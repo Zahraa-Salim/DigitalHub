@@ -1,9 +1,7 @@
-// File: frontend/src/forms/ApplicationForm.tsx
-// What this code does:
-// 1) Implements form fields, validation, and submission flows.
-// 2) Normalizes user input before API requests are sent.
-// 3) Handles loading, error, and success feedback states.
-// 4) Keeps form behavior consistent across intake workflows.
+﻿// File: frontend/src/forms/ApplicationForm.tsx
+// Purpose: Renders the application form form used in the frontend.
+// It owns the form fields, local state, and submission flow for this UI.
+
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
@@ -120,6 +118,9 @@ const normalizeResolvedCohort = (raw: unknown): PublicCohort | null => {
     id,
     program_id: programId,
     program_title: String(source.program_title || ""),
+    program_summary: source.program_summary ? String(source.program_summary) : null,
+    program_description: source.program_description ? String(source.program_description) : null,
+    program_requirements: source.program_requirements ? String(source.program_requirements) : null,
     name: String(source.name || ""),
     status,
     allow_applications: typeof source.allow_applications === "boolean" ? source.allow_applications : status === "open",
@@ -605,10 +606,22 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
         <div className="application-form__course-info">
           <h6>{selectedCohort.program_title}</h6>
           <p>{selectedCohort.name}</p>
+          {selectedCohort.program_summary ? (
+            <p>
+              <strong>Summary:</strong> {selectedCohort.program_summary}
+            </p>
+          ) : null}
+          {selectedCohort.program_description ? (
+            <p>
+              <strong>Description:</strong> {selectedCohort.program_description}
+            </p>
+          ) : null}
           <ul className="list-wrap">
-            <li>
-              <strong>Status:</strong> {selectedCohort.status}
-            </li>
+            {selectedCohort.program_requirements ? (
+              <li>
+                <strong>Requirements:</strong> {selectedCohort.program_requirements}
+              </li>
+            ) : null}
             <li>
               <strong>Enrollment:</strong>{" "}
               {selectedCohort.enrollment_close_at
@@ -782,3 +795,4 @@ const ApplicationForm = ({ defaultCohortId }: ApplicationFormProps) => {
 };
 
 export default ApplicationForm;
+

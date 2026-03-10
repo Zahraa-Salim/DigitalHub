@@ -1,9 +1,7 @@
-// File: frontend/src/types/circletype.d.ts
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/types/circletype.d.ts
+// Purpose: Defines shared TypeScript types for circletype.
+// It extends or declares frontend typings used by the app code.
+
 declare module 'circletype' {
    export default class CircleType {
      constructor(element: HTMLElement, splitter?: (text: string) => string[]);
@@ -24,4 +22,4 @@ declare module 'circletype' {
      destroy(): CircleType;
    }
  }
- 
+

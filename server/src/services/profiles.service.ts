@@ -1,10 +1,8 @@
 // File: server/src/services/profiles.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for profiles.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { pool } from "../db/index.js";
 import { withTransaction } from "../db/index.js";
 import bcrypt from "bcryptjs";
@@ -31,7 +29,15 @@ import {
   updateStudentProfile,
   getUserById,
 } from "../repositories/profiles.repository.js";
-function ensureAdminProfilePermission(tableName, actorUserId, actorRole, targetUserId, payload) {
+
+type ProfileTableName = "admin_profiles" | "instructor_profiles" | "student_profiles";
+type ProfileQuery = Record<string, unknown>;
+type ProfilePayload = Record<string, any>;
+type UserRole = "admin" | "super_admin" | string;
+type StudentProject = Record<string, any>;
+type StudentProfileRow = Record<string, any>;
+// Handles 'ensureAdminProfilePermission' workflow for this module.
+function ensureAdminProfilePermission(tableName: ProfileTableName, actorUserId: number, actorRole: UserRole, targetUserId: number, payload?: ProfilePayload) {
     if (tableName !== "admin_profiles") {
         return;
     }
@@ -46,11 +52,12 @@ function ensureAdminProfilePermission(tableName, actorUserId, actorRole, targetU
         }
     }
 }
-export async function listProfilesService(tableName, sortColumns, query) {
+// Handles 'listProfilesService' workflow for this module.
+export async function listProfilesService(tableName: ProfileTableName, sortColumns: readonly string[], query: ProfileQuery) {
     const list = parseListQuery(query, sortColumns, "created_at");
     const isActive = parseQueryBoolean(query?.is_active, "is_active");
-    const params = [];
-    const where = [];
+    const params: Array<string | boolean> = [];
+    const where: string[] = [];
     if (list.search) {
         const searchColumns = ["p.full_name", "COALESCE(p.bio, '')"];
         if (tableName === "instructor_profiles") {
@@ -83,7 +90,8 @@ export async function listProfilesService(tableName, sortColumns, query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchProfileService(tableName, allowedUpdates, userId, adminId, actorRole, payload) {
+// Handles 'patchProfileService' workflow for this module.
+export async function patchProfileService(tableName: ProfileTableName, allowedUpdates: readonly string[], userId: number, adminId: number, actorRole: UserRole, payload: ProfilePayload) {
     ensureAdminProfilePermission(tableName, adminId, actorRole, userId, payload);
     const normalizedPayload = { ...payload };
     Object.keys(normalizedPayload).forEach((key) => {
@@ -91,7 +99,7 @@ export async function patchProfileService(tableName, allowedUpdates, userId, adm
             normalizedPayload[key] = null;
         }
     });
-    return withTransaction(async (client) => {
+    return withTransaction(async (client: any) => {
         const userFields = ["email", "phone"];
         const userUpdates = Object.fromEntries(Object.entries(normalizedPayload).filter(([key, value]) => userFields.includes(key) && value !== undefined));
         const profileUpdates = Object.fromEntries(Object.entries(normalizedPayload).filter(([key, value]) => allowedUpdates.includes(key) && value !== undefined));
@@ -128,8 +136,9 @@ export async function patchProfileService(tableName, allowedUpdates, userId, adm
         return result?.rows?.[0] ?? null;
     });
 }
-export async function patchProfileVisibilityService(tableName, userId, adminId, actorRole, isPublic) {
-    ensureAdminProfilePermission(tableName, adminId, actorRole, userId);
+// Handles 'patchProfileVisibilityService' workflow for this module.
+export async function patchProfileVisibilityService(tableName: ProfileTableName, userId: number, adminId: number, actorRole: UserRole, isPublic: boolean) {
+    ensureAdminProfilePermission(tableName, adminId, actorRole, userId, undefined);
     const result = await updateProfileVisibility(tableName, userId, isPublic);
     if (!result.rowCount) {
         throw new AppError(404, "USER_NOT_FOUND", "Profile not found.");
@@ -149,6 +158,7 @@ export async function patchProfileVisibilityService(tableName, userId, adminId, 
     return result.rows[0];
 }
 
+// Handles 'generateInternalPassword' workflow for this module.
 function generateInternalPassword() {
     return `DH-${randomBytes(8).toString("hex")}`;
 }
@@ -162,7 +172,8 @@ const AVATAR_MIME_TO_EXT = {
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
-function sanitizeFilenamePart(value) {
+// Handles 'sanitizeFilenamePart' workflow for this module.
+function sanitizeFilenamePart(value: unknown): string {
     return String(value || "avatar")
         .toLowerCase()
         .replace(/[^a-z0-9-_]+/g, "-")
@@ -171,9 +182,10 @@ function sanitizeFilenamePart(value) {
         .slice(0, 48) || "avatar";
 }
 
-export async function uploadInstructorAvatarService(actorUserId, payload) {
+// Handles 'uploadInstructorAvatarService' workflow for this module.
+export async function uploadInstructorAvatarService(actorUserId: number, payload: ProfilePayload) {
     const mimeType = String(payload.mime_type || "").trim().toLowerCase();
-    const extension = AVATAR_MIME_TO_EXT[mimeType];
+    const extension = AVATAR_MIME_TO_EXT[mimeType as keyof typeof AVATAR_MIME_TO_EXT];
     if (!extension) {
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported avatar mime type.");
     }
@@ -227,7 +239,8 @@ export async function uploadInstructorAvatarService(actorUserId, payload) {
     return { avatar_url: avatarUrl };
 }
 
-function normalizeOptionalText(value) {
+// Handles 'normalizeOptionalText' workflow for this module.
+function normalizeOptionalText(value: unknown): string | null {
     if (value === undefined || value === null) {
         return null;
     }
@@ -235,8 +248,9 @@ function normalizeOptionalText(value) {
     return normalized || null;
 }
 
-export async function createInstructorProfileService(actorUserId, payload) {
-    return withTransaction(async (client) => {
+// Handles 'createInstructorProfileService' workflow for this module.
+export async function createInstructorProfileService(actorUserId: number, payload: ProfilePayload) {
+    return withTransaction(async (client: any) => {
         const email = normalizeOptionalText(payload.email)?.toLowerCase() ?? null;
         const phone = normalizeOptionalText(payload.phone);
         if (!email && !phone) {
@@ -292,8 +306,9 @@ export async function createInstructorProfileService(actorUserId, payload) {
     });
 }
 
-export async function setInstructorActivationService(actorUserId, userId, isActive) {
-    return withTransaction(async (client) => {
+// Handles 'setInstructorActivationService' workflow for this module.
+export async function setInstructorActivationService(actorUserId: number, userId: number, isActive: boolean) {
+    return withTransaction(async (client: any) => {
         const existingResult = await getInstructorProfileByUserId(userId, client);
         if (!existingResult.rowCount) {
             throw new AppError(404, "NOT_FOUND", "Instructor profile not found.");
@@ -331,7 +346,7 @@ export async function setInstructorActivationService(actorUserId, userId, isActi
 /**
  * Transform database row to API response format
  */
-function toStudentProfileResponse(userRow, profileRow, projects) {
+function toStudentProfileResponse(userRow: StudentProfileRow, profileRow: StudentProfileRow, projects: StudentProject[]) {
   return {
     user: {
       id: userRow.id,
@@ -362,7 +377,7 @@ function toStudentProfileResponse(userRow, profileRow, projects) {
       status_updated_at: profileRow.status_updated_at ?? null,
       status_updated_by: profileRow.status_updated_by ?? null,
     },
-    projects: projects.map((p) => ({
+    projects: projects.map((p: StudentProject) => ({
       id: p.id,
       title: p.title,
       description: p.description ?? null,
@@ -380,7 +395,7 @@ function toStudentProfileResponse(userRow, profileRow, projects) {
 /**
  * Transform profile row to public response format
  */
-function toPublicStudentProfileResponse(profileRow, projects) {
+function toPublicStudentProfileResponse(profileRow: StudentProfileRow, projects: StudentProject[]) {
   return {
     profile: {
       full_name: profileRow.full_name ?? null,
@@ -395,7 +410,7 @@ function toPublicStudentProfileResponse(profileRow, projects) {
       company_work_for: profileRow.company_work_for ?? null,
       featured: Boolean(profileRow.featured),
     },
-    projects: projects.map((p) => ({
+    projects: projects.map((p: StudentProject) => ({
       id: p.id,
       title: p.title,
       description: p.description ?? null,
@@ -411,7 +426,7 @@ function toPublicStudentProfileResponse(profileRow, projects) {
  * Fetch student profile with user data and projects
  * Returns: { user, profile, projects }
  */
-export async function getStudentProfile(userId) {
+export async function getStudentProfile(userId: number) {
   if (!userId) {
     throw new AppError(400, "INVALID_REQUEST", "User ID is required.");
   }
@@ -428,7 +443,8 @@ export async function getStudentProfile(userId) {
     getStudentEnrollments(userId),
   ]);
   const projects = projectsResult.rows || [];
-  const cohorts = (enrollmentsResult.rows || []).map((entry) => ({
+  // Handles 'cohorts' workflow for this module.
+  const cohorts = (enrollmentsResult.rows || []).map((entry: any) => ({
     enrollment_id: entry.id,
     cohort_id: entry.cohort_id,
     cohort_name: entry.cohort_name ?? null,
@@ -448,7 +464,7 @@ export async function getStudentProfile(userId) {
  * Fetch public student profile
  * Returns: { profile, projects }
  */
-export async function getPublicStudentProfile(publicSlug) {
+export async function getPublicStudentProfile(publicSlug: string) {
   if (!publicSlug) {
     throw new AppError(400, "INVALID_REQUEST", "Public slug is required.");
   }
@@ -475,7 +491,7 @@ export async function getPublicStudentProfile(publicSlug) {
  * - Logs admin action
  * - Returns updated profile
  */
-export async function updateStudentProfileAdmin(adminUserId, targetUserId, payload) {
+export async function updateStudentProfileAdmin(adminUserId: number, targetUserId: number, payload: ProfilePayload) {
   if (!targetUserId) {
     throw new AppError(400, "INVALID_REQUEST", "User ID is required.");
   }
@@ -488,7 +504,7 @@ export async function updateStudentProfileAdmin(adminUserId, targetUserId, paylo
 
   // Validate slug uniqueness if provided
   if (payload.public_slug !== undefined && payload.public_slug) {
-    const slugResult = await isPublicSlugUnique(payload.public_slug, targetUserId);
+    const slugResult = await (isPublicSlugUnique as any)(String(payload.public_slug), targetUserId);
     if (slugResult.rows[0].count > 0) {
       throw new AppError(409, "DUPLICATE_SLUG", "This public slug is already taken.");
     }
@@ -500,15 +516,15 @@ export async function updateStudentProfileAdmin(adminUserId, targetUserId, paylo
     await client.query("BEGIN");
 
     // Update profile (without empty strings being treated as updates)
-    const normalizedPayload = {};
-    Object.entries(payload).forEach(([key, value]) => {
+    const normalizedPayload: Record<string, unknown> = {};
+    Object.entries(payload).forEach(([key, value]: [string, unknown]) => {
       if (value !== undefined) {
         normalizedPayload[key] = value === "" ? null : value;
       }
     });
 
     // Perform update
-    const updateResult = await updateStudentProfile(targetUserId, normalizedPayload, client);
+    const updateResult = await updateStudentProfile(targetUserId, normalizedPayload, client as any);
     if (!updateResult || !updateResult.rowCount) {
       throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
     }
@@ -547,12 +563,13 @@ export async function updateStudentProfileAdmin(adminUserId, targetUserId, paylo
   }
 }
 
-export async function listStudentProfilesAdminService(query) {
+// Handles 'listStudentProfilesAdminService' workflow for this module.
+export async function listStudentProfilesAdminService(query: ProfileQuery) {
   const list = parseListQuery(query, ["user_id", "full_name", "created_at", "status"], "created_at");
   const isActive = parseQueryBoolean(query?.is_active, "is_active");
   const statusFilter = String(list.status || "").trim().toLowerCase();
-  const params = [];
-  const where = [];
+  const params: Array<string | boolean | number> = [];
+  const where: string[] = [];
 
   if (list.search) {
     params.push(`%${list.search}%`);
@@ -604,7 +621,7 @@ export async function listStudentProfilesAdminService(query) {
     created_at: "sp.created_at",
     status: "COALESCE(NULLIF(sp.admin_status, ''), CASE WHEN u.is_active THEN 'active' ELSE 'dropout' END)",
   };
-  const sortBy = sortMap[list.sortBy] || "sp.created_at";
+  const sortBy = sortMap[list.sortBy as keyof typeof sortMap] || "sp.created_at";
 
   const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const [countResult, dataResult] = await Promise.all([
@@ -619,7 +636,8 @@ export async function listStudentProfilesAdminService(query) {
   };
 }
 
-export async function patchStudentStatusService(actorUserId, actorRole, userId, payload) {
+// Handles 'patchStudentStatusService' workflow for this module.
+export async function patchStudentStatusService(actorUserId: number, actorRole: UserRole, userId: number, payload: ProfilePayload) {
   if (actorRole !== "admin" && actorRole !== "super_admin") {
     throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
   }
@@ -634,7 +652,7 @@ export async function patchStudentStatusService(actorUserId, actorRole, userId, 
     throw new AppError(400, "VALIDATION_ERROR", "Dropout reason is required.");
   }
 
-  return withTransaction(async (client) => {
+  return withTransaction(async (client: any) => {
     const existingResult = await getStudentProfileWithUser(userId, client);
     if (!existingResult.rowCount) {
       throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
@@ -677,7 +695,8 @@ export async function patchStudentStatusService(actorUserId, actorRole, userId, 
     ]);
 
     const freshRow = freshResult.rows[0];
-    const cohorts = (enrollmentsResult.rows || []).map((entry) => ({
+    // Handles 'cohorts' workflow for this module.
+    const cohorts = (enrollmentsResult.rows || []).map((entry: any) => ({
       enrollment_id: entry.id,
       cohort_id: entry.cohort_id,
       cohort_name: entry.cohort_name ?? null,
@@ -690,3 +709,4 @@ export async function patchStudentStatusService(actorUserId, actorRole, userId, 
     return toStudentProfileResponse(freshRow, { ...freshRow, cohorts }, projectsResult.rows || []);
   });
 }
+

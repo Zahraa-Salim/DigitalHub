@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/app/adminRoutes.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/app/adminRoutes.tsx
+// Purpose: Defines dashboard app behavior for admin routes.
+// It wires route guards, layouts, and route configuration for the admin experience.
+
 import { lazy, type ReactNode } from "react";
 import type { AdminRole } from "../utils/auth";
 import { RequireSuperAdmin } from "./RequireSuperAdmin";
@@ -146,3 +144,4 @@ export const adminRoutes: AdminRoute[] = [
   },
   { path: "profile", element: <MyProfilePage /> },
 ];
+

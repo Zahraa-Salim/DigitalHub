@@ -1,9 +1,7 @@
-// File: frontend/src/utils/navigation.ts
-// What this code does:
-// 1) Provides shared frontend helpers and API client utilities.
-// 2) Centralizes fetch, parsing, and cross-page helper logic.
-// 3) Reduces duplicated behavior across pages/components.
-// 4) Exports reusable functions consumed by app modules.
+﻿// File: frontend/src/utils/navigation.ts
+// Purpose: Provides reusable frontend helpers for navigation.
+// It supports routing, state, or browser behavior shared by multiple components.
+
 import {
   useLocation,
   useNavigate,
@@ -30,3 +28,4 @@ export const useRouter = () => {
     forward: () => navigate(1),
   };
 };
+

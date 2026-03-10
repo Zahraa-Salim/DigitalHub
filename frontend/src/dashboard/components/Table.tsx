@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/Table.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/Table.tsx
+// Purpose: Renders the dashboard table component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import type { ReactNode } from "react";
 
 type TableColumn<T> = {
@@ -57,3 +55,4 @@ export function Table<T>({ columns, rows, rowKey, emptyMessage = "No records fou
     </div>
   );
 }
+

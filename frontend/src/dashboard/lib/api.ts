@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/lib/api.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/lib/api.ts
+// Purpose: Provides dashboard helper logic for API.
+// It keeps admin-specific text, API helpers, and derived behavior out of page components.
+
 import { api, apiList, type PaginationMeta } from "../utils/api";
 import { buildQueryString } from "../utils/query";
 
@@ -206,7 +204,7 @@ export type OverviewMessageRow = {
   application_id: number | null;
   program_application_id: number | null;
   channel: "email" | "whatsapp";
-  status: "sent" | "failed";
+  status: "draft" | "sent" | "failed";
   to_value: string;
   subject: string | null;
   body: string;
@@ -506,10 +504,10 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
 }
 
 export async function retryAdminOverviewFailedMessages(payload: {
-  channel: "email" | "whatsapp";
+  channel: "email" | "whatsapp" | "all";
   limit?: number;
 }): Promise<{
-  channel: "email" | "whatsapp";
+  channel: "email" | "whatsapp" | "all";
   attempted: number;
   retried: number;
   failed: number;
@@ -524,11 +522,29 @@ export async function retryAdminOverviewFailedMessages(payload: {
 export async function listOverviewMessages(params: {
   page?: number;
   limit?: number;
-  status?: "sent" | "failed";
+  status?: "draft" | "sent" | "failed";
   channel?: "all" | "email" | "whatsapp";
   search?: string;
 }): Promise<{ data: OverviewMessageRow[]; pagination: PaginationMeta }> {
   return apiList<OverviewMessageRow>(`/admin/overview/messages${buildQueryString(params)}`);
+}
+
+export async function resendOverviewMessage(messageId: number): Promise<OverviewMessageRow> {
+  return api(`/admin/overview/messages/${messageId}/resend`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteOverviewMessage(messageId: number): Promise<{
+  id: number;
+  deleted: boolean;
+  channel: "email" | "whatsapp";
+  status: "draft" | "sent" | "failed";
+}> {
+  return api(`/admin/overview/messages/${messageId}`, {
+    method: "DELETE",
+  });
 }
 
 export type AttendanceStatus = "present" | "absent" | "late";
@@ -634,3 +650,4 @@ export async function saveAttendanceSheet(payload: {
 export async function getStudentAttendanceHistory(userId: number, params?: { limit?: number }): Promise<StudentAttendanceHistory> {
   return api(`/attendance/students/${userId}${buildQueryString(params ?? {})}`);
 }
+

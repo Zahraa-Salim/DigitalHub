@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview-mock/ui/Input.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview-mock/ui/Input.tsx
+// Purpose: Renders the overview mock input primitive for dashboard demos.
+// It supports the mock overview panels with small reusable UI building blocks.
+
 import React, { useId } from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -39,3 +37,4 @@ export function Input({
     </div>
   );
 }
+

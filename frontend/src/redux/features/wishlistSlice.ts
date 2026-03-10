@@ -1,9 +1,7 @@
-// File: frontend/src/redux/features/wishlistSlice.ts
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/redux/features/wishlistSlice.ts
+// Purpose: Stores Redux state and reducers for wishlist slice.
+// It defines how this slice of frontend state is updated and selected.
+
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { setLocalStorage, getLocalStorage } from "@/utils/localstorage";
 
@@ -51,3 +49,4 @@ export const {
 } = wishlistSlice.actions;
 
 export default wishlistSlice.reducer;
+

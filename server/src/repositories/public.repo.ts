@@ -1,15 +1,17 @@
 // File: server/src/repositories/public.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+// Purpose: Runs the database queries used for public.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
-export async function countPublicResources(tableExpression, whereClause, params, db = pool) {
+import type { DbClient } from "../db/index.js";
+// Handles 'countPublicResources' workflow for this module.
+export async function countPublicResources(tableExpression, whereClause, params, db: DbClient = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM ${tableExpression} ${whereClause}`, params);
 }
-export async function listPublicResources(config, whereClause, sortBy, order, params, limit, offset, db = pool) {
+// Handles 'listPublicResources' workflow for this module.
+export async function listPublicResources(config, whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
     return db.query(`
       SELECT ${config.selectFields}
       FROM ${config.tableExpression}
@@ -19,7 +21,8 @@ export async function listPublicResources(config, whereClause, sortBy, order, pa
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
-export async function listPublicThemeTokens(db = pool) {
+// Handles 'listPublicThemeTokens' workflow for this module.
+export async function listPublicThemeTokens(db: DbClient = pool) {
     return db.query(`
       SELECT id, key, purpose, value, scope, updated_at
       FROM theme_tokens
@@ -27,14 +30,16 @@ export async function listPublicThemeTokens(db = pool) {
       ORDER BY id ASC
     `);
 }
-export async function listPublicHomeSections(db = pool) {
+// Handles 'listPublicHomeSections' workflow for this module.
+export async function listPublicHomeSections(db: DbClient = pool) {
     return db.query(`
       SELECT id, key, title, is_enabled, sort_order, content, updated_at
       FROM home_sections
       ORDER BY sort_order ASC, id ASC
     `);
 }
-export async function getPublicPageByKey(pageKey, db = pool) {
+// Handles 'getPublicPageByKey' workflow for this module.
+export async function getPublicPageByKey(pageKey, db: DbClient = pool) {
     return db.query(`
       SELECT id, key, title, content, is_published, updated_at
       FROM pages
@@ -43,14 +48,16 @@ export async function getPublicPageByKey(pageKey, db = pool) {
       LIMIT 1
     `, [pageKey]);
 }
-export async function getPublicSiteSettings(db = pool) {
+// Handles 'getPublicSiteSettings' workflow for this module.
+export async function getPublicSiteSettings(db: DbClient = pool) {
     return db.query(`
       SELECT id, site_name, default_event_location, contact_info, social_links, updated_at
       FROM site_settings
       WHERE id = 1
     `);
 }
-export async function getPublicStudentBySlug(publicSlug, db = pool) {
+// Handles 'getPublicStudentBySlug' workflow for this module.
+export async function getPublicStudentBySlug(publicSlug, db: DbClient = pool) {
     return db.query(`
       SELECT
         sp.user_id,
@@ -172,7 +179,8 @@ export async function getPublicStudentBySlug(publicSlug, db = pool) {
     `, [publicSlug]);
 }
 
-export async function getPublicEventBySlug(slug, db = pool) {
+// Handles 'getPublicEventBySlug' workflow for this module.
+export async function getPublicEventBySlug(slug, db: DbClient = pool) {
     return db.query(`
       SELECT e.id, e.slug, e.title, e.description, e.post_body, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.completion_image_urls, e.created_at, e.updated_at
       FROM events e
@@ -183,13 +191,17 @@ export async function getPublicEventBySlug(slug, db = pool) {
     `, [slug]);
 }
 
-export async function getPublicCohortById(cohortId, db = pool) {
+// Handles 'getPublicCohortById' workflow for this module.
+export async function getPublicCohortById(cohortId, db: DbClient = pool) {
     return db.query(`
       SELECT
         c.id,
         c.program_id,
         p.title AS program_title,
         p.image_url AS program_image_url,
+        p.summary AS program_summary,
+        p.description AS program_description,
+        p.requirements AS program_requirements,
         c.name,
         CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
         CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications,
@@ -214,7 +226,8 @@ export async function getPublicCohortById(cohortId, db = pool) {
     `, [cohortId]);
 }
 
-export async function listPublicCohortInstructors(cohortId, db = pool) {
+// Handles 'listPublicCohortInstructors' workflow for this module.
+export async function listPublicCohortInstructors(cohortId, db: DbClient = pool) {
     return db.query(`
       SELECT
         ip.user_id,
@@ -237,7 +250,8 @@ export async function listPublicCohortInstructors(cohortId, db = pool) {
     `, [cohortId]);
 }
 
-export async function listPublicCohortStudents(cohortId, db = pool) {
+// Handles 'listPublicCohortStudents' workflow for this module.
+export async function listPublicCohortStudents(cohortId, db: DbClient = pool) {
     return db.query(`
       SELECT
         sp.user_id,
@@ -270,14 +284,16 @@ export async function listPublicCohortStudents(cohortId, db = pool) {
     `, [cohortId]);
 }
 
-export async function programApplicationsTableExists(db = pool) {
+// Handles 'programApplicationsTableExists' workflow for this module.
+export async function programApplicationsTableExists(db: DbClient = pool) {
     const result = await db.query(`
       SELECT to_regclass('public.program_applications') IS NOT NULL AS exists
     `);
     return Boolean(result.rows[0]?.exists);
 }
 
-export async function getGeneralApplyForm(db = pool) {
+// Handles 'getGeneralApplyForm' workflow for this module.
+export async function getGeneralApplyForm(db: DbClient = pool) {
     return db.query(`
       SELECT id, key, title, description, is_active, updated_at
       FROM forms
@@ -294,7 +310,8 @@ export async function getGeneralApplyForm(db = pool) {
     `);
 }
 
-export async function listPublishedProgramOptions(db = pool) {
+// Handles 'listPublishedProgramOptions' workflow for this module.
+export async function listPublishedProgramOptions(db: DbClient = pool) {
     return db.query(`
       SELECT id, title, slug
       FROM programs
@@ -304,7 +321,8 @@ export async function listPublishedProgramOptions(db = pool) {
     `);
 }
 
-export async function listEnabledFormFieldsByFormId(formId, db = pool) {
+// Handles 'listEnabledFormFieldsByFormId' workflow for this module.
+export async function listEnabledFormFieldsByFormId(formId, db: DbClient = pool) {
     return db.query(`
       SELECT id, form_id, name, label, type, required, options, placeholder, sort_order, is_enabled
       FROM form_fields
@@ -314,7 +332,8 @@ export async function listEnabledFormFieldsByFormId(formId, db = pool) {
     `, [formId]);
 }
 
-export async function getPublishedProgramById(programId, db = pool) {
+// Handles 'getPublishedProgramById' workflow for this module.
+export async function getPublishedProgramById(programId, db: DbClient = pool) {
     return db.query(`
       SELECT id, title
       FROM programs
@@ -325,7 +344,8 @@ export async function getPublishedProgramById(programId, db = pool) {
     `, [programId]);
 }
 
-export async function findApplicantByEmailNorm(emailNorm, db = pool) {
+// Handles 'findApplicantByEmailNorm' workflow for this module.
+export async function findApplicantByEmailNorm(emailNorm, db: DbClient = pool) {
     return db.query(`
       SELECT id, full_name, email, phone
       FROM applicants
@@ -335,7 +355,8 @@ export async function findApplicantByEmailNorm(emailNorm, db = pool) {
     `, [emailNorm]);
 }
 
-export async function findApplicantByPhoneNorm(phoneNorm, db = pool) {
+// Handles 'findApplicantByPhoneNorm' workflow for this module.
+export async function findApplicantByPhoneNorm(phoneNorm, db: DbClient = pool) {
     return db.query(`
       SELECT id, full_name, email, phone
       FROM applicants
@@ -345,7 +366,8 @@ export async function findApplicantByPhoneNorm(phoneNorm, db = pool) {
     `, [phoneNorm]);
 }
 
-export async function createApplicantForPublicApply(fullName, email, phone, db = pool) {
+// Handles 'createApplicantForPublicApply' workflow for this module.
+export async function createApplicantForPublicApply(fullName, email, phone, db: DbClient = pool) {
     return db.query(`
       INSERT INTO applicants (full_name, email, phone, created_at)
       VALUES ($1, $2, $3, NOW())
@@ -353,7 +375,8 @@ export async function createApplicantForPublicApply(fullName, email, phone, db =
     `, [fullName, email, phone]);
 }
 
-export async function upsertProgramApplication(input, db = pool) {
+// Handles 'upsertProgramApplication' workflow for this module.
+export async function upsertProgramApplication(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO program_applications (
         program_id,
@@ -384,7 +407,8 @@ export async function upsertProgramApplication(input, db = pool) {
     ]);
 }
 
-export async function upsertProgramApplicationByPhone(input, db = pool) {
+// Handles 'upsertProgramApplicationByPhone' workflow for this module.
+export async function upsertProgramApplicationByPhone(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO program_applications (
         program_id,
@@ -414,5 +438,4 @@ export async function upsertProgramApplicationByPhone(input, db = pool) {
       input.submission_answers ?? {},
     ]);
 }
-
 

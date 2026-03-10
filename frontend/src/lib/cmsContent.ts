@@ -1,9 +1,7 @@
-// File: frontend/src/lib/cmsContent.ts
-// What this code does:
-// 1) Provides shared frontend helpers and API client utilities.
-// 2) Centralizes fetch, parsing, and cross-page helper logic.
-// 3) Reduces duplicated behavior across pages/components.
-// 4) Exports reusable functions consumed by app modules.
+﻿// File: frontend/src/lib/cmsContent.ts
+// Purpose: Normalizes CMS page content into frontend-friendly helper accessors.
+// It lets components read nested CMS values without repeating parsing logic.
+
 type CmsContent = Record<string, unknown> | null | undefined;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

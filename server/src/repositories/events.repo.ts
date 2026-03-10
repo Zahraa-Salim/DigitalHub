@@ -1,11 +1,11 @@
-// File: server/src/repositories/events.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/events.repo.ts
+// Purpose: Runs the database queries used for events.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
+// Handles 'createEvent' workflow for this module.
 export async function createEvent(input, db = pool) {
     return db.query(`
       INSERT INTO events
@@ -27,10 +27,12 @@ export async function createEvent(input, db = pool) {
         input.created_by,
     ]);
 }
+// Handles 'countEvents' workflow for this module.
 export async function countEvents(whereClause, params, db = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`SELECT COUNT(*)::int AS total FROM events ${scopedWhere}`, params);
 }
+// Handles 'listEvents' workflow for this module.
 export async function listEvents(whereClause, sortBy, order, params, limit, offset, db = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
@@ -42,6 +44,7 @@ export async function listEvents(whereClause, sortBy, order, params, limit, offs
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'updateEvent' workflow for this module.
 export async function updateEvent(id, setClause, values, db = pool) {
     return db.query(`
       UPDATE events
@@ -51,6 +54,7 @@ export async function updateEvent(id, setClause, values, db = pool) {
       RETURNING *
     `, [...values, id]);
 }
+// Handles 'deleteEvent' workflow for this module.
 export async function deleteEvent(id, db = pool) {
     return db.query(`
       UPDATE events
@@ -60,6 +64,7 @@ export async function deleteEvent(id, db = pool) {
       RETURNING id
     `, [id]);
 }
+// Handles 'markEventDone' workflow for this module.
 export async function markEventDone(id, db = pool) {
     return db.query(`
       UPDATE events
@@ -69,5 +74,4 @@ export async function markEventDone(id, db = pool) {
       RETURNING *
     `, [id]);
 }
-
 

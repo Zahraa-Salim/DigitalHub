@@ -1,13 +1,23 @@
 // File: server/src/utils/appError.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
+// Purpose: Provides shared helper logic for app error.
+// It supports other backend modules with reusable utility functions.
+
+
 import { errorCodes } from "../constants/errorCodes.js";
+
+type KnownErrorCode = (typeof errorCodes)[number];
+
 export class AppError extends Error {
-    constructor(statusCode, codeOrMessage, messageOrDetails, details) {
+    statusCode: number;
+    code: KnownErrorCode | string;
+    details?: unknown;
+
+    constructor(
+        statusCode: number,
+        codeOrMessage: string,
+        messageOrDetails?: string | unknown,
+        details?: unknown,
+    ) {
         if (typeof messageOrDetails === "string" && errorCodes.includes(codeOrMessage)) {
             super(messageOrDetails);
             this.code = codeOrMessage;
@@ -21,7 +31,8 @@ export class AppError extends Error {
         this.statusCode = statusCode;
     }
 }
-function defaultErrorCodeForStatus(statusCode) {
+// Handles 'defaultErrorCodeForStatus' workflow for this module.
+function defaultErrorCodeForStatus(statusCode: number): KnownErrorCode {
     switch (statusCode) {
         case 400:
         case 409:
@@ -39,5 +50,4 @@ function defaultErrorCodeForStatus(statusCode) {
             return "INTERNAL_ERROR";
     }
 }
-
 

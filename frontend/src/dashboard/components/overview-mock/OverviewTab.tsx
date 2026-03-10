@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview-mock/OverviewTab.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview-mock/OverviewTab.tsx
+// Purpose: Renders the mock overview overview tab panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QuickActionsBar } from './QuickActionsBar';
@@ -17,7 +15,11 @@ import { ActivityFeedPanel } from './ActivityFeedPanel';
 import { CohortCapacityPanel } from './CohortCapacityPanel';
 import { WeeklySnapshotPanel } from './WeeklySnapshotPanel';
 import { SuperAdminPanel } from './SuperAdminPanel';
-import { getAdminOverview, type AdminOverviewData } from '../../lib/api';
+import {
+  getAdminOverview,
+  retryAdminOverviewFailedMessages,
+  type AdminOverviewData,
+} from '../../lib/api';
 import { ApiError } from '../../utils/api';
 import { getUser, isSuperAdminUser } from '../../utils/auth';
 
@@ -36,6 +38,9 @@ export function OverviewTab() {
   const [data, setData] = useState<AdminOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retryingChannel, setRetryingChannel] = useState<'all' | 'email' | 'whatsapp' | null>(null);
+  const [messagingActionError, setMessagingActionError] = useState('');
+  const [messagingActionSuccess, setMessagingActionSuccess] = useState('');
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -87,12 +92,32 @@ export function OverviewTab() {
     return null;
   }, [data, searchParams]);
 
-  const openMessagesPage = (channel: 'email' | 'whatsapp', status: 'sent' | 'failed') => {
+  const openMessagesPage = (channel: 'all' | 'email' | 'whatsapp', status: 'draft' | 'sent' | 'failed') => {
     const params = new URLSearchParams();
     params.set('channel', channel);
     params.set('status', status);
     navigate(`/admin/messages?${params.toString()}`);
   };
+
+  const retryFailedMessages = useCallback(
+    async (channel: 'all' | 'email' | 'whatsapp') => {
+      setRetryingChannel(channel);
+      setMessagingActionError('');
+      setMessagingActionSuccess('');
+      try {
+        const result = await retryAdminOverviewFailedMessages({ channel, limit: 200 });
+        setMessagingActionSuccess(
+          `Resend completed for ${channel}: retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`,
+        );
+        await loadOverview();
+      } catch (err) {
+        setMessagingActionError(err instanceof ApiError ? err.message : 'Failed to resend failed messages.');
+      } finally {
+        setRetryingChannel(null);
+      }
+    },
+    [loadOverview],
+  );
 
   const handlePipelineAction = (key: keyof AdminOverviewData['pipelineHealth']) => {
     const params = new URLSearchParams();
@@ -175,10 +200,24 @@ export function OverviewTab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MessagingHealthPanel
-          messagingHealth={data.messagingHealth}
-          onViewMessages={openMessagesPage}
-        />
+        <div className="space-y-3">
+          {messagingActionError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {messagingActionError}
+            </div>
+          ) : null}
+          {messagingActionSuccess ? (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {messagingActionSuccess}
+            </div>
+          ) : null}
+          <MessagingHealthPanel
+            messagingHealth={data.messagingHealth}
+            onOpenMessages={openMessagesPage}
+            onRetryFailed={retryFailedMessages}
+            retryingChannel={retryingChannel}
+          />
+        </div>
         <CohortConfigPanel cohortConfigIssues={data.cohortConfigIssues} />
       </div>
 
@@ -207,3 +246,4 @@ export function OverviewTab() {
     </div>
   );
 }
+

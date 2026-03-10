@@ -1,10 +1,9 @@
-// File: server/src/routes/programs.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/programs.routes.ts
+// Purpose: Registers the Express routes for programs.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { assignCohortForm } from "../controllers/forms.controller.js";
 import { assignCohortInstructor, closeCohort, createCohort, createProgram, deleteCohort, deleteProgram, getCohortInstructors, getCohorts, getPrograms, openCohort, patchCohort, patchProgram, postProgramImage, unassignCohortInstructor, } from "../controllers/programs.controller.js";
@@ -30,5 +29,4 @@ programsRouter.get("/cohorts/:id/instructors", verifyAdminAuth, validateRequest(
 programsRouter.post("/cohorts/:id/instructors", verifyAdminAuth, validateRequest({ params: idParamsSchema, body: cohortInstructorBodySchema }), asyncHandler(assignCohortInstructor));
 programsRouter.delete("/cohorts/:id/instructors/:instructorUserId", verifyAdminAuth, validateRequest({ params: cohortInstructorParamsSchema }), asyncHandler(unassignCohortInstructor));
 export { programsRouter };
-
 

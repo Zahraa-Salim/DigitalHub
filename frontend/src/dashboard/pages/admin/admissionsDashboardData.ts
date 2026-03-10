@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/admissionsDashboardData.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/admissionsDashboardData.ts
+// Purpose: Contains frontend code for admissions dashboard data.
+// It supports this part of the user interface and page behavior.
+
 export type ApplicationStage =
   | "Applied"
   | "Reviewing"
@@ -281,3 +279,4 @@ export function formatDate(dateStr: string): string {
     year: "numeric",
   });
 }
+

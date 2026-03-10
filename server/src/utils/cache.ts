@@ -1,13 +1,12 @@
 // File: server/src/utils/cache.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
+// Purpose: Provides shared helper logic for cache.
+// It supports other backend modules with reusable utility functions.
+
+
 import { getRedis } from "./redis.js";
 
-export async function cacheGetJson(key) {
+// Handles 'cacheGetJson' workflow for this module.
+export async function cacheGetJson<T = unknown>(key: string): Promise<T | null> {
   const redis = getRedis();
   if (!redis) {
     return null;
@@ -19,13 +18,14 @@ export async function cacheGetJson(key) {
       return null;
     }
 
-    return JSON.parse(raw);
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
 }
 
-export async function cacheSetJson(key, value, ttlSec) {
+// Handles 'cacheSetJson' workflow for this module.
+export async function cacheSetJson(key: string, value: unknown, ttlSec: number): Promise<void> {
   const redis = getRedis();
   if (!redis) {
     return;
@@ -37,7 +37,8 @@ export async function cacheSetJson(key, value, ttlSec) {
   }
 }
 
-export async function cacheDel(keys) {
+// Handles 'cacheDel' workflow for this module.
+export async function cacheDel(keys: string | string[]): Promise<void> {
   const redis = getRedis();
   if (!redis) {
     return;
@@ -53,3 +54,4 @@ export async function cacheDel(keys) {
   } catch {
   }
 }
+

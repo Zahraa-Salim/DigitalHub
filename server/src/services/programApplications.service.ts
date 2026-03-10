@@ -1,10 +1,8 @@
 // File: server/src/services/programApplications.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for program applications.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { withTransaction } from "../db/index.js";
@@ -46,6 +44,15 @@ import { buildSearchClause } from "../utils/sql.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { sendDigitalHubEmail } from "../utils/mailer.js";
 import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
+import type { DbClient } from "../db/index.js";
+
+type AnyRecord = Record<string, any>;
+type QueryParams = Record<string, any>;
+type DeliveryChannels = {
+  email?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+};
 
 const STAGES = [
   "applied",
@@ -57,13 +64,15 @@ const STAGES = [
   "participation_confirmed",
 ];
 
-function normalizeReviewMessage(value) {
+// Handles 'normalizeReviewMessage' workflow for this module.
+function normalizeReviewMessage(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
 
-function buildInterviewLinks(token) {
+// Handles 'buildInterviewLinks' workflow for this module.
+function buildInterviewLinks(token: string) {
   const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
   return {
     confirm_url: `${baseApi}/public/interviews/${token}/confirm`,
@@ -71,11 +80,13 @@ function buildInterviewLinks(token) {
   };
 }
 
-function buildParticipationConfirmLink(token) {
+// Handles 'buildParticipationConfirmLink' workflow for this module.
+function buildParticipationConfirmLink(token: string) {
   const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
   return `${baseApi}/public/participation/${token}/confirm`;
 }
 
+// Handles 'buildLearnerSignInUrl' workflow for this module.
 function buildLearnerSignInUrl() {
   return (
     process.env.LEARNER_SIGNIN_URL ||
@@ -85,16 +96,23 @@ function buildLearnerSignInUrl() {
   );
 }
 
-function formatTemplateDate(value) {
+// Handles 'formatTemplateDate' workflow for this module.
+function formatTemplateDate(value: unknown) {
   if (!value) return "";
-  const date = new Date(value);
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "string" || typeof value === "number"
+        ? new Date(value)
+        : new Date(String(value));
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
   return date.toUTCString();
 }
 
-function renderTemplateString(input, tokens) {
+// Handles 'renderTemplateString' workflow for this module.
+function renderTemplateString(input: unknown, tokens: Record<string, unknown>) {
   return String(input ?? "").replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, (match, rawKey) => {
     const key = String(rawKey || "").trim();
     if (!(key in tokens)) return match;
@@ -103,7 +121,8 @@ function renderTemplateString(input, tokens) {
   });
 }
 
-async function buildProgramApplicationMessageTokens(programApplicationId, client) {
+// Handles 'buildProgramApplicationMessageTokens' workflow for this module.
+async function buildProgramApplicationMessageTokens(programApplicationId: number, client: DbClient) {
   const [applicationResult, interviewResult] = await Promise.all([
     getProgramApplicationById(programApplicationId, client),
     getInterviewByProgramApplicationId(programApplicationId, client),
@@ -146,34 +165,40 @@ async function buildProgramApplicationMessageTokens(programApplicationId, client
   };
 }
 
-function sanitizeSortBy(value) {
+// Handles 'sanitizeSortBy' workflow for this module.
+function sanitizeSortBy(value: unknown) {
   if (value === "updated_at" || value === "stage") {
     return value;
   }
   return "created_at";
 }
 
-function sanitizeOrder(value) {
+// Handles 'sanitizeOrder' workflow for this module.
+function sanitizeOrder(value: unknown) {
   return value === "asc" ? "asc" : "desc";
 }
 
-function normalizeEmail(value) {
+// Handles 'normalizeEmail' workflow for this module.
+function normalizeEmail(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toLowerCase();
   return trimmed || null;
 }
 
-function normalizePhone(value) {
+// Handles 'normalizePhone' workflow for this module.
+function normalizePhone(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed || null;
 }
 
-function isDbError(error, code) {
+// Handles 'isDbError' workflow for this module.
+function isDbError(error: unknown, code: string) {
   return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 
-async function ensureProgramApplicationsReady(client = null) {
+// Handles 'ensureProgramApplicationsReady' workflow for this module.
+async function ensureProgramApplicationsReady(client: DbClient | null = null) {
   const exists = await programApplicationsTableExists(client ?? undefined);
   if (!exists) {
     throw new AppError(
@@ -184,7 +209,8 @@ async function ensureProgramApplicationsReady(client = null) {
   }
 }
 
-function toChannelStorage(channel) {
+// Handles 'toChannelStorage' workflow for this module.
+function toChannelStorage(channel: string) {
   if (channel === "whatsapp") {
     return {
       channel: "sms",
@@ -203,14 +229,20 @@ function toChannelStorage(channel) {
   };
 }
 
-async function dispatchProgramApplicationMessages(programApplicationId, actorUserId, drafts, client) {
+// Handles 'dispatchProgramApplicationMessages' workflow for this module.
+async function dispatchProgramApplicationMessages(
+  programApplicationId: number,
+  actorUserId: number,
+  drafts: AnyRecord[],
+  client: DbClient,
+) {
   if (!Array.isArray(drafts) || !drafts.length) {
     return { sentMessages: [], failedMessages: [], skippedCount: 0 };
   }
 
   const tokens = await buildProgramApplicationMessageTokens(programApplicationId, client);
-  const sentMessages = [];
-  const failedMessages = [];
+  const sentMessages: AnyRecord[] = [];
+  const failedMessages: AnyRecord[] = [];
   let skippedCount = 0;
 
   for (const draft of drafts) {
@@ -288,7 +320,7 @@ async function dispatchProgramApplicationMessages(programApplicationId, actorUse
         subject: renderedSubject,
         body: renderedBody,
       });
-    } catch (error) {
+    } catch (error: any) {
       const failedResult = await markProgramApplicationMessageFailed(
         programApplicationId,
         messageId,
@@ -343,13 +375,14 @@ async function dispatchProgramApplicationMessages(programApplicationId, actorUse
   return { sentMessages, failedMessages, skippedCount };
 }
 
+// Handles 'sendAccountCredentialsMessageForProgramApplication' workflow for this module.
 async function sendAccountCredentialsMessageForProgramApplication(
-  programApplicationId,
-  application,
-  actorUserId,
-  generatedPassword,
-  deliveryChannels,
-  client,
+  programApplicationId: number,
+  application: AnyRecord,
+  actorUserId: number,
+  generatedPassword: string | null,
+  client: DbClient,
+  deliveryChannels?: DeliveryChannels,
 ) {
   const templateKey = generatedPassword ? "account_credentials" : "account_existing_reminder";
   const templateResult = await getMessageTemplateByKey(templateKey, client);
@@ -381,8 +414,8 @@ async function sendAccountCredentialsMessageForProgramApplication(
   const useEmail = allowEmail && Boolean(emailValue) && !emailValue.endsWith("@digitalhub.local");
   const useWhatsApp = allowWhatsApp && Boolean(phoneValue);
 
-  const sentMessages = [];
-  const failedMessages = [];
+  const sentMessages: AnyRecord[] = [];
+  const failedMessages: AnyRecord[] = [];
 
   if (!allowEmail && !allowWhatsApp) {
     return { sentMessages, failedMessages, skipped: true, reason: "channels_disabled" };
@@ -414,7 +447,7 @@ async function sendAccountCredentialsMessageForProgramApplication(
         await markProgramApplicationMessageSent(programApplicationId, messageId, subject, body, client);
         sentMessages.push({ channel: "email", to: emailValue, message_id: messageId });
       }
-    } catch (error) {
+    } catch (error: any) {
       failedMessages.push({ channel: "email", to: emailValue, error: String(error?.message || error) });
       await createProgramApplicationMessageDraft(
         {
@@ -454,7 +487,7 @@ async function sendAccountCredentialsMessageForProgramApplication(
         await markProgramApplicationMessageSent(programApplicationId, messageId, null, body, client);
         sentMessages.push({ channel: "sms", to: phoneValue, message_id: messageId });
       }
-    } catch (error) {
+    } catch (error: any) {
       failedMessages.push({ channel: "sms", to: phoneValue, error: String(error?.message || error) });
       await createProgramApplicationMessageDraft(
         {
@@ -476,7 +509,8 @@ async function sendAccountCredentialsMessageForProgramApplication(
   return { sentMessages, failedMessages, skipped: false };
 }
 
-export async function listProgramApplicationsService(query) {
+// Handles 'listProgramApplicationsService' workflow for this module.
+export async function listProgramApplicationsService(query: QueryParams) {
   await ensureProgramApplicationsReady();
   const page = Math.max(1, Number(query.page ?? 1));
   const limit = Math.min(100, Math.max(1, Number(query.limit ?? 10)));
@@ -484,8 +518,8 @@ export async function listProgramApplicationsService(query) {
   const sortBy = sanitizeSortBy(query.sortBy);
   const order = sanitizeOrder(query.order);
 
-  const where = [];
-  const params = [];
+  const where: string[] = [];
+  const params: Array<string | number | boolean | null> = [];
 
   const stage = query.stage ?? query.status;
   if (stage) {
@@ -523,7 +557,8 @@ export async function listProgramApplicationsService(query) {
   };
 }
 
-export async function getProgramApplicationDetailService(programApplicationId) {
+// Handles 'getProgramApplicationDetailService' workflow for this module.
+export async function getProgramApplicationDetailService(programApplicationId: number) {
   await ensureProgramApplicationsReady();
   const [applicationResult, interviewResult, messagesResult] = await Promise.all([
     getProgramApplicationById(programApplicationId),
@@ -560,8 +595,13 @@ export async function getProgramApplicationDetailService(programApplicationId) {
   };
 }
 
-export async function patchProgramApplicationStageService(programApplicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchProgramApplicationStageService' workflow for this module.
+export async function patchProgramApplicationStageService(
+  programApplicationId: number,
+  actorUserId: number,
+  payload: AnyRecord,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const nextStage = payload.stage ?? payload.status;
     if (!nextStage || !STAGES.includes(nextStage)) {
@@ -618,8 +658,13 @@ export async function patchProgramApplicationStageService(programApplicationId, 
   });
 }
 
-export async function scheduleProgramApplicationInterviewService(programApplicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'scheduleProgramApplicationInterviewService' workflow for this module.
+export async function scheduleProgramApplicationInterviewService(
+  programApplicationId: number,
+  actorUserId: number,
+  payload: AnyRecord,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!applicationResult.rowCount) {
@@ -657,7 +702,7 @@ export async function scheduleProgramApplicationInterviewService(programApplicat
     );
 
     const channels = payload.channels ?? {};
-    const outboundMessages = [];
+    const outboundMessages: AnyRecord[] = [];
 
     if (channels.email) {
       const toValue = application.applicant_email;
@@ -743,8 +788,9 @@ export async function scheduleProgramApplicationInterviewService(programApplicat
   });
 }
 
-export async function markProgramApplicationInterviewCompletedService(programApplicationId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'markProgramApplicationInterviewCompletedService' workflow for this module.
+export async function markProgramApplicationInterviewCompletedService(programApplicationId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const appResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!appResult.rowCount) {
@@ -785,7 +831,8 @@ export async function markProgramApplicationInterviewCompletedService(programApp
   });
 }
 
-export async function listProgramApplicationMessagesService(programApplicationId) {
+// Handles 'listProgramApplicationMessagesService' workflow for this module.
+export async function listProgramApplicationMessagesService(programApplicationId: number) {
   await ensureProgramApplicationsReady();
   const [applicationResult, messagesResult] = await Promise.all([
     getProgramApplicationById(programApplicationId),
@@ -802,8 +849,13 @@ export async function listProgramApplicationMessagesService(programApplicationId
   };
 }
 
-export async function createProgramApplicationMessageService(programApplicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createProgramApplicationMessageService' workflow for this module.
+export async function createProgramApplicationMessageService(
+  programApplicationId: number,
+  actorUserId: number,
+  payload: AnyRecord,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!applicationResult.rowCount) {
@@ -867,7 +919,7 @@ export async function createProgramApplicationMessageService(programApplicationI
           subject: renderedSubject,
           body: renderedBody,
         };
-      } catch (error) {
+      } catch (error: any) {
         sendError = String(error?.message || error);
         const failedResult = await markProgramApplicationMessageFailed(
           programApplicationId,
@@ -935,8 +987,13 @@ export async function createProgramApplicationMessageService(programApplicationI
   });
 }
 
-export async function sendProgramApplicationMessageService(programApplicationId, messageId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'sendProgramApplicationMessageService' workflow for this module.
+export async function sendProgramApplicationMessageService(
+  programApplicationId: number,
+  messageId: number,
+  actorUserId: number,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const draftResult = await getProgramApplicationMessageForSend(programApplicationId, messageId, client);
     if (!draftResult.rowCount) {
@@ -995,7 +1052,7 @@ export async function sendProgramApplicationMessageService(programApplicationId,
       );
 
       return sentMessage;
-    } catch (error) {
+    } catch (error: any) {
       const failedResult = await markProgramApplicationMessageFailed(
         programApplicationId,
         messageId,
@@ -1032,7 +1089,8 @@ export async function sendProgramApplicationMessageService(programApplicationId,
   });
 }
 
-export async function retryProgramApplicationMessageService(messageId, actorUserId) {
+// Handles 'retryProgramApplicationMessageService' workflow for this module.
+export async function retryProgramApplicationMessageService(messageId: number, actorUserId: number) {
   await ensureProgramApplicationsReady();
   const messageResult = await getProgramApplicationMessageById(messageId);
   if (!messageResult.rowCount) {
@@ -1047,8 +1105,13 @@ export async function retryProgramApplicationMessageService(messageId, actorUser
   return sendProgramApplicationMessageService(Number(message.program_application_id), messageId, actorUserId);
 }
 
-export async function decideProgramApplicationService(programApplicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'decideProgramApplicationService' workflow for this module.
+export async function decideProgramApplicationService(
+  programApplicationId: number,
+  actorUserId: number,
+  payload: AnyRecord,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!applicationResult.rowCount) {
@@ -1081,7 +1144,7 @@ export async function decideProgramApplicationService(programApplicationId, acto
     }
 
     const channels = payload.channels ?? {};
-    const outboundMessages = [];
+    const outboundMessages: AnyRecord[] = [];
     if (channels.email) {
       const toValue = applicationResult.rows[0].applicant_email;
       if (!toValue) {
@@ -1160,8 +1223,13 @@ export async function decideProgramApplicationService(programApplicationId, acto
   });
 }
 
-export async function confirmProgramApplicationParticipationService(programApplicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'confirmProgramApplicationParticipationService' workflow for this module.
+export async function confirmProgramApplicationParticipationService(
+  programApplicationId: number,
+  actorUserId: number,
+  payload: AnyRecord,
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!applicationResult.rowCount) {
@@ -1212,8 +1280,13 @@ export async function confirmProgramApplicationParticipationService(programAppli
   });
 }
 
-export async function createUserFromProgramApplicationService(programApplicationId, actorUserId, options = {}) {
-  return withTransaction(async (client) => {
+// Handles 'createUserFromProgramApplicationService' workflow for this module.
+export async function createUserFromProgramApplicationService(
+  programApplicationId: number,
+  actorUserId: number,
+  options: { channels?: DeliveryChannels } = {},
+) {
+  return withTransaction(async (client: DbClient) => {
     await ensureProgramApplicationsReady(client);
     const applicationResult = await getProgramApplicationForUpdate(programApplicationId, client);
     if (!applicationResult.rowCount) {
@@ -1221,7 +1294,7 @@ export async function createUserFromProgramApplicationService(programApplication
     }
 
     const application = applicationResult.rows[0];
-    const requestedChannels = options?.channels ?? {};
+  const requestedChannels: DeliveryChannels = options?.channels ?? {};
     const deliveryChannels = {
       email: requestedChannels.email !== false,
       sms: (requestedChannels.whatsapp ?? requestedChannels.sms) !== false,
@@ -1234,8 +1307,8 @@ export async function createUserFromProgramApplicationService(programApplication
         application,
         actorUserId,
         null,
-        deliveryChannels,
         client,
+        deliveryChannels,
       );
 
       return {
@@ -1274,7 +1347,7 @@ export async function createUserFromProgramApplicationService(programApplication
       try {
         const inserted = await createStudentUserForProgramApplication(fallbackEmail, fallbackPhone, hash, client);
         userId = Number(inserted.rows[0].id);
-      } catch (error) {
+      } catch (error: any) {
         if (isDbError(error, "23505")) {
           const fallbackResult = fallbackEmail ? await findUserByEmail(fallbackEmail, client) : await findUserByPhone(fallbackPhone, client);
           if (!fallbackResult.rowCount) throw error;
@@ -1302,8 +1375,8 @@ export async function createUserFromProgramApplicationService(programApplication
       application,
       actorUserId,
       generatedPassword,
-      deliveryChannels,
       client,
+      deliveryChannels,
     );
 
     await logAdminAction(
@@ -1335,3 +1408,4 @@ export async function createUserFromProgramApplicationService(programApplication
     };
   });
 }
+

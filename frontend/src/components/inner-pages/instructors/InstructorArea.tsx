@@ -1,9 +1,7 @@
-// File: frontend/src/components/inner-pages/instructors/InstructorArea.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/inner-pages/instructors/InstructorArea.tsx
+// Purpose: Renders the instructor area UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -140,3 +138,4 @@ export default function InstructorArea() {
     </section>
   );
 }
+

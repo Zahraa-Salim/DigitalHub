@@ -1,10 +1,9 @@
-// File: server/src/schemas/projects.schema.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/schemas/projects.schema.ts
+// Purpose: Defines the Zod schemas for projects.
+// It describes the request shapes and validation rules used before service logic runs.
+
 // @ts-nocheck
+
 import { z } from "zod";
 
 const nullableUrlSchema = z.string().trim().url().nullable();
@@ -46,3 +45,4 @@ export const projectPatchSchema = z
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one field is required.",
   });
+

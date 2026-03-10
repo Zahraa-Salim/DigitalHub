@@ -1,9 +1,7 @@
-// File: frontend/src/lib/programCardStyle.ts
-// What this code does:
-// 1) Provides shared frontend helpers and API client utilities.
-// 2) Centralizes fetch, parsing, and cross-page helper logic.
-// 3) Reduces duplicated behavior across pages/components.
-// 4) Exports reusable functions consumed by app modules.
+﻿// File: frontend/src/lib/programCardStyle.ts
+// Purpose: Provides frontend helper logic for program card style.
+// It supports shared data, API, or formatting behavior used across the app.
+
 import type { PublicSiteSettings } from "@/lib/publicApi";
 
 export type ProgramCardStyle = "modern" | "classic";
@@ -21,3 +19,4 @@ export function resolveProgramCardStyle(siteSettings: PublicSiteSettings | null 
   }
   return DEFAULT_PROGRAM_CARD_STYLE;
 }
+

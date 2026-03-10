@@ -1,15 +1,22 @@
 // File: server/src/services/logs.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for logs.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { logsFiltersSchema } from "../schemas/logs.schemas.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { countLogs, listLogs } from "../repositories/logs.repo.js";
-export async function listActivityLogsService(query) {
+
+type LogsQuery = Record<string, unknown> & {
+    actor_user_id?: string | number;
+    action?: string;
+    entity_type?: string;
+    date_from?: string;
+    date_to?: string;
+};
+// Handles 'listActivityLogsService' workflow for this module.
+export async function listActivityLogsService(query: LogsQuery) {
     const list = parseListQuery(query, ["id", "created_at", "action", "entity_type", "actor_user_id"], "created_at");
     const filters = logsFiltersSchema.parse({
         actor_user_id: query.actor_user_id,
@@ -18,8 +25,8 @@ export async function listActivityLogsService(query) {
         date_from: query.date_from,
         date_to: query.date_to,
     });
-    const params = [];
-    const where = [];
+    const params: Array<string | number> = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["message", "action", "entity_type"], params.length));
@@ -53,5 +60,4 @@ export async function listActivityLogsService(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-
 

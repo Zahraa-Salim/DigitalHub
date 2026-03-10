@@ -1614,6 +1614,98 @@ ON CONFLICT (slug) DO UPDATE SET
   done_at=EXCLUDED.done_at,
   updated_at=NOW();
 
+-- Completed event with post content + gallery images
+INSERT INTO events (
+  slug, title, description, post_body, location,
+  starts_at, ends_at, is_published, is_done, done_at,
+  auto_announce, completion_image_urls, featured_image_url, created_by
+)
+VALUES
+  (
+    'alumni-demo-day-2025',
+    'Alumni Demo Day 2025',
+    'A completed showcase event where alumni teams presented production-ready products to hiring partners and mentors.',
+    'Alumni Demo Day 2025 concluded with capstone demos, recruiter Q&A panels, and portfolio reviews. Teams presented full-stack, UI/UX, and automation projects, followed by 1:1 networking with partner companies.',
+    'Digital Hub Main Campus, Beirut',
+    '2025-11-12T15:00:00.000Z',
+    '2025-11-12T18:30:00.000Z',
+    TRUE,
+    TRUE,
+    '2025-11-12T19:00:00.000Z',
+    FALSE,
+    '["/assets/img/events/event_details_img.jpg","/assets/img/events/event_details_img02.jpg","/assets/img/events/event_thumb08.jpg"]'::jsonb,
+    '/assets/img/events/event_thumb07.jpg',
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  )
+ON CONFLICT (slug) DO UPDATE SET
+  title=EXCLUDED.title,
+  description=EXCLUDED.description,
+  post_body=EXCLUDED.post_body,
+  location=EXCLUDED.location,
+  starts_at=EXCLUDED.starts_at,
+  ends_at=EXCLUDED.ends_at,
+  is_published=EXCLUDED.is_published,
+  is_done=EXCLUDED.is_done,
+  done_at=EXCLUDED.done_at,
+  auto_announce=EXCLUDED.auto_announce,
+  completion_image_urls=EXCLUDED.completion_image_urls,
+  featured_image_url=EXCLUDED.featured_image_url,
+  updated_at=NOW();
+
+-- Two additional completed events with full post details and gallery images
+INSERT INTO events (
+  slug, title, description, post_body, location,
+  starts_at, ends_at, is_published, is_done, done_at,
+  auto_announce, completion_image_urls, featured_image_url, created_by
+)
+VALUES
+  (
+    'design-sprint-showcase-2025',
+    'Design Sprint Showcase 2025',
+    'A completed design sprint showcase featuring UX case studies, user testing insights, and prototype demos.',
+    'Design Sprint Showcase 2025 brought together product mentors and design teams for final critiques. Participants presented problem statements, user journeys, hi-fidelity prototypes, and usability testing findings, followed by feedback sessions with partner companies.',
+    'Digital Hub Creative Lab, Beirut',
+    '2025-09-18T14:00:00.000Z',
+    '2025-09-18T17:30:00.000Z',
+    TRUE,
+    TRUE,
+    '2025-09-18T18:00:00.000Z',
+    FALSE,
+    '["/assets/img/events/event_thumb05.jpg","/assets/img/events/event_thumb06.jpg","/assets/img/events/event_details_img.jpg"]'::jsonb,
+    '/assets/img/events/h4_event_thumb02.jpg',
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  ),
+  (
+    'automation-bootcamp-wrapup-2025',
+    'Automation Bootcamp Wrap-up 2025',
+    'A completed graduation event for the automation track with project walkthroughs and mentor-led retrospectives.',
+    'Automation Bootcamp Wrap-up 2025 concluded with end-to-end workflow demos, API integration showcases, and deployment reviews. Learners demonstrated automation pipelines for CRM sync, messaging workflows, and reporting dashboards before the final certification ceremony.',
+    'Digital Hub Operations Hall, Beirut',
+    '2025-10-22T13:30:00.000Z',
+    '2025-10-22T16:45:00.000Z',
+    TRUE,
+    TRUE,
+    '2025-10-22T17:15:00.000Z',
+    FALSE,
+    '["/assets/img/events/event_thumb07.jpg","/assets/img/events/event_thumb08.jpg","/assets/img/events/event_details_img02.jpg"]'::jsonb,
+    '/assets/img/events/h4_event_thumb03.jpg',
+    (SELECT id FROM users WHERE email='admin@digitalhub.com' ORDER BY id ASC LIMIT 1)
+  )
+ON CONFLICT (slug) DO UPDATE SET
+  title=EXCLUDED.title,
+  description=EXCLUDED.description,
+  post_body=EXCLUDED.post_body,
+  location=EXCLUDED.location,
+  starts_at=EXCLUDED.starts_at,
+  ends_at=EXCLUDED.ends_at,
+  is_published=EXCLUDED.is_published,
+  is_done=EXCLUDED.is_done,
+  done_at=EXCLUDED.done_at,
+  auto_announce=EXCLUDED.auto_announce,
+  completion_image_urls=EXCLUDED.completion_image_urls,
+  featured_image_url=EXCLUDED.featured_image_url,
+  updated_at=NOW();
+
 -- =========================================================
 -- 12) CONTACT MESSAGES (visitor + recruiter visit request)
 -- =========================================================

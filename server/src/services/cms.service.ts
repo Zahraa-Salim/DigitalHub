@@ -1,10 +1,8 @@
 // File: server/src/services/cms.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for CMS.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -25,7 +23,25 @@ const CMS_MEDIA_MIME_TO_EXT = {
     "image/svg+xml": "svg",
 };
 const MAX_CMS_MEDIA_BYTES = 6 * 1024 * 1024;
-function sanitizeFilenamePart(value) {
+
+type CmsQuery = Record<string, unknown>;
+
+type CmsMediaPayload = {
+    mime_type?: string;
+    data_base64?: string;
+    filename?: string | null;
+    alt_text?: string | null;
+    tags?: unknown;
+};
+
+type CmsThemeTokenPayload = {
+    key: string;
+    purpose: string;
+    value: string;
+    scope: string;
+};
+// Handles 'sanitizeFilenamePart' workflow for this module.
+function sanitizeFilenamePart(value: unknown): string {
     return String(value || "media")
         .toLowerCase()
         .replace(/\.[a-z0-9]+$/i, "")
@@ -34,7 +50,8 @@ function sanitizeFilenamePart(value) {
         .replace(/^-|-$/g, "")
         .slice(0, 48) || "media";
 }
-function normalizeTagList(values) {
+// Handles 'normalizeTagList' workflow for this module.
+function normalizeTagList(values: unknown): string[] {
     if (!Array.isArray(values)) {
         return [];
     }
@@ -43,7 +60,8 @@ function normalizeTagList(values) {
         .filter(Boolean)
         .slice(0, 20)));
 }
-function decodeBase64Image(input) {
+// Handles 'decodeBase64Image' workflow for this module.
+function decodeBase64Image(input: unknown): Buffer {
     const raw = String(input || "").trim();
     if (!raw) {
         throw new AppError(400, "VALIDATION_ERROR", "Media file data is required.");
@@ -56,6 +74,7 @@ function decodeBase64Image(input) {
         throw new AppError(400, "VALIDATION_ERROR", "Invalid media payload.");
     }
 }
+// Handles 'getCmsSiteSettings' workflow for this module.
 export async function getCmsSiteSettings() {
     const result = await getSiteSettings();
     if (!result.rowCount) {
@@ -63,8 +82,9 @@ export async function getCmsSiteSettings() {
     }
     return result.rows[0];
 }
-export async function patchCmsSiteSettings(adminId, payload) {
-    const updated = await withTransaction(async (client) => {
+// Handles 'patchCmsSiteSettings' workflow for this module.
+export async function patchCmsSiteSettings(adminId: number, payload: Record<string, unknown>) {
+    const updated = await withTransaction(async (client: Parameters<typeof ensureSiteSettingsRow>[1]) => {
         const allowedColumns = ["site_name", "default_event_location", "contact_info", "social_links"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         await ensureSiteSettingsRow(adminId, client);
@@ -86,11 +106,12 @@ export async function patchCmsSiteSettings(adminId, payload) {
     await cacheDel("public:home");
     return updated;
 }
-export async function listCmsPages(query) {
+// Handles 'listCmsPages' workflow for this module.
+export async function listCmsPages(query: CmsQuery) {
     await ensureDefaultPages();
     const list = parseListQuery(query, ["id", "key", "title", "updated_at"], "updated_at");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["key", "COALESCE(title, '')"], params.length));
@@ -104,8 +125,9 @@ export async function listCmsPages(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchCmsPage(id, adminId, payload) {
-    const updated = await withTransaction(async (client) => {
+// Handles 'patchCmsPage' workflow for this module.
+export async function patchCmsPage(id: number, adminId: number, payload: Record<string, unknown>) {
+    const updated = await withTransaction(async (client: Parameters<typeof updatePage>[4]) => {
         const allowedColumns = ["title", "content", "is_published"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         const result = await updatePage(id, setClause, values, adminId, client);
@@ -129,11 +151,12 @@ export async function patchCmsPage(id, adminId, payload) {
     await cacheDel(`public:page:${String(updated.key || "").trim().toLowerCase()}`);
     return updated;
 }
-export async function listCmsHomeSections(query) {
+// Handles 'listCmsHomeSections' workflow for this module.
+export async function listCmsHomeSections(query: CmsQuery) {
     await ensureDefaultHomeSections();
     const list = parseListQuery(query, ["id", "key", "title", "sort_order", "updated_at"], "sort_order");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["key", "COALESCE(title, '')"], params.length));
@@ -155,8 +178,9 @@ export async function listCmsHomeSections(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchCmsHomeSection(id, adminId, payload) {
-    const updated = await withTransaction(async (client) => {
+// Handles 'patchCmsHomeSection' workflow for this module.
+export async function patchCmsHomeSection(id: number, adminId: number, payload: Record<string, unknown>) {
+    const updated = await withTransaction(async (client: Parameters<typeof updateHomeSection>[4]) => {
         const allowedColumns = ["title", "is_enabled", "sort_order", "content"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         const result = await updateHomeSection(id, setClause, values, adminId, client);
@@ -180,10 +204,11 @@ export async function patchCmsHomeSection(id, adminId, payload) {
     await cacheDel("public:home");
     return updated;
 }
-export async function listCmsMedia(query) {
+// Handles 'listCmsMedia' workflow for this module.
+export async function listCmsMedia(query: CmsQuery) {
     const list = parseListQuery(query, ["id", "file_name", "original_name", "mime_type", "size_bytes", "created_at", "updated_at"], "created_at");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["file_name", "COALESCE(original_name, '')", "COALESCE(alt_text, '')"], params.length));
@@ -197,9 +222,10 @@ export async function listCmsMedia(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function uploadCmsMedia(adminId, payload) {
+// Handles 'uploadCmsMedia' workflow for this module.
+export async function uploadCmsMedia(adminId: number, payload: CmsMediaPayload) {
     const mimeType = String(payload.mime_type || "").trim().toLowerCase();
-    const extension = CMS_MEDIA_MIME_TO_EXT[mimeType];
+    const extension = CMS_MEDIA_MIME_TO_EXT[mimeType as keyof typeof CMS_MEDIA_MIME_TO_EXT];
     if (!extension) {
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported media mime type.");
     }
@@ -217,7 +243,7 @@ export async function uploadCmsMedia(adminId, payload) {
     const filePath = path.join(uploadsDir, fileName);
     await fs.promises.mkdir(uploadsDir, { recursive: true });
     await fs.promises.writeFile(filePath, fileBuffer);
-    const created = await withTransaction(async (client) => {
+    const created = await withTransaction(async (client: Parameters<typeof createMediaAsset>[1]) => {
         const result = await createMediaAsset({
             file_name: fileName,
             original_name: payload.filename || null,
@@ -248,10 +274,11 @@ export async function uploadCmsMedia(adminId, payload) {
     });
     return created;
 }
-export async function listCmsThemeTokens(query) {
+// Handles 'listCmsThemeTokens' workflow for this module.
+export async function listCmsThemeTokens(query: CmsQuery) {
     const list = parseListQuery(query, ["id", "key", "purpose", "scope", "updated_at"], "updated_at");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["key", "purpose", "value", "scope"], params.length));
@@ -265,8 +292,9 @@ export async function listCmsThemeTokens(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function createCmsThemeToken(adminId, input) {
-    const created = await withTransaction(async (client) => {
+// Handles 'createCmsThemeToken' workflow for this module.
+export async function createCmsThemeToken(adminId: number, input: CmsThemeTokenPayload) {
+    const created = await withTransaction(async (client: Parameters<typeof createThemeToken>[5]) => {
         const result = await createThemeToken(input.key, input.purpose, input.value, input.scope, adminId, client);
         const created = result.rows[0];
         await logAdminAction({
@@ -284,8 +312,9 @@ export async function createCmsThemeToken(adminId, input) {
     await cacheDel("public:theme");
     return created;
 }
-export async function patchCmsThemeToken(id, adminId, payload) {
-    const updated = await withTransaction(async (client) => {
+// Handles 'patchCmsThemeToken' workflow for this module.
+export async function patchCmsThemeToken(id: number, adminId: number, payload: Record<string, unknown>) {
+    const updated = await withTransaction(async (client: Parameters<typeof updateThemeToken>[4]) => {
         const allowedColumns = ["key", "purpose", "value", "scope"];
         const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
         const result = await updateThemeToken(id, setClause, values, adminId, client);
@@ -309,5 +338,4 @@ export async function patchCmsThemeToken(id, adminId, payload) {
     await cacheDel("public:theme");
     return updated;
 }
-
 

@@ -1,10 +1,9 @@
-// File: server/src/index.ts
-// What this code does:
-// 1) Creates and configures the Express application instance.
-// 2) Registers middleware, route modules, and global error handlers.
-// 3) Initializes runtime dependencies before serving requests.
-// 4) Starts the HTTP server using environment-based configuration.
+﻿// File: server/src/index.ts
+// Purpose: Creates the Express app, applies core middleware, and mounts the server routes.
+// It is the main backend entry point used to start the API.
+
 // @ts-nocheck
+
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
@@ -34,6 +33,7 @@ import { projectsRouter } from "./routes/projects.routes.js";
 import { programApplicationsRouter } from "./routes/programApplications.routes.js";
 import { programsRouter } from "./routes/programs.routes.js";
 import { publicRouter } from "./routes/public.routes.js";
+import { whatsappRouter } from "./routes/whatsapp.routes.js";
 import { AppError } from "./utils/appError.js";
 import { sendSuccess } from "./utils/httpResponse.js";
 import { validateProductionEnv } from "./utils/validateProductionEnv.js";
@@ -53,6 +53,7 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Handles 'normalizeOrigin' workflow for this module.
 const normalizeOrigin = (value) => String(value || "").trim().replace(/\/+$/g, "");
 const configuredCorsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN
@@ -60,8 +61,11 @@ const configuredCorsOrigins = process.env.CORS_ORIGIN
         .map((origin) => normalizeOrigin(origin))
         .filter(Boolean)
     : [];
+// Handles 'isPrivateDevOrigin' workflow for this module.
 const isPrivateDevOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/i.test(String(origin || ""));
+// Handles 'parseForwardedPart' workflow for this module.
 const parseForwardedPart = (value) => String(value || "").split(",")[0]?.trim() || "";
+// Handles 'getRequestOriginCandidates' workflow for this module.
 const getRequestOriginCandidates = (req) => {
     const host = parseForwardedPart(req.headers["x-forwarded-host"]) || req.get("host") || "";
     const proto = parseForwardedPart(req.headers["x-forwarded-proto"]) || req.protocol || "http";
@@ -73,6 +77,7 @@ const getRequestOriginCandidates = (req) => {
         .map((entry) => normalizeOrigin(entry))
         .filter(Boolean);
 };
+// Handles 'isAllowedCorsOrigin' workflow for this module.
 const isAllowedCorsOrigin = (origin, req) => {
     if (!origin) {
         return true;
@@ -89,6 +94,7 @@ const isAllowedCorsOrigin = (origin, req) => {
     }
     return false;
 };
+// Handles 'corsOptionsDelegate' workflow for this module.
 const corsOptionsDelegate = (req, callback) => {
     const requestOrigin = req.headers.origin;
     const corsOptions = {
@@ -168,6 +174,7 @@ app.get("/health", async (_req, res, next) => {
 });
 app.use("/auth", authRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/whatsapp", whatsappRouter);
 app.use("/cms", cmsRouter);
 app.use(programsRouter);
 app.use("/profiles", profilesRouter);
@@ -193,6 +200,7 @@ app.use("/public", publicRouter);
 app.use(notFound);
 app.use(errorHandler);
 
+// Handles 'slugifyValue' workflow for this module.
 function slugifyValue(value) {
     return String(value || "")
         .trim()
@@ -202,6 +210,7 @@ function slugifyValue(value) {
         .replace(/-{2,}/g, "-");
 }
 
+// Handles 'ensureSoftDeleteColumns' workflow for this module.
 async function ensureSoftDeleteColumns() {
     await pool.query(`
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -421,6 +430,7 @@ async function ensureSoftDeleteColumns() {
     `);
 }
 
+// Handles 'ensureStudentProfileUserLinks' workflow for this module.
 async function ensureStudentProfileUserLinks() {
     const orphanProfilesResult = await pool.query(`
       SELECT
@@ -463,6 +473,7 @@ async function ensureStudentProfileUserLinks() {
     }
 }
 
+// Handles 'startServer' workflow for this module.
 async function startServer() {
     try {
         await pool.query("SELECT 1");
@@ -484,9 +495,11 @@ async function startServer() {
     }
 }
 startServer();
+// Handles 'collectRoutes' workflow for this module.
 function collectRoutes(application) {
     const routes = [];
     const stack = application?.router?.stack || [];
+    // Handles 'walk' workflow for this module.
     const walk = (layerStack, prefix = "") => {
         for (const layer of layerStack) {
             if (layer.route?.path) {
@@ -508,3 +521,4 @@ function collectRoutes(application) {
     walk(stack);
     return Array.from(new Set(routes)).sort();
 }
+

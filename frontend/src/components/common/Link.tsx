@@ -1,9 +1,7 @@
-// File: frontend/src/components/common/Link.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/common/Link.tsx
+// Purpose: Renders the shared link UI element used across the site.
+// It keeps common presentation behavior reusable between pages and sections.
+
 import React from "react";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -39,3 +37,4 @@ const Link = ({ to, href, children, ...props }: Props) => {
 };
 
 export default Link;
+

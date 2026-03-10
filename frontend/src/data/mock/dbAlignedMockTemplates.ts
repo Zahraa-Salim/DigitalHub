@@ -1,9 +1,7 @@
-// File: frontend/src/data/mock/dbAlignedMockTemplates.ts
-// What this code does:
-// 1) Stores static/mock data used by UI and development flows.
-// 2) Defines predictable fixtures for cards, tables, and previews.
-// 3) Supports testing UI states without live API dependency.
-// 4) Keeps sample content centralized and reusable.
+﻿// File: frontend/src/data/mock/dbAlignedMockTemplates.ts
+// Purpose: Provides frontend data for DB aligned mock templates.
+// It stores mock or static content consumed by pages and components.
+
 export type ProgramCardMock = {
   id: number;
   title: string;
@@ -320,3 +318,4 @@ export const mapDbProfilesToPeopleMocks = (
 
   return [...participantCards, ...adminCards, ...instructorCards];
 };
+

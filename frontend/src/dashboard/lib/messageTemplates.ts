@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/lib/messageTemplates.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/lib/messageTemplates.ts
+// Purpose: Provides dashboard helper logic for message templates.
+// It keeps admin-specific text, API helpers, and derived behavior out of page components.
+
 import type { MessageTemplate } from "./api";
 
 export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
@@ -137,3 +135,4 @@ export function applyTemplateTokens(input: string, tokens: Record<string, string
     return text.replaceAll(`{${key}}`, safeValue);
   }, input);
 }
+

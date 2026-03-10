@@ -1,9 +1,7 @@
-// File: frontend/src/components/courses/course/CourseTop.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/courses/course/CourseTop.tsx
+// Purpose: Renders the course top UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 "use client";
 import { ChangeEvent, useState, type ReactNode } from "react";
 import type { CohortProgramCard } from "@/lib/cohortProgramMapper";
@@ -47,7 +45,7 @@ const tab_title: TitleIcon[] = [
   },
 ];
 
-// 🔥 function to extract numeric duration from "6 Weeks", "3 Months" ...
+// ðŸ”¥ function to extract numeric duration from "6 Weeks", "3 Months" ...
 function getDurationValue(label: string): number {
   if (!label) return 0;
 
@@ -98,7 +96,7 @@ const CourseTop = ({
         sorted.sort((a, b) => b.title.localeCompare(a.title));
         break;
 
-      // 🔥 duration working 100%
+      // ðŸ”¥ duration working 100%
       case "durationAsc":
         sorted.sort((a, b) =>
           getDurationValue(a.durationLabel) - getDurationValue(b.durationLabel)
@@ -168,3 +166,4 @@ const CourseTop = ({
 };
 
 export default CourseTop;
+

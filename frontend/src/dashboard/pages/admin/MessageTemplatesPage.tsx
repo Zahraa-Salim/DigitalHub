@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/MessageTemplatesPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/MessageTemplatesPage.tsx
+// Purpose: Renders the admin message templates page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
@@ -754,3 +752,4 @@ export function MessageTemplatesPage() {
     </PageShell>
   );
 }
+

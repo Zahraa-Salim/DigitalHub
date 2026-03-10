@@ -1,10 +1,9 @@
-// File: server/src/routes/notifications.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/notifications.routes.ts
+// Purpose: Registers the Express routes for notifications.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, } from "../controllers/notifications.controller.js";
 import { clearReadNotifications } from "../controllers/notifications.controller.js";
@@ -21,5 +20,4 @@ notificationsRouter.patch("/read-all", validateRequest({ body: emptyBodySchema }
 notificationsRouter.delete("/read", asyncHandler(clearReadNotifications));
 notificationsRouter.delete("/read/older", validateRequest({ query: clearReadOlderQuerySchema }), asyncHandler(clearReadNotificationsOlderThan));
 export { notificationsRouter };
-
 

@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/MyProfilePage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/MyProfilePage.tsx
+// Purpose: Renders the admin my profile page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -226,7 +224,7 @@ export function MyProfilePage() {
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 3200);
+    }, 5000);
   };
 
   const dismissToast = (id: number) => {
@@ -860,5 +858,4 @@ export function MyProfilePage() {
     </PageShell>
   );
 }
-
 

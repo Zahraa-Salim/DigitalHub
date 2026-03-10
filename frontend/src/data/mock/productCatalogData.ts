@@ -1,9 +1,7 @@
-// File: frontend/src/data/mock/productCatalogData.ts
-// What this code does:
-// 1) Stores static/mock data used by UI and development flows.
-// 2) Defines predictable fixtures for cards, tables, and previews.
-// 3) Supports testing UI states without live API dependency.
-// 4) Keeps sample content centralized and reusable.
+﻿// File: frontend/src/data/mock/productCatalogData.ts
+// Purpose: Provides frontend data for product catalog data.
+// It stores mock or static content consumed by pages and components.
+
 import { StaticImageData } from "@/components/common/Image";
 
 import shop_thumb_1 from "@/assets/img/shop/shop_img01.jpg"
@@ -283,3 +281,4 @@ const product_data: DataType[] = [
 ];
 
 export default product_data;
+

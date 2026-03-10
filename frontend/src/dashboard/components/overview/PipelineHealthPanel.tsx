@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview/PipelineHealthPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview/PipelineHealthPanel.tsx
+// Purpose: Renders the overview pipeline health panel panel in the dashboard.
+// It presents one focused slice of overview data, actions, or health signals.
+
 import { Card } from "../Card";
 import type { AdminOverviewData } from "../../lib/api";
 
@@ -60,3 +58,4 @@ export function PipelineHealthPanel({ data, onAction }: PipelineHealthPanelProps
     </div>
   );
 }
+

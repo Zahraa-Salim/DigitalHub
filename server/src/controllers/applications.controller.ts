@@ -1,10 +1,9 @@
 // File: server/src/controllers/applications.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for applications.
+// It reads request data, calls the matching service methods, and sends API responses.
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   approveApplicationService,
@@ -26,24 +25,32 @@ import {
   setApplicationDecisionService,
   shortlistApplicationService,
 } from "../services/applications.service.js";
-export async function createApplication(req, res) {
+
+function getParamValue(value: string | string[] | undefined): string {
+    return Array.isArray(value) ? value[0] : value ?? "";
+}
+// Handles 'createApplication' workflow for this module.
+export async function createApplication(req: Request, res: Response) {
     const data = await createApplicationService(req.body);
     sendSuccess(res, data, "Application submitted successfully.", 201);
 }
-export async function getApplications(req, res) {
+// Handles 'getApplications' workflow for this module.
+export async function getApplications(req: Request, res: Response) {
     const result = await listApplicationsService(req.query);
     sendList(res, result.data, result.pagination);
 }
-export async function approveApplication(req, res) {
-    const data = await approveApplicationService(Number(req.params.id), req.user.id, {
+// Handles 'approveApplication' workflow for this module.
+export async function approveApplication(req: Request, res: Response) {
+    const data = await approveApplicationService(Number(req.params.id), req.user!.id, {
         message: req.body.message,
         send_email: req.body.send_email,
         send_phone: req.body.send_phone,
     });
     sendSuccess(res, data, "Application approved successfully.");
 }
-export async function rejectApplication(req, res) {
-    const data = await rejectApplicationService(Number(req.params.id), req.user.id, {
+// Handles 'rejectApplication' workflow for this module.
+export async function rejectApplication(req: Request, res: Response) {
+    const data = await rejectApplicationService(Number(req.params.id), req.user!.id, {
         reason: req.body.reason,
         message: req.body.message,
         send_email: req.body.send_email,
@@ -52,73 +59,90 @@ export async function rejectApplication(req, res) {
     sendSuccess(res, data, "Application rejected successfully.");
 }
 
-export async function getApplicationPipeline(req, res) {
+// Handles 'getApplicationPipeline' workflow for this module.
+export async function getApplicationPipeline(req: Request, res: Response) {
     const data = await getApplicationPipelineService(Number(req.params.id));
     sendSuccess(res, data);
 }
 
-export async function patchApplicationStage(req, res) {
-    const data = await patchApplicationStageService(Number(req.params.id), req.user?.id ?? null, req.body);
+// Handles 'patchApplicationStage' workflow for this module.
+export async function patchApplicationStage(req: Request, res: Response) {
+    const data = await patchApplicationStageService(Number(req.params.id), req.user!?.id ?? null, req.body);
     sendSuccess(res, data, "Application stage updated successfully.");
 }
 
-export async function shortlistApplication(req, res) {
-    const data = await shortlistApplicationService(Number(req.params.id), req.user.id);
+// Handles 'shortlistApplication' workflow for this module.
+export async function shortlistApplication(req: Request, res: Response) {
+    const data = await shortlistApplicationService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Application shortlisted successfully.");
 }
 
-export async function scheduleInterview(req, res) {
-    const data = await scheduleApplicationInterviewService(Number(req.params.id), req.user.id, req.body);
+// Handles 'scheduleInterview' workflow for this module.
+export async function scheduleInterview(req: Request, res: Response) {
+    const data = await scheduleApplicationInterviewService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "Interview scheduled successfully.");
 }
 
-export async function markInterviewCompleted(req, res) {
-    const data = await markApplicationInterviewCompletedService(Number(req.params.id), req.user.id);
+// Handles 'markInterviewCompleted' workflow for this module.
+export async function markInterviewCompleted(req: Request, res: Response) {
+    const data = await markApplicationInterviewCompletedService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Interview marked completed.");
 }
 
-export async function setApplicationDecision(req, res) {
-    const data = await setApplicationDecisionService(Number(req.params.id), req.user.id, req.body);
+// Handles 'setApplicationDecision' workflow for this module.
+export async function setApplicationDecision(req: Request, res: Response) {
+    const data = await setApplicationDecisionService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "Application decision saved successfully.");
 }
 
-export async function confirmParticipation(req, res) {
-    const data = await confirmApplicationParticipationService(Number(req.params.id), req.user.id);
+// Handles 'confirmParticipation' workflow for this module.
+export async function confirmParticipation(req: Request, res: Response) {
+    const data = await confirmApplicationParticipationService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Participation confirmed successfully.");
 }
 
-export async function createUserFromApplication(req, res) {
-    const data = await createUserFromApplicationService(Number(req.params.id), req.user.id, req.body);
+// Handles 'createUserFromApplication' workflow for this module.
+export async function createUserFromApplication(req: Request, res: Response) {
+    const data = await createUserFromApplicationService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "User and enrollment created successfully.");
 }
 
-export async function getApplicationMessages(req, res) {
+// Handles 'getApplicationMessages' workflow for this module.
+export async function getApplicationMessages(req: Request, res: Response) {
     const data = await listApplicationMessagesService(Number(req.params.id));
     sendSuccess(res, data);
 }
 
-export async function postApplicationMessage(req, res) {
-    const data = await createApplicationMessageDraftService(Number(req.params.id), req.user.id, req.body);
+// Handles 'postApplicationMessage' workflow for this module.
+export async function postApplicationMessage(req: Request, res: Response) {
+    const data = await createApplicationMessageDraftService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "Message draft created successfully.", 201);
 }
 
-export async function sendApplicationMessage(req, res) {
-    const data = await sendApplicationMessageService(Number(req.params.id), Number(req.params.messageId), req.user.id);
+// Handles 'sendApplicationMessage' workflow for this module.
+export async function sendApplicationMessage(req: Request, res: Response) {
+    const data = await sendApplicationMessageService(Number(req.params.id), Number(req.params.messageId), req.user!.id);
     sendSuccess(res, data, "Message marked as sent.");
 }
 
-export async function confirmInterviewByToken(req, res) {
-    const data = await publicConfirmInterviewService(req.params.token, req.body);
+// Handles 'confirmInterviewByToken' workflow for this module.
+export async function confirmInterviewByToken(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicConfirmInterviewService(token, req.body);
     sendSuccess(res, data, "Interview confirmed successfully.");
 }
 
-export async function rescheduleInterviewByToken(req, res) {
-    const data = await publicRescheduleInterviewService(req.params.token, req.body);
+// Handles 'rescheduleInterviewByToken' workflow for this module.
+export async function rescheduleInterviewByToken(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicRescheduleInterviewService(token, req.body);
     sendSuccess(res, data, "Interview reschedule request submitted.");
 }
 
-export async function confirmInterviewByTokenLink(req, res) {
-    const data = await publicConfirmInterviewService(req.params.token, { note: null });
+// Handles 'confirmInterviewByTokenLink' workflow for this module.
+export async function confirmInterviewByTokenLink(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicConfirmInterviewService(token, { note: null });
     if (String(req.headers.accept || "").includes("text/html")) {
         res.status(200).send(`
 <!doctype html>
@@ -132,8 +156,10 @@ export async function confirmInterviewByTokenLink(req, res) {
     sendSuccess(res, data, "Interview confirmed successfully.");
 }
 
-export async function rescheduleInterviewByTokenLink(req, res) {
-    const data = await publicRescheduleInterviewService(req.params.token, {
+// Handles 'rescheduleInterviewByTokenLink' workflow for this module.
+export async function rescheduleInterviewByTokenLink(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicRescheduleInterviewService(token, {
         requested_at: new Date().toISOString(),
         note: "Requested via public link",
     });
@@ -150,13 +176,17 @@ export async function rescheduleInterviewByTokenLink(req, res) {
     sendSuccess(res, data, "Interview reschedule request submitted.");
 }
 
-export async function confirmParticipationByToken(req, res) {
-    const data = await publicConfirmParticipationService(req.params.token, req.body);
+// Handles 'confirmParticipationByToken' workflow for this module.
+export async function confirmParticipationByToken(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicConfirmParticipationService(token, req.body);
     sendSuccess(res, data, "Participation confirmed successfully.");
 }
 
-export async function confirmParticipationByTokenLink(req, res) {
-    const data = await publicConfirmParticipationService(req.params.token, { note: "Confirmed via public link" });
+// Handles 'confirmParticipationByTokenLink' workflow for this module.
+export async function confirmParticipationByTokenLink(req: Request, res: Response) {
+    const token = getParamValue(req.params.token);
+    const data = await publicConfirmParticipationService(token, { note: "Confirmed via public link" });
     if (String(req.headers.accept || "").includes("text/html")) {
         res.status(200).send(`
 <!doctype html>
@@ -169,5 +199,9 @@ export async function confirmParticipationByTokenLink(req, res) {
     }
     sendSuccess(res, data, "Participation confirmed successfully.");
 }
+
+
+
+
 
 

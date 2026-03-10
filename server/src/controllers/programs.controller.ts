@@ -1,68 +1,84 @@
 // File: server/src/controllers/programs.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for programs.
+// It reads request data, calls the matching service methods, and sends API responses.
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, unassignInstructorService, uploadProgramImageService, } from "../services/programs.service.js";
-export async function createProgram(req, res) {
-    const data = await createProgramService(req.user.id, req.body);
+// Handles 'createProgram' workflow for this module.
+export async function createProgram(req: Request, res: Response) {
+    const data = await createProgramService(req.user!.id, req.body);
     sendSuccess(res, data, "Program created successfully.", 201);
 }
-export async function getPrograms(req, res) {
+// Handles 'getPrograms' workflow for this module.
+export async function getPrograms(req: Request, res: Response) {
     const result = await listProgramsService(req.query);
     sendList(res, result.data, result.pagination);
 }
-export async function patchProgram(req, res) {
-    const data = await patchProgramService(Number(req.params.id), req.user.id, req.body);
+// Handles 'patchProgram' workflow for this module.
+export async function patchProgram(req: Request, res: Response) {
+    const data = await patchProgramService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "Program updated successfully.");
 }
-export async function deleteProgram(req, res) {
-    const data = await deleteProgramService(Number(req.params.id), req.user.id);
+// Handles 'deleteProgram' workflow for this module.
+export async function deleteProgram(req: Request, res: Response) {
+    const data = await deleteProgramService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Program deleted successfully.");
 }
-export async function createCohort(req, res) {
-    const data = await createCohortService(req.user.id, req.body);
+// Handles 'createCohort' workflow for this module.
+export async function createCohort(req: Request, res: Response) {
+    const data = await createCohortService(req.user!.id, req.body);
     sendSuccess(res, data, "Cohort created successfully.", 201);
 }
-export async function getCohorts(req, res) {
+// Handles 'getCohorts' workflow for this module.
+export async function getCohorts(req: Request, res: Response) {
     const result = await listCohortsService(req.query);
     sendList(res, result.data, result.pagination);
 }
-export async function patchCohort(req, res) {
-    const data = await patchCohortService(Number(req.params.id), req.user.id, req.body);
+// Handles 'patchCohort' workflow for this module.
+export async function patchCohort(req: Request, res: Response) {
+    const data = await patchCohortService(Number(req.params.id), req.user!.id, req.body);
     sendSuccess(res, data, "Cohort updated successfully.");
 }
-export async function deleteCohort(req, res) {
-    const data = await deleteCohortService(Number(req.params.id), req.user.id);
+// Handles 'deleteCohort' workflow for this module.
+export async function deleteCohort(req: Request, res: Response) {
+    const data = await deleteCohortService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Cohort deleted successfully.");
 }
-export async function openCohort(req, res) {
-    const data = await openCohortService(Number(req.params.id), req.user.id);
+// Handles 'openCohort' workflow for this module.
+export async function openCohort(req: Request, res: Response) {
+    const data = await openCohortService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Cohort opened successfully.");
 }
-export async function closeCohort(req, res) {
-    const data = await closeCohortService(Number(req.params.id), req.user.id);
+// Handles 'closeCohort' workflow for this module.
+export async function closeCohort(req: Request, res: Response) {
+    const data = await closeCohortService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Cohort closed successfully.");
 }
-export async function getCohortInstructors(req, res) {
+// Handles 'getCohortInstructors' workflow for this module.
+export async function getCohortInstructors(req: Request, res: Response) {
     const result = await listCohortInstructorsService(Number(req.params.id), req.query);
     sendList(res, result.data, result.pagination);
 }
-export async function assignCohortInstructor(req, res) {
+// Handles 'assignCohortInstructor' workflow for this module.
+export async function assignCohortInstructor(req: Request, res: Response) {
     const body = req.body;
-    const data = await assignInstructorService(Number(req.params.id), req.user.id, body);
+    const data = await assignInstructorService(Number(req.params.id), req.user!.id, body);
     sendSuccess(res, data, "Instructor assigned successfully.", 201);
 }
-export async function unassignCohortInstructor(req, res) {
-    const data = await unassignInstructorService(Number(req.params.id), Number(req.params.instructorUserId), req.user.id);
+// Handles 'unassignCohortInstructor' workflow for this module.
+export async function unassignCohortInstructor(req: Request, res: Response) {
+    const data = await unassignInstructorService(Number(req.params.id), Number(req.params.instructorUserId), req.user!.id);
     sendSuccess(res, data, "Instructor unassigned successfully.");
 }
-export async function postProgramImage(req, res) {
-    const data = await uploadProgramImageService(req.user.id, req.body);
+// Handles 'postProgramImage' workflow for this module.
+export async function postProgramImage(req: Request, res: Response) {
+    const data = await uploadProgramImageService(req.user!.id, req.body);
     sendSuccess(res, data, "Program image uploaded successfully.", 201);
 }
+
+
+
 
 

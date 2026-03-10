@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/CohortsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/CohortsPage.tsx
+// Purpose: Renders the admin cohorts page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/Card";
@@ -586,7 +584,7 @@ export function CohortsPage() {
     const timer = window.setTimeout(() => {
       setSuccess("");
       setError("");
-    }, 3500);
+    }, 5000);
 
     return () => {
       window.clearTimeout(timer);
@@ -1350,8 +1348,10 @@ export function CohortsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Cohort Details</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
             </header>
             <div className="post-details">
               <p className="post-details__line">
@@ -1855,8 +1855,4 @@ export function CohortsPage() {
     </PageShell>
   );
 }
-
-
-
-
 

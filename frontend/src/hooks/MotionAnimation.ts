@@ -1,9 +1,7 @@
-// File: frontend/src/hooks/MotionAnimation.ts
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/hooks/MotionAnimation.ts
+// Purpose: Provides the motion animation hook or helper component.
+// It packages reusable view or state behavior for other frontend modules.
+
 "use client";
 import { useEffect } from 'react';
 import { TweenMax } from 'gsap';
@@ -55,3 +53,4 @@ const MotionAnimation = () => {
 };
 
 export default MotionAnimation;
+

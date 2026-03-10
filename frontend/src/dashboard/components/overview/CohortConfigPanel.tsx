@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview/CohortConfigPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview/CohortConfigPanel.tsx
+// Purpose: Renders the overview cohort config panel panel in the dashboard.
+// It presents one focused slice of overview data, actions, or health signals.
+
 import { useNavigate } from "react-router-dom";
 import { Card } from "../Card";
 import type { AdminOverviewData } from "../../lib/api";
@@ -49,3 +47,4 @@ export function CohortConfigPanel({ issues }: CohortConfigPanelProps) {
     </Card>
   );
 }
+

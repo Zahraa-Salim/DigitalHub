@@ -1,9 +1,7 @@
-// File: frontend/src/svg/BtnArrow.tsx
-// What this code does:
-// 1) Implements frontend module behavior for this feature area.
-// 2) Combines UI, state, and side effects for this module.
-// 3) Connects shared utilities/components where required.
-// 4) Exports artifacts consumed by routes or parent modules.
+﻿// File: frontend/src/svg/BtnArrow.tsx
+// Purpose: Renders the btn arrow SVG component used by the UI.
+// It keeps inline vector artwork reusable inside React components.
+
 const BtnArrow = () => {
    return (
       <svg width="16" height="14" viewBox="0 0 16 14" fill="none" xmlns="http://www.w3.org/2000/svg" data-inject-url="http://127.0.0.1:5500/skillgro-html/assets/img/icons/right_arrow.svg" className="injectable">
@@ -14,3 +12,4 @@ const BtnArrow = () => {
 }
 
 export default BtnArrow
+

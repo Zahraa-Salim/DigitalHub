@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/ProfilesStudentsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/ProfilesStudentsPage.tsx
+// Purpose: Renders the admin profiles students page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
@@ -92,7 +90,7 @@ export function ProfilesStudentsPage() {
   const pushToast = useCallback((tone: "success" | "error", message: string) => {
     const id = toastIdRef.current++;
     setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 3600);
+    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 5000);
   }, []);
 
   const publicCount = useMemo(() => rows.filter((entry) => entry.is_public).length, [rows]);

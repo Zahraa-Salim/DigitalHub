@@ -1,14 +1,14 @@
-// File: server/src/scripts/seedAdmin.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/scripts/seedAdmin.ts
+// Purpose: Runs the seed admin script for the backend.
+// It performs a one-off setup, seeding, or maintenance task outside the request cycle.
+
 // @ts-nocheck
+
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import { pool } from "../db/index.js";
 dotenv.config();
+// Handles 'seedAdmin' workflow for this module.
 async function seedAdmin() {
     const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
     const password = process.env.SEED_ADMIN_PASSWORD;
@@ -54,5 +54,4 @@ seedAdmin()
     .finally(async () => {
     await pool.end();
 });
-
 

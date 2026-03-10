@@ -1,10 +1,9 @@
-// File: server/src/routes/contact.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/contact.routes.ts
+// Purpose: Registers the Express routes for contact.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { createContactMessage, getContactMessages, patchContactMessageStatus, replyToContactMessage, } from "../controllers/contact.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -23,5 +22,4 @@ contactRouter.get("/", asyncHandler(getContactMessages));
 contactRouter.patch("/:id/status", validateRequest({ params: idParamsSchema, body: statusPatchSchema }), asyncHandler(patchContactMessageStatus));
 contactRouter.post("/:id/reply", validateRequest({ params: idParamsSchema, body: replyBodySchema }), asyncHandler(replyToContactMessage));
 export { contactRouter };
-
 

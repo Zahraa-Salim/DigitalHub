@@ -1,19 +1,31 @@
 // File: server/src/services/announcements.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for announcements.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 import { countAnnouncements, createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement, } from "../repositories/announcements.repo.js";
-export async function createAnnouncementService(adminId, payload) {
+
+type AnnouncementPayload = {
+    title: string;
+    body: string;
+    target_audience: string;
+    cohort_id?: number | null;
+    event_id?: number | null;
+    is_auto?: boolean;
+    is_published?: boolean;
+    publish_at?: string | null;
+};
+
+type AnnouncementListQuery = Record<string, unknown>;
+// Handles 'createAnnouncementService' workflow for this module.
+export async function createAnnouncementService(adminId: number, payload: AnnouncementPayload) {
     const body = payload;
-    return withTransaction(async (client) => {
+    return withTransaction(async (client: Parameters<typeof createAnnouncement>[1]) => {
         const result = await createAnnouncement({
             title: body.title,
             body: body.body,
@@ -41,10 +53,11 @@ export async function createAnnouncementService(adminId, payload) {
         return created;
     });
 }
-export async function listAnnouncementsService(query) {
+// Handles 'listAnnouncementsService' workflow for this module.
+export async function listAnnouncementsService(query: AnnouncementListQuery) {
     const list = parseListQuery(query, ["id", "created_at", "publish_at", "title"], "created_at");
-    const params = [];
-    const where = [];
+    const params: Array<string | number | boolean> = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["title", "body"], params.length));
@@ -70,7 +83,8 @@ export async function listAnnouncementsService(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchAnnouncementService(id, adminId, payload) {
+// Handles 'patchAnnouncementService' workflow for this module.
+export async function patchAnnouncementService(id: number, adminId: number, payload: Partial<AnnouncementPayload>) {
     const { setClause, values } = buildUpdateQuery(payload, ["title", "body", "target_audience", "cohort_id", "event_id", "is_auto", "is_published", "publish_at"], 1);
     const result = await updateAnnouncement(id, setClause, values);
     if (!result.rowCount) {
@@ -88,7 +102,8 @@ export async function patchAnnouncementService(id, adminId, payload) {
     });
     return result.rows[0];
 }
-export async function deleteAnnouncementService(id, adminId) {
+// Handles 'deleteAnnouncementService' workflow for this module.
+export async function deleteAnnouncementService(id: number, adminId: number) {
     const result = await deleteAnnouncement(id);
     if (!result.rowCount) {
         throw new AppError(404, "ANNOUNCEMENT_NOT_FOUND", "Announcement not found.");
@@ -104,5 +119,4 @@ export async function deleteAnnouncementService(id, adminId) {
     });
     return { id };
 }
-
 

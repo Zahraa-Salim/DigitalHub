@@ -1,19 +1,21 @@
 // File: server/src/repositories/applications.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+// Purpose: Runs the database queries used for applications.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
-export async function createApplicant(fullName, email, phone, db = pool) {
+import type { DbClient } from "../db/index.js";
+// Handles 'createApplicant' workflow for this module.
+export async function createApplicant(fullName, email, phone, db: DbClient = pool) {
     return db.query(`
       INSERT INTO applicants (full_name, email, phone, created_at)
       VALUES ($1, $2, $3, NOW())
       RETURNING *
     `, [fullName, email, phone]);
 }
-export async function createApplication(cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, submissionAnswers, db = pool) {
+// Handles 'createApplication' workflow for this module.
+export async function createApplication(cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, submissionAnswers, db: DbClient = pool) {
     return db.query(`
       INSERT INTO applications (
         cohort_id,
@@ -32,13 +34,15 @@ export async function createApplication(cohortId, applicantId, applicantEmailNor
       RETURNING *
     `, [cohortId, applicantId, applicantEmailNorm, applicantPhoneNorm, submissionAnswers ?? null]);
 }
-export async function createApplicationSubmission(applicationId, formId, answers, db = pool) {
+// Handles 'createApplicationSubmission' workflow for this module.
+export async function createApplicationSubmission(applicationId, formId, answers, db: DbClient = pool) {
     return db.query(`
       INSERT INTO application_submissions (application_id, form_id, answers, created_at)
       VALUES ($1, $2, $3, NOW())
     `, [applicationId, formId, answers]);
 }
-export async function countApplications(whereClause, params, db = pool) {
+// Handles 'countApplications' workflow for this module.
+export async function countApplications(whereClause, params, db: DbClient = pool) {
     return db.query(`
       SELECT COUNT(*)::int AS total
       FROM applications a
@@ -47,7 +51,8 @@ export async function countApplications(whereClause, params, db = pool) {
       ${whereClause}
     `, params);
 }
-export async function listApplications(whereClause, sortBy, order, params, limit, offset, db = pool) {
+// Handles 'listApplications' workflow for this module.
+export async function listApplications(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
     return db.query(`
       SELECT
         a.id,
@@ -93,7 +98,8 @@ export async function listApplications(whereClause, sortBy, order, params, limit
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
-export async function getApplicationForApproval(applicationId, db = pool) {
+// Handles 'getApplicationForApproval' workflow for this module.
+export async function getApplicationForApproval(applicationId, db: DbClient = pool) {
     return db.query(`
       SELECT
         a.id,
@@ -112,7 +118,8 @@ export async function getApplicationForApproval(applicationId, db = pool) {
       FOR UPDATE OF a
     `, [applicationId]);
 }
-export async function countActiveEnrollmentsByCohort(cohortId, db = pool) {
+// Handles 'countActiveEnrollmentsByCohort' workflow for this module.
+export async function countActiveEnrollmentsByCohort(cohortId, db: DbClient = pool) {
     return db.query(`
       SELECT COUNT(*)::int AS enrolled_count
       FROM enrollments
@@ -120,7 +127,8 @@ export async function countActiveEnrollmentsByCohort(cohortId, db = pool) {
         AND status = 'active'
     `, [cohortId]);
 }
-export async function findUserByEmail(email, db = pool) {
+// Handles 'findUserByEmail' workflow for this module.
+export async function findUserByEmail(email, db: DbClient = pool) {
     return db.query(`
       SELECT id, is_student
       FROM users
@@ -129,7 +137,8 @@ export async function findUserByEmail(email, db = pool) {
     `, [email]);
 }
 
-export async function findUserByPhone(phone, db = pool) {
+// Handles 'findUserByPhone' workflow for this module.
+export async function findUserByPhone(phone, db: DbClient = pool) {
     return db.query(`
       SELECT id, is_student
       FROM users
@@ -137,17 +146,20 @@ export async function findUserByPhone(phone, db = pool) {
       LIMIT 1
     `, [phone]);
 }
-export async function setUserAsStudent(userId, db = pool) {
+// Handles 'setUserAsStudent' workflow for this module.
+export async function setUserAsStudent(userId, db: DbClient = pool) {
     return db.query("UPDATE users SET is_student = TRUE WHERE id = $1", [userId]);
 }
-export async function createStudentUser(email, phone, passwordHash, db = pool) {
+// Handles 'createStudentUser' workflow for this module.
+export async function createStudentUser(email, phone, passwordHash, db: DbClient = pool) {
     return db.query(`
       INSERT INTO users (email, phone, password_hash, is_student, is_active, created_at, updated_at)
       VALUES ($1, $2, $3, TRUE, TRUE, NOW(), NOW())
       RETURNING id
     `, [email, phone, passwordHash]);
 }
-export async function upsertStudentProfile(userId, fullName, db = pool) {
+// Handles 'upsertStudentProfile' workflow for this module.
+export async function upsertStudentProfile(userId, fullName, db: DbClient = pool) {
     return db.query(`
       INSERT INTO student_profiles
         (user_id, full_name, avatar_url, bio, linkedin_url, github_url, portfolio_url, is_public, featured, featured_rank, public_slug, created_at)
@@ -157,14 +169,16 @@ export async function upsertStudentProfile(userId, fullName, db = pool) {
       DO UPDATE SET full_name = COALESCE(EXCLUDED.full_name, student_profiles.full_name)
     `, [userId, fullName]);
 }
-export async function createEnrollment(studentUserId, cohortId, applicationId, db = pool) {
+// Handles 'createEnrollment' workflow for this module.
+export async function createEnrollment(studentUserId, cohortId, applicationId, db: DbClient = pool) {
     return db.query(`
       INSERT INTO enrollments (student_user_id, cohort_id, application_id, status, enrolled_at)
       VALUES ($1, $2, $3, 'active', NOW())
       RETURNING *
     `, [studentUserId, cohortId, applicationId]);
 }
-export async function markApplicationApproved(applicationId, reviewerId, reviewMessage, db = pool) {
+// Handles 'markApplicationApproved' workflow for this module.
+export async function markApplicationApproved(applicationId, reviewerId, reviewMessage, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET status = 'participation_confirmed', stage = 'participation_confirmed', reviewed_by = $1, reviewed_at = NOW(), review_message = $3
@@ -172,7 +186,8 @@ export async function markApplicationApproved(applicationId, reviewerId, reviewM
       RETURNING *
     `, [reviewerId, applicationId, reviewMessage ?? null]);
 }
-export async function rejectPendingApplication(applicationId, reviewerId, reviewMessage, db = pool) {
+// Handles 'rejectPendingApplication' workflow for this module.
+export async function rejectPendingApplication(applicationId, reviewerId, reviewMessage, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET status = 'rejected', stage = 'rejected', reviewed_by = $1, reviewed_at = NOW(), review_message = $3
@@ -182,7 +197,8 @@ export async function rejectPendingApplication(applicationId, reviewerId, review
     `, [reviewerId, applicationId, reviewMessage ?? null]);
 }
 
-export async function findCohortFormResolution(cohortId, formKey, db = pool) {
+// Handles 'findCohortFormResolution' workflow for this module.
+export async function findCohortFormResolution(cohortId, formKey, db: DbClient = pool) {
     return db.query(`
       SELECT
         c.id AS cohort_id,
@@ -198,7 +214,8 @@ export async function findCohortFormResolution(cohortId, formKey, db = pool) {
     `, [cohortId, formKey]);
 }
 
-export async function getApplicationById(applicationId, db = pool) {
+// Handles 'getApplicationById' workflow for this module.
+export async function getApplicationById(applicationId, db: DbClient = pool) {
     return db.query(`
       SELECT
         a.id,
@@ -234,7 +251,8 @@ export async function getApplicationById(applicationId, db = pool) {
     `, [applicationId]);
 }
 
-export async function getApplicationForPipelineUpdate(applicationId, db = pool) {
+// Handles 'getApplicationForPipelineUpdate' workflow for this module.
+export async function getApplicationForPipelineUpdate(applicationId, db: DbClient = pool) {
     return db.query(`
       SELECT
         a.id,
@@ -259,7 +277,8 @@ export async function getApplicationForPipelineUpdate(applicationId, db = pool) 
     `, [applicationId]);
 }
 
-export async function getInterviewByApplicationId(applicationId, db = pool) {
+// Handles 'getInterviewByApplicationId' workflow for this module.
+export async function getInterviewByApplicationId(applicationId, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM interviews
@@ -268,7 +287,8 @@ export async function getInterviewByApplicationId(applicationId, db = pool) {
     `, [applicationId]);
 }
 
-export async function upsertInterviewByApplicationId(input, db = pool) {
+// Handles 'upsertInterviewByApplicationId' workflow for this module.
+export async function upsertInterviewByApplicationId(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO interviews (
         application_id,
@@ -325,7 +345,8 @@ export async function upsertInterviewByApplicationId(input, db = pool) {
     ]);
 }
 
-export async function markInterviewCompletedByApplicationId(applicationId, db = pool) {
+// Handles 'markInterviewCompletedByApplicationId' workflow for this module.
+export async function markInterviewCompletedByApplicationId(applicationId, db: DbClient = pool) {
     return db.query(`
       UPDATE interviews
       SET status = 'completed',
@@ -335,7 +356,8 @@ export async function markInterviewCompletedByApplicationId(applicationId, db = 
     `, [applicationId]);
 }
 
-export async function findInterviewByTokenForUpdate(token, db = pool) {
+// Handles 'findInterviewByTokenForUpdate' workflow for this module.
+export async function findInterviewByTokenForUpdate(token, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM interviews
@@ -344,7 +366,8 @@ export async function findInterviewByTokenForUpdate(token, db = pool) {
     `, [token]);
 }
 
-export async function confirmInterviewByToken(token, note, db = pool) {
+// Handles 'confirmInterviewByToken' workflow for this module.
+export async function confirmInterviewByToken(token, note, db: DbClient = pool) {
     return db.query(`
       UPDATE interviews
       SET status = 'confirmed',
@@ -357,7 +380,8 @@ export async function confirmInterviewByToken(token, note, db = pool) {
     `, [token, note ?? null]);
 }
 
-export async function requestInterviewRescheduleByToken(token, requestedAt, note, db = pool) {
+// Handles 'requestInterviewRescheduleByToken' workflow for this module.
+export async function requestInterviewRescheduleByToken(token, requestedAt, note, db: DbClient = pool) {
     return db.query(`
       UPDATE interviews
       SET status = 'reschedule_requested',
@@ -369,7 +393,8 @@ export async function requestInterviewRescheduleByToken(token, requestedAt, note
     `, [token, requestedAt, note ?? null]);
 }
 
-export async function listApplicationMessageDrafts(applicationId, db = pool) {
+// Handles 'listApplicationMessageDrafts' workflow for this module.
+export async function listApplicationMessageDrafts(applicationId, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM application_messages
@@ -378,7 +403,8 @@ export async function listApplicationMessageDrafts(applicationId, db = pool) {
     `, [applicationId]);
 }
 
-export async function createApplicationMessageDraft(input, db = pool) {
+// Handles 'createApplicationMessageDraft' workflow for this module.
+export async function createApplicationMessageDraft(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO application_messages (
         application_id,
@@ -405,7 +431,8 @@ export async function createApplicationMessageDraft(input, db = pool) {
     ]);
 }
 
-export async function getApplicationMessageForSend(applicationId, messageId, db = pool) {
+// Handles 'getApplicationMessageForSend' workflow for this module.
+export async function getApplicationMessageForSend(applicationId, messageId, db: DbClient = pool) {
     return db.query(`
       SELECT *
       FROM application_messages
@@ -415,12 +442,13 @@ export async function getApplicationMessageForSend(applicationId, messageId, db 
     `, [applicationId, messageId]);
 }
 
+// Handles 'markApplicationMessageSent' workflow for this module.
 export async function markApplicationMessageSent(
     applicationId,
     messageId,
-    renderedSubject = null,
-    renderedBody = null,
-    db = pool,
+    renderedSubject: string | null = null,
+    renderedBody: string | null = null,
+    db: DbClient = pool,
 ) {
     return db.query(`
       UPDATE application_messages
@@ -434,12 +462,13 @@ export async function markApplicationMessageSent(
     `, [applicationId, messageId, renderedSubject, renderedBody]);
 }
 
+// Handles 'markApplicationMessageFailed' workflow for this module.
 export async function markApplicationMessageFailed(
     applicationId,
     messageId,
-    renderedSubject = null,
-    renderedBody = null,
-    db = pool,
+    renderedSubject: string | null = null,
+    renderedBody: string | null = null,
+    db: DbClient = pool,
 ) {
     return db.query(`
       UPDATE application_messages
@@ -453,7 +482,8 @@ export async function markApplicationMessageFailed(
     `, [applicationId, messageId, renderedSubject, renderedBody]);
 }
 
-export async function updateApplicationStageAndStatus(applicationId, stage, status, reviewerId, reviewMessage, db = pool) {
+// Handles 'updateApplicationStageAndStatus' workflow for this module.
+export async function updateApplicationStageAndStatus(applicationId, stage, status, reviewerId, reviewMessage, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET stage = $2,
@@ -466,7 +496,8 @@ export async function updateApplicationStageAndStatus(applicationId, stage, stat
     `, [applicationId, stage, status, reviewerId ?? null, reviewMessage ?? null]);
 }
 
-export async function updateApplicationStatusOnly(applicationId, status, reviewerId, reviewMessage, db = pool) {
+// Handles 'updateApplicationStatusOnly' workflow for this module.
+export async function updateApplicationStatusOnly(applicationId, status, reviewerId, reviewMessage, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET status = $2,
@@ -478,7 +509,8 @@ export async function updateApplicationStatusOnly(applicationId, status, reviewe
     `, [applicationId, status, reviewerId ?? null, reviewMessage ?? null]);
 }
 
-export async function setApplicationCreatedUser(applicationId, userId, db = pool) {
+// Handles 'setApplicationCreatedUser' workflow for this module.
+export async function setApplicationCreatedUser(applicationId, userId, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET created_user_id = $2,
@@ -488,7 +520,8 @@ export async function setApplicationCreatedUser(applicationId, userId, db = pool
     `, [applicationId, userId]);
 }
 
-export async function ensureApplicationParticipationToken(applicationId, token, db = pool) {
+// Handles 'ensureApplicationParticipationToken' workflow for this module.
+export async function ensureApplicationParticipationToken(applicationId, token, db: DbClient = pool) {
     return db.query(`
       UPDATE applications
       SET participation_token = COALESCE(participation_token, $2)
@@ -497,7 +530,8 @@ export async function ensureApplicationParticipationToken(applicationId, token, 
     `, [applicationId, token]);
 }
 
-export async function findApplicationByParticipationTokenForUpdate(token, db = pool) {
+// Handles 'findApplicationByParticipationTokenForUpdate' workflow for this module.
+export async function findApplicationByParticipationTokenForUpdate(token, db: DbClient = pool) {
     return db.query(`
       SELECT id, stage, status
       FROM applications
@@ -505,3 +539,4 @@ export async function findApplicationByParticipationTokenForUpdate(token, db = p
       FOR UPDATE
     `, [token]);
 }
+

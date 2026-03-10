@@ -1,9 +1,7 @@
-// File: frontend/src/forms/BlogForm.tsx
-// What this code does:
-// 1) Implements form fields, validation, and submission flows.
-// 2) Normalizes user input before API requests are sent.
-// 3) Handles loading, error, and success feedback states.
-// 4) Keeps form behavior consistent across intake workflows.
+﻿// File: frontend/src/forms/BlogForm.tsx
+// Purpose: Renders the blog form form used in the frontend.
+// It owns the form fields, local state, and submission flow for this UI.
+
 "use client"
 import BtnArrow from "@/svg/BtnArrow"
 
@@ -48,3 +46,4 @@ const BlogForm = () => {
 }
 
 export default BlogForm
+

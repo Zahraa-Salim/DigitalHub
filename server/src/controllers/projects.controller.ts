@@ -1,10 +1,9 @@
 // File: server/src/controllers/projects.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for projects.
+// It reads request data, calls the matching service methods, and sends API responses.
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   createProjectService,
@@ -14,40 +13,52 @@ import {
   patchProjectService,
 } from "../services/projects.service.js";
 
-export async function createProject(req, res) {
-  const data = await createProjectService(req.user.id, req.body);
+// Handles 'createProject' workflow for this module.
+export async function createProject(req: Request, res: Response) {
+  const data = await createProjectService(req.user!.id, req.body);
   sendSuccess(res, data, "Project created successfully.", 201);
 }
 
-export async function getProjects(req, res) {
+// Handles 'getProjects' workflow for this module.
+export async function getProjects(req: Request, res: Response) {
   const result = await listProjectsService(req.query);
   sendList(res, result.data, result.pagination);
 }
 
-export async function patchProject(req, res) {
-  const data = await patchProjectService(Number(req.params.id), req.user.id, req.body);
+// Handles 'patchProject' workflow for this module.
+export async function patchProject(req: Request, res: Response) {
+  const data = await patchProjectService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Project updated successfully.");
 }
 
-export async function deleteProject(req, res) {
-  const data = await deleteProjectService(Number(req.params.id), req.user.id);
+// Handles 'deleteProject' workflow for this module.
+export async function deleteProject(req: Request, res: Response) {
+  const data = await deleteProjectService(Number(req.params.id), req.user!.id);
   sendSuccess(res, data, "Project deleted successfully.");
 }
 
-export async function getPublicProjects(req, res) {
+// Handles 'getPublicProjects' workflow for this module.
+export async function getPublicProjects(req: Request, res: Response) {
   const result = await listProjectsService(req.query, { publicOnly: true });
   sendList(res, result.data, result.pagination);
 }
 
-export async function getPublicProjectById(req, res) {
+// Handles 'getPublicProjectById' workflow for this module.
+export async function getPublicProjectById(req: Request, res: Response) {
   const data = await getPublicProjectByIdService(Number(req.params.id));
   sendSuccess(res, data);
 }
 
-export async function getPublicParticipantProjects(req, res) {
+// Handles 'getPublicParticipantProjects' workflow for this module.
+export async function getPublicParticipantProjects(req: Request, res: Response) {
   const result = await listProjectsService(req.query, {
     publicOnly: true,
     publicSlug: String(req.params.public_slug),
   });
   sendList(res, result.data, result.pagination);
 }
+
+
+
+
+

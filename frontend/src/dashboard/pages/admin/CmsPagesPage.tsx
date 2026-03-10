@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/CmsPagesPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/CmsPagesPage.tsx
+// Purpose: Renders the admin CMS pages page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -1338,3 +1336,4 @@ export function CmsPagesPage() {
     </PageShell>
   );
 }
+

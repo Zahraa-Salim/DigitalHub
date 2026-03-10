@@ -1,10 +1,8 @@
 // File: server/src/services/applications.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for applications.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -59,6 +57,15 @@ import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
 import { normalizeEmail, normalizePhone } from "../utils/normalize.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause } from "../utils/sql.js";
+import type { DbClient } from "../db/index.js";
+
+type AnyRecord = Record<string, any>;
+type QueryParams = Record<string, any>;
+type DeliveryChannels = {
+  email?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+};
 
 const GENERAL_COHORT_FORM_KEY = "cohort_application";
 const LEGACY_COHORT_FORM_KEY = "general_application_form";
@@ -96,14 +103,14 @@ const MODERN_ONLY_STAGES = [
   "interview_confirmed",
 ];
 
-const MODERN_TO_LEGACY_STAGE = {
+const MODERN_TO_LEGACY_STAGE: Record<string, string> = {
   applied: "submitted",
   reviewing: "reviewed",
   invited_to_interview: "interview_scheduled",
   interview_confirmed: "interview_completed",
 };
 
-const LEGACY_TO_MODERN_STAGE = {
+const LEGACY_TO_MODERN_STAGE: Record<string, string> = {
   submitted: "applied",
   reviewed: "reviewing",
   shortlisted: "reviewing",
@@ -122,7 +129,8 @@ const APPLICATION_STATUSES = [
   "participation_confirmed",
 ];
 
-function normalizeReviewMessage(message) {
+// Handles 'normalizeReviewMessage' workflow for this module.
+function normalizeReviewMessage(message: unknown) {
   if (typeof message !== "string") {
     return null;
   }
@@ -131,7 +139,8 @@ function normalizeReviewMessage(message) {
   return trimmed ? trimmed : null;
 }
 
-function normalizeReviewOptions(input) {
+// Handles 'normalizeReviewOptions' workflow for this module.
+function normalizeReviewOptions(input: unknown) {
   if (typeof input === "string") {
     return {
       reason: null,
@@ -141,7 +150,7 @@ function normalizeReviewOptions(input) {
     };
   }
 
-  const value = typeof input === "object" && input !== null ? input : {};
+  const value: AnyRecord = typeof input === "object" && input !== null ? input as AnyRecord : {};
   return {
     reason: typeof value.reason === "string" ? value.reason.trim() || null : null,
     message: normalizeReviewMessage(value.message),
@@ -150,7 +159,8 @@ function normalizeReviewOptions(input) {
   };
 }
 
-function normalizeStage(value) {
+// Handles 'normalizeStage' workflow for this module.
+function normalizeStage(value: unknown) {
   if (value === undefined || value === null || value === "") {
     return undefined;
   }
@@ -167,7 +177,8 @@ function normalizeStage(value) {
   return stage;
 }
 
-function mapStageToStatus(stage) {
+// Handles 'mapStageToStatus' workflow for this module.
+function mapStageToStatus(stage: string) {
   const normalizedStage = LEGACY_TO_MODERN_STAGE[stage] || stage;
   if (APPLICATION_STATUSES.includes(normalizedStage)) {
     return normalizedStage;
@@ -175,7 +186,8 @@ function mapStageToStatus(stage) {
   return "applied";
 }
 
-function mapLegacyStatusToStage(status) {
+// Handles 'mapLegacyStatusToStage' workflow for this module.
+function mapLegacyStatusToStage(status: unknown) {
   const value = String(status || "").trim().toLowerCase();
   if (value === "pending") return "applied";
   if (value === "waitlisted") return "reviewing";
@@ -185,7 +197,8 @@ function mapLegacyStatusToStage(status) {
   return undefined;
 }
 
-function mapStageToLegacyStatus(stage) {
+// Handles 'mapStageToLegacyStatus' workflow for this module.
+function mapStageToLegacyStatus(stage: string) {
   const normalizedStage = LEGACY_TO_MODERN_STAGE[stage] || stage;
   if (normalizedStage === "rejected") return "rejected";
   if (normalizedStage === "accepted" || normalizedStage === "participation_confirmed") return "approved";
@@ -199,7 +212,8 @@ function mapStageToLegacyStatus(stage) {
   return "pending";
 }
 
-function normalizeStageForFamily(stage, currentStage) {
+// Handles 'normalizeStageForFamily' workflow for this module.
+function normalizeStageForFamily(stage: unknown, currentStage: unknown) {
   const incoming = String(stage || "").trim();
   const existing = String(currentStage || "").trim();
 
@@ -214,7 +228,8 @@ function normalizeStageForFamily(stage, currentStage) {
   return incoming;
 }
 
-function buildInterviewLinks(token) {
+// Handles 'buildInterviewLinks' workflow for this module.
+function buildInterviewLinks(token: string) {
   const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
   return {
     confirm_url: `${baseApi}/public/interviews/${token}/confirm`,
@@ -222,6 +237,7 @@ function buildInterviewLinks(token) {
   };
 }
 
+// Handles 'buildLearnerSignInUrl' workflow for this module.
 function buildLearnerSignInUrl() {
   return (
     process.env.LEARNER_SIGNIN_URL ||
@@ -231,21 +247,29 @@ function buildLearnerSignInUrl() {
   );
 }
 
-function buildParticipationConfirmLink(token) {
+// Handles 'buildParticipationConfirmLink' workflow for this module.
+function buildParticipationConfirmLink(token: string) {
   const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
   return `${baseApi}/public/participation/${token}/confirm`;
 }
 
-function formatTemplateDate(value) {
+// Handles 'formatTemplateDate' workflow for this module.
+function formatTemplateDate(value: unknown) {
   if (!value) return "";
-  const date = new Date(value);
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "string" || typeof value === "number"
+        ? new Date(value)
+        : new Date(String(value));
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
   return date.toUTCString();
 }
 
-function renderTemplateString(input, tokens) {
+// Handles 'renderTemplateString' workflow for this module.
+function renderTemplateString(input: unknown, tokens: Record<string, unknown>) {
   return String(input ?? "").replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, (match, rawKey) => {
     const key = String(rawKey || "").trim();
     if (!(key in tokens)) return match;
@@ -254,7 +278,8 @@ function renderTemplateString(input, tokens) {
   });
 }
 
-async function buildApplicationMessageTokens(applicationId, client) {
+// Handles 'buildApplicationMessageTokens' workflow for this module.
+async function buildApplicationMessageTokens(applicationId: number, client: DbClient) {
   const [applicationResult, interviewResult] = await Promise.all([
     getApplicationById(applicationId, client),
     getInterviewByApplicationId(applicationId, client),
@@ -292,8 +317,9 @@ async function buildApplicationMessageTokens(applicationId, client) {
   };
 }
 
-function buildMessageDraftsFromFlags(input) {
-  const drafts = [];
+// Handles 'buildMessageDraftsFromFlags' workflow for this module.
+function buildMessageDraftsFromFlags(input: AnyRecord) {
+  const drafts: AnyRecord[] = [];
   if (input.send_email) {
     drafts.push({
       channel: "email",
@@ -313,14 +339,20 @@ function buildMessageDraftsFromFlags(input) {
   return drafts;
 }
 
-async function queueMessageDrafts(application, actorUserId, drafts, client) {
+// Handles 'queueMessageDrafts' workflow for this module.
+async function queueMessageDrafts(
+  application: AnyRecord,
+  actorUserId: number,
+  drafts: AnyRecord[],
+  client: DbClient,
+) {
   if (!Array.isArray(drafts) || !drafts.length) {
     return { sentMessages: [], failedMessages: [], skippedCount: 0 };
   }
 
   const tokens = await buildApplicationMessageTokens(application.id, client);
-  const sentMessages = [];
-  const failedMessages = [];
+  const sentMessages: AnyRecord[] = [];
+  const failedMessages: AnyRecord[] = [];
   let skippedCount = 0;
 
   for (const draft of drafts) {
@@ -398,7 +430,7 @@ async function queueMessageDrafts(application, actorUserId, drafts, client) {
         subject: renderedSubject,
         body: renderedBody,
       });
-    } catch (error) {
+    } catch (error: any) {
       const failedResult = await markApplicationMessageFailed(
         application.id,
         messageId,
@@ -451,13 +483,14 @@ async function queueMessageDrafts(application, actorUserId, drafts, client) {
   return { sentMessages, failedMessages, skippedCount };
 }
 
+// Handles 'sendAccountCredentialsMessageForApplication' workflow for this module.
 async function sendAccountCredentialsMessageForApplication(
-  application,
-  applicationId,
-  actorUserId,
-  generatedPassword,
-  deliveryChannels,
-  client,
+  application: AnyRecord,
+  applicationId: number,
+  actorUserId: number,
+  generatedPassword: string | null,
+  client: DbClient,
+  deliveryChannels?: DeliveryChannels,
 ) {
   const templateKey = generatedPassword ? "account_credentials" : "account_existing_reminder";
   const templateResult = await getMessageTemplateByKey(templateKey, client);
@@ -484,8 +517,8 @@ async function sendAccountCredentialsMessageForApplication(
     tokens,
   );
 
-  const sentMessages = [];
-  const failedMessages = [];
+  const sentMessages: AnyRecord[] = [];
+  const failedMessages: AnyRecord[] = [];
   const allowEmail = deliveryChannels?.email !== false;
   const allowSms = deliveryChannels?.sms !== false;
 
@@ -525,7 +558,7 @@ async function sendAccountCredentialsMessageForApplication(
         await markApplicationMessageSent(applicationId, messageId, subject, body, client);
         sentMessages.push({ channel: "email", to: emailValue, message_id: messageId });
       }
-    } catch (error) {
+    } catch (error: any) {
       failedMessages.push({ channel: "email", to: emailValue, error: String(error?.message || error) });
       await createApplicationMessageDraft(
         {
@@ -564,7 +597,7 @@ async function sendAccountCredentialsMessageForApplication(
         await markApplicationMessageSent(applicationId, messageId, null, body, client);
         sentMessages.push({ channel: "sms", to: phoneValue, message_id: messageId });
       }
-    } catch (error) {
+    } catch (error: any) {
       failedMessages.push({ channel: "sms", to: phoneValue, error: String(error?.message || error) });
       await createApplicationMessageDraft(
         {
@@ -585,7 +618,13 @@ async function sendAccountCredentialsMessageForApplication(
   return { sentMessages, failedMessages, skipped: false };
 }
 
-async function createUserAndEnrollment(application, actorUserId, reviewMessage, client) {
+// Handles 'createUserAndEnrollment' workflow for this module.
+async function createUserAndEnrollment(
+  application: AnyRecord,
+  actorUserId: number,
+  reviewMessage: string | null,
+  client: DbClient,
+) {
   if (application.capacity !== null) {
     const capacityResult = await countActiveEnrollmentsByCohort(application.cohort_id, client);
     const enrolledCount = Number(capacityResult.rows[0]?.enrolled_count ?? 0);
@@ -609,7 +648,7 @@ async function createUserAndEnrollment(application, actorUserId, reviewMessage, 
     existingUserResult = await findUserByPhone(fallbackPhone, client);
   }
 
-  if (existingUserResult.rowCount) {
+  if (existingUserResult?.rowCount) {
     studentUserId = Number(existingUserResult.rows[0].id);
     if (!existingUserResult.rows[0].is_student) {
       await setUserAsStudent(studentUserId, client);
@@ -633,7 +672,8 @@ async function createUserAndEnrollment(application, actorUserId, reviewMessage, 
   };
 }
 
-export async function createApplicationService(payload) {
+// Handles 'createApplicationService' workflow for this module.
+export async function createApplicationService(payload: AnyRecord) {
   const body = payload;
   const applicantEmailNorm = normalizeEmail(body.applicant.email);
   const applicantPhoneNorm = normalizePhone(body.applicant.phone);
@@ -641,7 +681,7 @@ export async function createApplicationService(payload) {
   const applicantPhone = body.applicant.phone?.trim() || null;
   const submissionAnswers = body.answers ?? {};
 
-  return withTransaction(async (client) => {
+  return withTransaction(async (client: DbClient) => {
     const applicantResult = await createApplicant(
       body.applicant.full_name ?? null,
       applicantEmail,
@@ -660,7 +700,7 @@ export async function createApplicationService(payload) {
         submissionAnswers,
         client,
       );
-    } catch (error) {
+    } catch (error: any) {
       if (isUniqueViolation(error)) {
         throw new AppError(
           409,
@@ -710,7 +750,8 @@ export async function createApplicationService(payload) {
   });
 }
 
-export async function listApplicationsService(query) {
+// Handles 'listApplicationsService' workflow for this module.
+export async function listApplicationsService(query: QueryParams) {
   const list = parseListQuery(
     query,
     ["id", "status", "stage", "submitted_at", "reviewed_at", "created_at"],
@@ -718,8 +759,8 @@ export async function listApplicationsService(query) {
   );
   const sortBy = list.sortBy === "created_at" ? "submitted_at" : list.sortBy;
   const stage = normalizeStage(query.stage);
-  const params = [];
-  const where = [];
+  const params: Array<string | number | boolean | null> = [];
+  const where: string[] = [];
 
   if (list.search) {
     params.push(`%${list.search}%`);
@@ -752,7 +793,8 @@ export async function listApplicationsService(query) {
   };
 }
 
-export async function getApplicationPipelineService(applicationId) {
+// Handles 'getApplicationPipelineService' workflow for this module.
+export async function getApplicationPipelineService(applicationId: number) {
   const [applicationResult, interviewResult, messagesResult] = await Promise.all([
     getApplicationById(applicationId),
     getInterviewByApplicationId(applicationId),
@@ -770,11 +812,12 @@ export async function getApplicationPipelineService(applicationId) {
   };
 }
 
-export async function approveApplicationService(applicationId, reviewerId, options) {
+// Handles 'approveApplicationService' workflow for this module.
+export async function approveApplicationService(applicationId: number, reviewerId: number, options: AnyRecord) {
   const input = normalizeReviewOptions(options);
   const reviewMessage = input.message;
 
-  return withTransaction(async (client) => {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForApproval(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -872,11 +915,12 @@ export async function approveApplicationService(applicationId, reviewerId, optio
   });
 }
 
-export async function rejectApplicationService(applicationId, reviewerId, options) {
+// Handles 'rejectApplicationService' workflow for this module.
+export async function rejectApplicationService(applicationId: number, reviewerId: number, options: AnyRecord) {
   const input = normalizeReviewOptions(options);
   const reviewMessage = normalizeReviewMessage(input.message ?? input.reason);
 
-  return withTransaction(async (client) => {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForApproval(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -950,8 +994,9 @@ export async function rejectApplicationService(applicationId, reviewerId, option
   });
 }
 
-export async function patchApplicationStageService(applicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchApplicationStageService' workflow for this module.
+export async function patchApplicationStageService(applicationId: number, actorUserId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const normalizedInput = normalizeStage(payload.status ?? payload.stage);
     if (!normalizedInput) {
       throw new AppError(400, "VALIDATION_ERROR", "Stage or status is required.");
@@ -977,7 +1022,7 @@ export async function patchApplicationStageService(applicationId, actorUserId, p
         reviewMessage,
         client,
       );
-    } catch (error) {
+    } catch (error: any) {
       // Backward compatibility for databases that don't support stage writes.
       if (
         typeof error === "object" &&
@@ -1020,8 +1065,9 @@ export async function patchApplicationStageService(applicationId, actorUserId, p
   });
 }
 
-export async function shortlistApplicationService(applicationId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'shortlistApplicationService' workflow for this module.
+export async function shortlistApplicationService(applicationId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1059,8 +1105,9 @@ export async function shortlistApplicationService(applicationId, actorUserId) {
   });
 }
 
-export async function scheduleApplicationInterviewService(applicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'scheduleApplicationInterviewService' workflow for this module.
+export async function scheduleApplicationInterviewService(applicationId: number, actorUserId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1158,8 +1205,9 @@ export async function scheduleApplicationInterviewService(applicationId, actorUs
   });
 }
 
-export async function markApplicationInterviewCompletedService(applicationId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'markApplicationInterviewCompletedService' workflow for this module.
+export async function markApplicationInterviewCompletedService(applicationId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1200,8 +1248,9 @@ export async function markApplicationInterviewCompletedService(applicationId, ac
   });
 }
 
-export async function setApplicationDecisionService(applicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'setApplicationDecisionService' workflow for this module.
+export async function setApplicationDecisionService(applicationId: number, actorUserId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1290,8 +1339,9 @@ export async function setApplicationDecisionService(applicationId, actorUserId, 
   });
 }
 
-export async function confirmApplicationParticipationService(applicationId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'confirmApplicationParticipationService' workflow for this module.
+export async function confirmApplicationParticipationService(applicationId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1329,8 +1379,13 @@ export async function confirmApplicationParticipationService(applicationId, acto
   });
 }
 
-export async function createUserFromApplicationService(applicationId, actorUserId, options = {}) {
-  return withTransaction(async (client) => {
+// Handles 'createUserFromApplicationService' workflow for this module.
+export async function createUserFromApplicationService(
+  applicationId: number,
+  actorUserId: number,
+  options: { channels?: DeliveryChannels } = {},
+) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1347,8 +1402,8 @@ export async function createUserFromApplicationService(applicationId, actorUserI
         applicationId,
         actorUserId,
         null,
-        deliveryChannels,
         client,
+        deliveryChannels,
       );
 
       return {
@@ -1384,8 +1439,8 @@ export async function createUserFromApplicationService(applicationId, actorUserI
       applicationId,
       actorUserId,
       enrollmentMeta.generatedPassword,
-      deliveryChannels,
       client,
+      deliveryChannels,
     );
 
     await logAdminAction(
@@ -1419,7 +1474,8 @@ export async function createUserFromApplicationService(applicationId, actorUserI
   });
 }
 
-export async function listApplicationMessagesService(applicationId) {
+// Handles 'listApplicationMessagesService' workflow for this module.
+export async function listApplicationMessagesService(applicationId: number) {
   const [applicationResult, messagesResult] = await Promise.all([
     getApplicationById(applicationId),
     listApplicationMessageDrafts(applicationId),
@@ -1435,8 +1491,9 @@ export async function listApplicationMessagesService(applicationId) {
   };
 }
 
-export async function createApplicationMessageDraftService(applicationId, actorUserId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createApplicationMessageDraftService' workflow for this module.
+export async function createApplicationMessageDraftService(applicationId: number, actorUserId: number, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
@@ -1490,8 +1547,9 @@ export async function createApplicationMessageDraftService(applicationId, actorU
   });
 }
 
-export async function sendApplicationMessageService(applicationId, messageId, actorUserId) {
-  return withTransaction(async (client) => {
+// Handles 'sendApplicationMessageService' workflow for this module.
+export async function sendApplicationMessageService(applicationId: number, messageId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
     const draftResult = await getApplicationMessageForSend(applicationId, messageId, client);
     if (!draftResult.rowCount) {
       throw new AppError(404, "MESSAGE_NOT_FOUND", "Message draft not found for this application.");
@@ -1548,7 +1606,7 @@ export async function sendApplicationMessageService(applicationId, messageId, ac
       );
 
       return message;
-    } catch (error) {
+    } catch (error: any) {
       const failedResult = await markApplicationMessageFailed(
         applicationId,
         messageId,
@@ -1586,8 +1644,9 @@ export async function sendApplicationMessageService(applicationId, messageId, ac
   });
 }
 
-export async function publicConfirmInterviewService(token, payload) {
-  return withTransaction(async (client) => {
+// Handles 'publicConfirmInterviewService' workflow for this module.
+export async function publicConfirmInterviewService(token: string, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const interviewResult = await findInterviewByTokenForUpdate(token, client);
     if (!interviewResult.rowCount) {
       throw new AppError(404, "NOT_FOUND", "Interview token is invalid.");
@@ -1604,6 +1663,26 @@ export async function publicConfirmInterviewService(token, payload) {
         "interview_confirmed",
         client,
       );
+    }
+
+    if (interview.application_id) {
+      const applicationResult = await getApplicationForPipelineUpdate(interview.application_id, client);
+      if (applicationResult.rowCount) {
+        const application = applicationResult.rows[0];
+        const normalizedStage = LEGACY_TO_MODERN_STAGE[String(application.stage || "")] || String(application.stage || "");
+        if (normalizedStage === "invited_to_interview") {
+          const nextStage = normalizeStageForFamily("interview_confirmed", application.stage);
+          const nextStatus = mapStageToStatus(nextStage);
+          await updateApplicationStageAndStatus(
+            application.id,
+            nextStage,
+            nextStatus,
+            null,
+            null,
+            client,
+          );
+        }
+      }
     }
 
     const entityLabel = interview.program_application_id
@@ -1632,8 +1711,9 @@ export async function publicConfirmInterviewService(token, payload) {
   });
 }
 
-export async function publicRescheduleInterviewService(token, payload) {
-  return withTransaction(async (client) => {
+// Handles 'publicRescheduleInterviewService' workflow for this module.
+export async function publicRescheduleInterviewService(token: string, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const interviewResult = await findInterviewByTokenForUpdate(token, client);
     if (!interviewResult.rowCount) {
       throw new AppError(404, "NOT_FOUND", "Interview token is invalid.");
@@ -1675,8 +1755,9 @@ export async function publicRescheduleInterviewService(token, payload) {
   });
 }
 
-export async function publicConfirmParticipationService(token, payload) {
-  return withTransaction(async (client) => {
+// Handles 'publicConfirmParticipationService' workflow for this module.
+export async function publicConfirmParticipationService(token: string, payload: AnyRecord) {
+  return withTransaction(async (client: DbClient) => {
     const applicationResult = await findApplicationByParticipationTokenForUpdate(token, client);
     if (!applicationResult.rowCount) {
       throw new AppError(404, "NOT_FOUND", "Participation token is invalid.");
@@ -1733,6 +1814,8 @@ export async function publicConfirmParticipationService(token, payload) {
   });
 }
 
-function isUniqueViolation(error) {
+// Handles 'isUniqueViolation' workflow for this module.
+function isUniqueViolation(error: any) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
+

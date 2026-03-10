@@ -1,12 +1,12 @@
-// File: server/src/repositories/notifications.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/notifications.repo.ts
+// Purpose: Runs the database queries used for notifications.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 
+// Handles 'isTransientDatabaseError' workflow for this module.
 function isTransientDatabaseError(error) {
     if (!error || typeof error !== "object") {
         return false;
@@ -26,6 +26,7 @@ function isTransientDatabaseError(error) {
         message.includes("getaddrinfo"));
 }
 
+// Handles 'queryWithRetry' workflow for this module.
 async function queryWithRetry(runQuery) {
     const maxAttempts = 3;
     let attempt = 0;
@@ -44,9 +45,11 @@ async function queryWithRetry(runQuery) {
     return runQuery();
 }
 
+// Handles 'countNotifications' workflow for this module.
 export async function countNotifications(whereClause, params, db = pool) {
     return queryWithRetry(() => db.query(`SELECT COUNT(*)::int AS total FROM admin_notifications ${whereClause}`, params));
 }
+// Handles 'listNotifications' workflow for this module.
 export async function listNotifications(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return queryWithRetry(() => db.query(`
       SELECT id, recipient_admin_user_id, log_id, title, body, is_read, read_at, created_at
@@ -57,6 +60,7 @@ export async function listNotifications(whereClause, sortBy, order, params, limi
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]));
 }
+// Handles 'getNotificationById' workflow for this module.
 export async function getNotificationById(id, adminId, db = pool) {
     return queryWithRetry(() => db.query(`
       SELECT id, is_read
@@ -65,6 +69,7 @@ export async function getNotificationById(id, adminId, db = pool) {
         AND recipient_admin_user_id = $2
     `, [id, adminId]));
 }
+// Handles 'markNotificationRead' workflow for this module.
 export async function markNotificationRead(id, adminId, db = pool) {
     return queryWithRetry(() => db.query(`
       UPDATE admin_notifications
@@ -74,6 +79,7 @@ export async function markNotificationRead(id, adminId, db = pool) {
       RETURNING *
     `, [id, adminId]));
 }
+// Handles 'markAllNotificationsRead' workflow for this module.
 export async function markAllNotificationsRead(adminId, db = pool) {
     return queryWithRetry(() => db.query(`
       UPDATE admin_notifications
@@ -82,6 +88,7 @@ export async function markAllNotificationsRead(adminId, db = pool) {
         AND is_read = FALSE
     `, [adminId]));
 }
+// Handles 'clearReadNotifications' workflow for this module.
 export async function clearReadNotifications(adminId, db = pool) {
     return queryWithRetry(() => db.query(`
       DELETE FROM admin_notifications
@@ -89,6 +96,7 @@ export async function clearReadNotifications(adminId, db = pool) {
         AND is_read = TRUE
     `, [adminId]));
 }
+// Handles 'clearReadNotificationsOlderThan' workflow for this module.
 export async function clearReadNotificationsOlderThan(adminId, days, db = pool) {
     return queryWithRetry(() => db.query(`
       DELETE FROM admin_notifications
@@ -97,5 +105,4 @@ export async function clearReadNotificationsOlderThan(adminId, days, db = pool) 
         AND COALESCE(read_at, created_at) < NOW() - ($2 * INTERVAL '1 day')
     `, [adminId, days]));
 }
-
 

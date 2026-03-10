@@ -1,11 +1,11 @@
-// File: server/src/repositories/cms.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/cms.repo.ts
+// Purpose: Runs the database queries used for CMS.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
+// Handles 'getSiteSettings' workflow for this module.
 export async function getSiteSettings(db = pool) {
     return db.query(`
       SELECT id, site_name, default_event_location, contact_info, social_links, updated_by, updated_at
@@ -13,6 +13,7 @@ export async function getSiteSettings(db = pool) {
       WHERE id = 1
     `);
 }
+// Handles 'ensureSiteSettingsRow' workflow for this module.
 export async function ensureSiteSettingsRow(adminId, db = pool) {
     return db.query(`
       INSERT INTO site_settings (id, site_name, default_event_location, contact_info, social_links, updated_by, updated_at)
@@ -20,6 +21,7 @@ export async function ensureSiteSettingsRow(adminId, db = pool) {
       ON CONFLICT (id) DO NOTHING
     `, [adminId]);
 }
+// Handles 'updateSiteSettings' workflow for this module.
 export async function updateSiteSettings(setClause, values, adminId, db = pool) {
     return db.query(`
       UPDATE site_settings
@@ -28,9 +30,11 @@ export async function updateSiteSettings(setClause, values, adminId, db = pool) 
       RETURNING *
     `, [...values, adminId]);
 }
+// Handles 'countPages' workflow for this module.
 export async function countPages(whereClause, params, db = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM pages ${whereClause}`, params);
 }
+// Handles 'ensureDefaultPages' workflow for this module.
 export async function ensureDefaultPages(db = pool) {
     return db.query(`
       INSERT INTO pages (key, title, content, is_published, updated_at)
@@ -555,6 +559,7 @@ export async function ensureDefaultPages(db = pool) {
       ON CONFLICT (key) DO NOTHING
     `);
 }
+// Handles 'listPages' workflow for this module.
 export async function listPages(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT id, key, title, content, is_published, updated_by, updated_at
@@ -565,6 +570,7 @@ export async function listPages(whereClause, sortBy, order, params, limit, offse
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'updatePage' workflow for this module.
 export async function updatePage(id, setClause, values, adminId, db = pool) {
     return db.query(`
       UPDATE pages
@@ -573,9 +579,11 @@ export async function updatePage(id, setClause, values, adminId, db = pool) {
       RETURNING *
     `, [...values, adminId, id]);
 }
+// Handles 'countHomeSections' workflow for this module.
 export async function countHomeSections(whereClause, params, db = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM home_sections ${whereClause}`, params);
 }
+// Handles 'ensureDefaultHomeSections' workflow for this module.
 export async function ensureDefaultHomeSections(db = pool) {
     return db.query(`
       WITH legacy_team_row AS (
@@ -698,6 +706,7 @@ export async function ensureDefaultHomeSections(db = pool) {
       ON CONFLICT (key) DO NOTHING
     `);
 }
+// Handles 'listHomeSections' workflow for this module.
 export async function listHomeSections(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT id, key, title, is_enabled, sort_order, content, updated_by, updated_at
@@ -708,6 +717,7 @@ export async function listHomeSections(whereClause, sortBy, order, params, limit
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'updateHomeSection' workflow for this module.
 export async function updateHomeSection(id, setClause, values, adminId, db = pool) {
     return db.query(`
       UPDATE home_sections
@@ -716,9 +726,11 @@ export async function updateHomeSection(id, setClause, values, adminId, db = poo
       RETURNING *
     `, [...values, adminId, id]);
 }
+// Handles 'countMediaAssets' workflow for this module.
 export async function countMediaAssets(whereClause, params, db = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM media_assets ${whereClause}`, params);
 }
+// Handles 'listMediaAssets' workflow for this module.
 export async function listMediaAssets(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT
@@ -741,6 +753,7 @@ export async function listMediaAssets(whereClause, sortBy, order, params, limit,
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'createMediaAsset' workflow for this module.
 export async function createMediaAsset(input, db = pool) {
     return db.query(`
       INSERT INTO media_assets (
@@ -781,9 +794,11 @@ export async function createMediaAsset(input, db = pool) {
         input.created_by ?? null,
     ]);
 }
+// Handles 'countThemeTokens' workflow for this module.
 export async function countThemeTokens(whereClause, params, db = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM theme_tokens ${whereClause}`, params);
 }
+// Handles 'listThemeTokens' workflow for this module.
 export async function listThemeTokens(whereClause, sortBy, order, params, limit, offset, db = pool) {
     return db.query(`
       SELECT id, key, purpose, value, scope, updated_by, updated_at
@@ -794,6 +809,7 @@ export async function listThemeTokens(whereClause, sortBy, order, params, limit,
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 }
+// Handles 'createThemeToken' workflow for this module.
 export async function createThemeToken(key, purpose, value, scope, adminId, db = pool) {
     return db.query(`
       INSERT INTO theme_tokens (key, purpose, value, scope, updated_by, updated_at)
@@ -801,6 +817,7 @@ export async function createThemeToken(key, purpose, value, scope, adminId, db =
       RETURNING *
     `, [key, purpose, value, scope, adminId]);
 }
+// Handles 'updateThemeToken' workflow for this module.
 export async function updateThemeToken(id, setClause, values, adminId, db = pool) {
     return db.query(`
       UPDATE theme_tokens
@@ -809,5 +826,4 @@ export async function updateThemeToken(id, setClause, values, adminId, db = pool
       RETURNING *
     `, [...values, adminId, id]);
 }
-
 

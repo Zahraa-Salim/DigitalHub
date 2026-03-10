@@ -1,10 +1,8 @@
 // File: server/src/services/public.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for public.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import { getCohortFormService } from "./forms.service.js";
@@ -32,8 +30,13 @@ import {
     upsertProgramApplicationByPhone,
 } from "../repositories/public.repo.js";
 import { listPublicProjectsByStudentUserId } from "../repositories/projects.repository.js";
+import type { DbClient } from "../db/index.js";
 
-function isTransientDatabaseError(error) {
+type AnyRecord = Record<string, any>;
+type QueryParams = Record<string, any>;
+
+// Handles 'isTransientDatabaseError' workflow for this module.
+function isTransientDatabaseError(error: any) {
     if (!error || typeof error !== "object") {
         return false;
     }
@@ -57,11 +60,12 @@ function isTransientDatabaseError(error) {
         message.includes("connection terminated unexpectedly"));
 }
 
-async function withDbRetry(handler, retries = 1) {
+// Handles 'withDbRetry' workflow for this module.
+async function withDbRetry(handler: () => Promise<any>, retries = 1) {
     try {
         return await handler();
     }
-    catch (error) {
+    catch (error: any) {
         if (!isTransientDatabaseError(error) || retries <= 0) {
             throw error;
         }
@@ -70,10 +74,11 @@ async function withDbRetry(handler, retries = 1) {
     }
 }
 
-async function listPublicResource(query, config) {
+// Handles 'listPublicResource' workflow for this module.
+async function listPublicResource(query: QueryParams, config: AnyRecord) {
     const list = parseListQuery(query, config.sortableColumns, config.defaultSort);
-    const params = [];
-    const where = [...config.extraWhere];
+    const params: Array<string | number | boolean | null> = [];
+    const where: string[] = [...config.extraWhere];
     if (config.statusFilterExpression && list.status) {
         const requestedStatus = String(list.status).trim().toLowerCase();
         const normalizedStatus = config.statusAliases?.[requestedStatus] || requestedStatus;
@@ -121,7 +126,7 @@ const cohortsConfig = {
     extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL", "c.deleted_at IS NULL", "c.status <> 'cancelled'"],
     resourceConfig: {
         tableExpression: "cohorts c JOIN programs p ON p.id = c.program_id",
-        selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
+        selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, p.summary AS program_summary, p.description AS program_description, p.requirements AS program_requirements, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
         sortPrefix: "c",
     },
     statusFilterExpression: "(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END)",
@@ -329,13 +334,16 @@ const studentsConfig = {
     },
     featuredFilterColumn: "sp.featured",
 };
-export function listPublicProgramsService(query) {
+// Handles 'listPublicProgramsService' workflow for this module.
+export function listPublicProgramsService(query: QueryParams) {
     return listPublicResource(query, programsConfig);
 }
-export function listPublicCohortsService(query) {
+// Handles 'listPublicCohortsService' workflow for this module.
+export function listPublicCohortsService(query: QueryParams) {
     return listPublicResource(query, cohortsConfig);
 }
-export async function getPublicCohortDetailService(cohortId) {
+// Handles 'getPublicCohortDetailService' workflow for this module.
+export async function getPublicCohortDetailService(cohortId: number) {
     const normalizedId = Number(cohortId);
     if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
         throw new AppError(400, "VALIDATION_ERROR", "Cohort id is required.");
@@ -354,7 +362,8 @@ export async function getPublicCohortDetailService(cohortId) {
         students: studentsResult.rows,
     };
 }
-export async function getPublicCohortApplicationFormService(cohortId) {
+// Handles 'getPublicCohortApplicationFormService' workflow for this module.
+export async function getPublicCohortApplicationFormService(cohortId: number) {
     const data = await getCohortFormService(cohortId);
     return {
         cohort: data.cohort,
@@ -362,10 +371,12 @@ export async function getPublicCohortApplicationFormService(cohortId) {
         form_source: data.cohort?.use_general_form || !data.custom_form ? "general" : "custom",
     };
 }
-export function listPublicEventsService(query) {
+// Handles 'listPublicEventsService' workflow for this module.
+export function listPublicEventsService(query: QueryParams) {
     return listPublicResource(query, eventsConfig);
 }
-export async function getPublicEventBySlugService(slug) {
+// Handles 'getPublicEventBySlugService' workflow for this module.
+export async function getPublicEventBySlugService(slug: string) {
     const normalizedSlug = String(slug || "").trim();
     if (!normalizedSlug) {
         throw new AppError(400, "VALIDATION_ERROR", "Event slug is required.");
@@ -376,19 +387,24 @@ export async function getPublicEventBySlugService(slug) {
     }
     return result.rows[0];
 }
-export function listPublicAnnouncementsService(query) {
+// Handles 'listPublicAnnouncementsService' workflow for this module.
+export function listPublicAnnouncementsService(query: QueryParams) {
     return listPublicResource(query, announcementsConfig);
 }
-export function listPublicManagersService(query) {
+// Handles 'listPublicManagersService' workflow for this module.
+export function listPublicManagersService(query: QueryParams) {
     return listPublicResource(query, managersConfig);
 }
-export function listPublicInstructorsService(query) {
+// Handles 'listPublicInstructorsService' workflow for this module.
+export function listPublicInstructorsService(query: QueryParams) {
     return listPublicResource(query, instructorsConfig);
 }
-export function listPublicStudentsService(query) {
+// Handles 'listPublicStudentsService' workflow for this module.
+export function listPublicStudentsService(query: QueryParams) {
     return listPublicResource(query, studentsConfig);
 }
-export async function getPublicStudentDetailService(publicSlug) {
+// Handles 'getPublicStudentDetailService' workflow for this module.
+export async function getPublicStudentDetailService(publicSlug: string) {
     const profileResult = await getPublicStudentBySlug(publicSlug);
     if (!profileResult.rowCount) {
         throw new AppError(404, "NOT_FOUND", "Student profile not found.");
@@ -403,6 +419,7 @@ export async function getPublicStudentDetailService(publicSlug) {
         projects: projectsResult.rows,
     };
 }
+// Handles 'getPublicThemeService' workflow for this module.
 export async function getPublicThemeService() {
     const cacheKey = "public:theme";
     const lastKnownGoodCacheKey = "public:theme:last_known_good";
@@ -417,7 +434,7 @@ export async function getPublicThemeService() {
         await cacheSetJson(lastKnownGoodCacheKey, data, 86400);
         return data;
     }
-    catch (error) {
+    catch (error: any) {
         if (!isTransientDatabaseError(error)) {
             throw error;
         }
@@ -428,6 +445,7 @@ export async function getPublicThemeService() {
         return [];
     }
 }
+// Handles 'getPublicHomeService' workflow for this module.
 export async function getPublicHomeService() {
     const cacheKey = "public:home";
     const lastKnownGoodCacheKey = "public:home:last_known_good";
@@ -449,7 +467,7 @@ export async function getPublicHomeService() {
         await cacheSetJson(lastKnownGoodCacheKey, data, 86400);
         return data;
     }
-    catch (error) {
+    catch (error: any) {
         if (!isTransientDatabaseError(error)) {
             throw error;
         }
@@ -461,7 +479,8 @@ export async function getPublicHomeService() {
     }
 }
 
-export async function getPublicPageByKeyService(pageKey) {
+// Handles 'getPublicPageByKeyService' workflow for this module.
+export async function getPublicPageByKeyService(pageKey: string) {
     const normalized = String(pageKey || "").trim().toLowerCase();
     if (!normalized) {
         throw new AppError(400, "VALIDATION_ERROR", "Page key is required.");
@@ -484,8 +503,9 @@ export async function getPublicPageByKeyService(pageKey) {
     return data;
 }
 
+// Handles 'getPublicApplyFormService' workflow for this module.
 export async function getPublicApplyFormService() {
-    return withTransaction(async (client) => {
+    return withTransaction(async (client: DbClient) => {
         const formResult = await getGeneralApplyForm(client);
         if (!formResult.rowCount) {
             throw new AppError(404, "FORM_NOT_FOUND", "General apply form is not configured.");
@@ -535,19 +555,22 @@ export async function getPublicApplyFormService() {
     });
 }
 
-function normalizeEmail(value) {
+// Handles 'normalizeEmail' workflow for this module.
+function normalizeEmail(value: unknown) {
     if (typeof value !== "string")
         return null;
     const trimmed = value.trim().toLowerCase();
     return trimmed || null;
 }
-function normalizePhone(value) {
+// Handles 'normalizePhone' workflow for this module.
+function normalizePhone(value: unknown) {
     if (typeof value !== "string")
         return null;
     const digits = value.replace(/\D/g, "");
     return digits || null;
 }
-function isMissingRequiredAnswer(value) {
+// Handles 'isMissingRequiredAnswer' workflow for this module.
+function isMissingRequiredAnswer(value: unknown) {
     if (value === undefined || value === null)
         return true;
     if (typeof value === "string")
@@ -556,7 +579,8 @@ function isMissingRequiredAnswer(value) {
         return value.length === 0;
     return false;
 }
-function pickAnswer(answers, keys) {
+// Handles 'pickAnswer' workflow for this module.
+function pickAnswer(answers: AnyRecord, keys: string[]) {
     for (const key of keys) {
         if (answers[key] !== undefined && answers[key] !== null) {
             return answers[key];
@@ -564,8 +588,9 @@ function pickAnswer(answers, keys) {
     }
     return null;
 }
-export async function submitPublicApplyService(payload) {
-    return withTransaction(async (client) => {
+// Handles 'submitPublicApplyService' workflow for this module.
+export async function submitPublicApplyService(payload: AnyRecord) {
+    return withTransaction(async (client: DbClient) => {
         const tableReady = await programApplicationsTableExists(client);
         if (!tableReady) {
             throw new AppError(500, "INTERNAL_ERROR", "program_applications table is missing. Run the required migration before using public apply.");
@@ -579,21 +604,22 @@ export async function submitPublicApplyService(payload) {
             throw new AppError(404, "FORM_NOT_FOUND", "General apply form is not configured.");
         }
         const form = formResult.rows[0];
-        const answers = payload.answers ?? {};
+        const answers: AnyRecord = payload.answers ?? {};
         const fieldsResult = await listEnabledFormFieldsByFormId(form.id, client);
         const requiredFields = fieldsResult.rows.filter((field) => field.required);
-        const fieldErrors = {};
+        const fieldErrors: Record<string, string> = {};
         for (const field of requiredFields) {
-            if (field.name === "program_id") {
-                if (!payload.program_id) {
-                    fieldErrors[field.name] = `${field.label || field.name} is required`;
-                }
-                continue;
+          const fieldName = String(field.name || "");
+          if (fieldName === "program_id") {
+            if (!payload.program_id) {
+              fieldErrors[fieldName] = `${field.label || field.name} is required`;
             }
+            continue;
+          }
 
-            if (isMissingRequiredAnswer(answers[field.name])) {
-                fieldErrors[field.name] = `${field.label || field.name} is required`;
-            }
+          if (isMissingRequiredAnswer(answers[fieldName])) {
+            fieldErrors[fieldName] = `${field.label || field.name} is required`;
+          }
         }
         if (Object.keys(fieldErrors).length) {
             throw new AppError(400, "VALIDATION_ERROR", "Invalid request data", { fieldErrors });
@@ -640,7 +666,7 @@ export async function submitPublicApplyService(payload) {
                 }, client);
             }
         }
-        catch (error) {
+        catch (error: any) {
             if (error?.code === "23505" && phoneNorm) {
                 applicationResult = await upsertProgramApplicationByPhone({
                     program_id: payload.program_id,
@@ -675,5 +701,4 @@ export async function submitPublicApplyService(payload) {
         };
     });
 }
-
 

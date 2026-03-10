@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/GeneralApplyPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/GeneralApplyPage.tsx
+// Purpose: Renders the admin general apply page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
@@ -1916,7 +1914,9 @@ export function GeneralApplyPage() {
                     >
                       Message Applicant
                     </button>
-                    <button className="popapply-modal-close" type="button" aria-label="Close detail modal" onClick={closeApplicationModal}>x</button>
+                    <button className="popapply-modal-close" type="button" aria-label="Close detail modal" title="Close" onClick={closeApplicationModal}>
+                      X
+                    </button>
                   </div>
                 </div>
 
@@ -2262,3 +2262,4 @@ export function GeneralApplyPage() {
     </div>
   );
 }
+

@@ -1,10 +1,9 @@
-// File: server/src/routes/messageTemplates.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/messageTemplates.routes.ts
+// Purpose: Registers the Express routes for message templates.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import {
   createMessageTemplate,
@@ -41,3 +40,4 @@ messageTemplatesRouter.patch(
 );
 
 export { messageTemplatesRouter };
+

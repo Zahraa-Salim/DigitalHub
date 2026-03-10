@@ -1,10 +1,8 @@
 // File: server/src/services/contact.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for contact.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
@@ -12,7 +10,24 @@ import { buildSearchClause } from "../utils/sql.js";
 import { sendDigitalHubEmail } from "../utils/mailer.js";
 import { countContactMessages, createContactMessage, listContactMessages, markContactReplied, updateContactStatus, } from "../repositories/contact.repo.js";
 import { getContactMessageById } from "../repositories/contact.repo.js";
-export async function createContactMessageService(payload) {
+
+type ContactPayload = {
+    name: string;
+    email: string;
+    phone?: string | null;
+    subject?: string | null;
+    message: string;
+    kind?: string;
+    company_name?: string | null;
+    company_role?: string | null;
+    linkedin_url?: string | null;
+    visit_preferred_dates?: string | null;
+    visit_notes?: string | null;
+};
+
+type ContactQuery = Record<string, unknown>;
+// Handles 'createContactMessageService' workflow for this module.
+export async function createContactMessageService(payload: ContactPayload) {
     const body = payload;
     const result = await createContactMessage({
         name: body.name,
@@ -29,10 +44,11 @@ export async function createContactMessageService(payload) {
     });
     return result.rows[0];
 }
-export async function listContactMessagesService(query) {
+// Handles 'listContactMessagesService' workflow for this module.
+export async function listContactMessagesService(query: ContactQuery) {
     const list = parseListQuery(query, ["id", "created_at", "status", "last_replied_at"], "created_at");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["name", "email", "COALESCE(subject, '')", "message", "COALESCE(company_name, '')"], params.length));
@@ -50,7 +66,8 @@ export async function listContactMessagesService(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function updateContactMessageStatusService(id, status) {
+// Handles 'updateContactMessageStatusService' workflow for this module.
+export async function updateContactMessageStatusService(id: number, status: string) {
     const resolvedAt = status === "resolved" ? "NOW()" : "NULL";
     const result = await updateContactStatus(id, status, resolvedAt);
     if (!result.rowCount) {
@@ -58,7 +75,8 @@ export async function updateContactMessageStatusService(id, status) {
     }
     return result.rows[0];
 }
-export async function replyToContactMessageService(id, adminId, replyMessage, replySubject, templateKey) {
+// Handles 'replyToContactMessageService' workflow for this module.
+export async function replyToContactMessageService(id: number, adminId: number, replyMessage: string, replySubject?: string | null, templateKey?: string | null) {
     const messageResult = await getContactMessageById(id);
     if (!messageResult.rowCount) {
         throw new AppError(404, "CONTACT_MESSAGE_NOT_FOUND", "Contact message not found.");
@@ -80,8 +98,8 @@ export async function replyToContactMessageService(id, adminId, replyMessage, re
             body: replyMessage,
         });
     }
-    catch (error) {
-        throw new AppError(502, "EMAIL_SEND_FAILED", "Failed to send reply email.", String(error?.message || error));
+    catch (error: unknown) {
+        throw new AppError(502, "EMAIL_SEND_FAILED", "Failed to send reply email.", error instanceof Error ? error.message : String(error));
     }
     const result = await markContactReplied(id);
     await logAdminAction({
@@ -107,5 +125,4 @@ export async function replyToContactMessageService(id, adminId, replyMessage, re
         template_key: templateKey ?? null,
     };
 }
-
 

@@ -1,12 +1,30 @@
 // File: server/src/utils/logAdminAction.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
+// Purpose: Provides shared helper logic for log admin action.
+// It supports other backend modules with reusable utility functions.
+
+
 import { pool } from "../db/index.js";
-export async function logAdminAction(input, client = pool) {
+
+type Queryable = {
+    query<T = Record<string, unknown>>(
+        text: string,
+        params?: unknown[],
+    ): Promise<{ rows: T[]; rowCount: number | null }>;
+};
+
+type LogAdminActionInput = {
+    actorUserId: number | null;
+    action: string;
+    entityType?: string;
+    entityId?: number | null;
+    message: string;
+    metadata?: Record<string, unknown>;
+    title?: string;
+    body?: string;
+};
+
+// Handles 'logAdminAction' workflow for this module.
+export async function logAdminAction(input: LogAdminActionInput, client: Queryable = pool): Promise<void> {
     const logResult = await client.query(`
       INSERT INTO activity_logs (actor_user_id, action, entity_type, entity_id, message, metadata)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -20,7 +38,7 @@ export async function logAdminAction(input, client = pool) {
         input.metadata ?? {},
     ]);
     const logId = Number(logResult.rows[0]?.id);
-    const adminsResult = await client.query(`
+    const adminsResult = await client.query<{ id: number }>(`
       SELECT id
       FROM users
       WHERE is_admin = TRUE
@@ -30,9 +48,9 @@ export async function logAdminAction(input, client = pool) {
     }
     const notificationTitle = input.title ?? input.action;
     const notificationBody = input.body ?? input.message;
-    const values = [];
-    const placeholders = [];
-    adminsResult.rows.forEach((row, index) => {
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+    adminsResult.rows.forEach((row, index: number) => {
         const base = index * 4;
         placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
         values.push(row.id, logId, notificationTitle, notificationBody);
@@ -43,5 +61,4 @@ export async function logAdminAction(input, client = pool) {
       VALUES ${placeholders.join(",")}
     `, values);
 }
-
 

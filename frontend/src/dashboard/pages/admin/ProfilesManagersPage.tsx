@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/ProfilesManagersPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/ProfilesManagersPage.tsx
+// Purpose: Renders the admin profiles managers page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -135,7 +133,7 @@ export function ProfilesManagersPage() {
   const pushToast = useCallback((tone: "success" | "error", message: string) => {
     const id = toastIdRef.current += 1;
     setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 3200);
+    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 5000);
   }, []);
 
   useEffect(() => {
@@ -539,3 +537,4 @@ export function ProfilesManagersPage() {
     </PageShell>
   );
 }
+

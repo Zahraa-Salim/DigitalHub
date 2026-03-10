@@ -1,9 +1,7 @@
-// File: frontend/src/components/common/breadcrumb/BreadcrumbOne.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/common/breadcrumb/BreadcrumbOne.tsx
+// Purpose: Renders the shared breadcrumb one UI element used across the site.
+// It keeps common presentation behavior reusable between pages and sections.
+
 "use client";
 
 import Image from "@/components/common/Image";
@@ -62,3 +60,4 @@ const BreadcrumbOne = ({ title, sub_title }: BreadcrumbOneProps) => {
 };
 
 export default BreadcrumbOne;
+

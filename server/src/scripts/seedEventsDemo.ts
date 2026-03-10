@@ -1,10 +1,9 @@
-// File: server/src/scripts/seedEventsDemo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/scripts/seedEventsDemo.ts
+// Purpose: Runs the seed events demo script for the backend.
+// It performs a one-off setup, seeding, or maintenance task outside the request cycle.
+
 // @ts-nocheck
+
 import dotenv from "dotenv";
 import { pool } from "../db/index.js";
 
@@ -78,6 +77,7 @@ const demoEvents = [
   },
 ];
 
+// Handles 'ensureEventsColumns' workflow for this module.
 async function ensureEventsColumns() {
   await pool.query(`
     ALTER TABLE events ADD COLUMN IF NOT EXISTS completion_image_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
@@ -86,6 +86,7 @@ async function ensureEventsColumns() {
   `);
 }
 
+// Handles 'upsertEvent' workflow for this module.
 async function upsertEvent(entry: (typeof demoEvents)[number]) {
   const existing = await pool.query(
     `
@@ -175,6 +176,7 @@ async function upsertEvent(entry: (typeof demoEvents)[number]) {
   return { mode: "inserted", id: Number(inserted.rows[0].id) };
 }
 
+// Handles 'seedEventsDemo' workflow for this module.
 async function seedEventsDemo() {
   await ensureEventsColumns();
   for (const event of demoEvents) {

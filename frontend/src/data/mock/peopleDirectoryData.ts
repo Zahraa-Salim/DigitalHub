@@ -1,9 +1,7 @@
-// File: frontend/src/data/mock/peopleDirectoryData.ts
-// What this code does:
-// 1) Stores static/mock data used by UI and development flows.
-// 2) Defines predictable fixtures for cards, tables, and previews.
-// 3) Supports testing UI states without live API dependency.
-// 4) Keeps sample content centralized and reusable.
+﻿// File: frontend/src/data/mock/peopleDirectoryData.ts
+// Purpose: Provides frontend data for people directory data.
+// It stores mock or static content consumed by pages and components.
+
 import type { StaticImageData } from "@/components/common/Image";
 import {
   dbAdminsTemplate,
@@ -32,3 +30,4 @@ export const peopleData: PersonCard[] = mapDbProfilesToPeopleMocks(
   dbInstructorsTemplate,
   dbAdminsTemplate
 );
+

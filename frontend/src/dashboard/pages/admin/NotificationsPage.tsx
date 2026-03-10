@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/NotificationsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/NotificationsPage.tsx
+// Purpose: Renders the admin notifications page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -62,7 +60,7 @@ export function NotificationsPage() {
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 3200);
+    }, 5000);
   }, []);
 
   const dismissToast = (id: number) => {
@@ -384,8 +382,10 @@ export function NotificationsPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Notification Details</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
             </header>
             <div className="post-details">
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
@@ -394,14 +394,13 @@ export function NotificationsPage() {
               <p className="post-details__line"><strong>Created:</strong> {formatDateTime(selected.created_at)}</p>
               <p className="post-details__line"><strong>Read At:</strong> {selected.read_at ? formatDateTime(selected.read_at) : "Not yet"}</p>
             </div>
-            <div className="modal-actions">
-              {!selected.is_read ? (
+            {!selected.is_read ? (
+              <div className="modal-actions">
                 <button className="btn btn--secondary" type="button" onClick={() => void markOneRead(selected, { keepOpen: true })}>
                   Mark Read
                 </button>
-              ) : null}
-              <button className="btn btn--primary" type="button" onClick={() => setSelected(null)}>Close</button>
-            </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

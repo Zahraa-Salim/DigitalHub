@@ -1,11 +1,10 @@
 // File: server/src/controllers/admins.controller.ts
-// What this code does:
-// 1) Reads validated request input from params, query, and body.
-// 2) Calls service-layer functions to execute business operations.
-// 3) Maps operation results into consistent API responses.
-// 4) Keeps HTTP transport concerns separate from business logic.
-// @ts-nocheck
+// Purpose: Handles HTTP request and response flow for admins.
+// It reads request data, calls the matching service methods, and sends API responses.
 
+
+
+import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   activateAdminService,
@@ -15,27 +14,37 @@ import {
   patchAdminService,
 } from "../services/admins.service.js";
 
-export async function getAdmins(req, res) {
+// Handles 'getAdmins' workflow for this module.
+export async function getAdmins(req: Request, res: Response) {
   const result = await listAdminsService(req.query);
   sendList(res, result.data, result.pagination);
 }
 
-export async function postAdmin(req, res) {
-  const data = await createAdminService(req.user.id, req.body);
+// Handles 'postAdmin' workflow for this module.
+export async function postAdmin(req: Request, res: Response) {
+  const data = await createAdminService(req.user!.id, req.body);
   sendSuccess(res, data, "Admin created successfully.", 201);
 }
 
-export async function patchAdmin(req, res) {
-  const data = await patchAdminService(Number(req.params.userId), req.user.id, req.body);
+// Handles 'patchAdmin' workflow for this module.
+export async function patchAdmin(req: Request, res: Response) {
+  const data = await patchAdminService(Number(req.params.userId), req.user!.id, req.body);
   sendSuccess(res, data, "Admin updated successfully.");
 }
 
-export async function deactivateAdmin(req, res) {
-  const data = await deactivateAdminService(Number(req.params.userId), req.user.id);
+// Handles 'deactivateAdmin' workflow for this module.
+export async function deactivateAdmin(req: Request, res: Response) {
+  const data = await deactivateAdminService(Number(req.params.userId), req.user!.id);
   sendSuccess(res, data, "Admin deactivated successfully.");
 }
 
-export async function activateAdmin(req, res) {
-  const data = await activateAdminService(Number(req.params.userId), req.user.id);
+// Handles 'activateAdmin' workflow for this module.
+export async function activateAdmin(req: Request, res: Response) {
+  const data = await activateAdminService(Number(req.params.userId), req.user!.id);
   sendSuccess(res, data, "Admin activated successfully.");
 }
+
+
+
+
+

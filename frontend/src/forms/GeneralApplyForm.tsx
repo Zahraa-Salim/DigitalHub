@@ -1,9 +1,7 @@
-// File: frontend/src/forms/GeneralApplyForm.tsx
-// What this code does:
-// 1) Implements form fields, validation, and submission flows.
-// 2) Normalizes user input before API requests are sent.
-// 3) Handles loading, error, and success feedback states.
-// 4) Keeps form behavior consistent across intake workflows.
+﻿// File: frontend/src/forms/GeneralApplyForm.tsx
+// Purpose: Renders the general apply form form used in the frontend.
+// It owns the form fields, local state, and submission flow for this UI.
+
 "use client";
 
 import BtnArrow from "@/svg/BtnArrow";
@@ -373,11 +371,11 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
         {selectedProgramDetails ? (
           <div className="application-form__program-drawer-inner">
             <h6>{selectedProgramDetails.title}</h6>
-            <p>
-              {selectedProgramDetails.summary ||
-                selectedProgramDetails.description ||
-                "Program details will appear here when available."}
-            </p>
+            {selectedProgramDetails.summary ? <p>{selectedProgramDetails.summary}</p> : null}
+            {selectedProgramDetails.description ? <p>{selectedProgramDetails.description}</p> : null}
+            {!selectedProgramDetails.summary && !selectedProgramDetails.description ? (
+              <p>Program details will appear here when available.</p>
+            ) : null}
             <ul className="list-wrap">
               {selectedProgramDetails.requirements ? (
                 <li>
@@ -536,3 +534,4 @@ const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralAppl
 };
 
 export default GeneralApplyForm;
+

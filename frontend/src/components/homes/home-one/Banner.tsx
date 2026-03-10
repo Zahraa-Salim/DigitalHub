@@ -1,9 +1,7 @@
-// File: frontend/src/components/homes/home-one/Banner.tsx
-// What this code does:
-// 1) Defines reusable UI components used across pages.
-// 2) Renders props-driven sections and interactive elements.
-// 3) Encapsulates local UI behavior and presentation details.
-// 4) Provides building blocks for higher-level page composition.
+﻿// File: frontend/src/components/homes/home-one/Banner.tsx
+// Purpose: Renders the banner UI block for the frontend.
+// It encapsulates the markup and local behavior for this specific piece of the interface.
+
 'use client';
 import React from 'react';
 import Image from '@/components/common/Image';
@@ -148,5 +146,4 @@ const Banner: React.FC<BannerProps> = ({ content }) => {
 };
 
 export default Banner;
-
 

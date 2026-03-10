@@ -1,21 +1,66 @@
 // File: server/src/utils/mailer.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
-import nodemailer from "nodemailer";
+// Purpose: Provides shared helper logic for mailer.
+// It supports other backend modules with reusable utility functions.
+
+import { createRequire } from "node:module";
 import { pool } from "../db/index.js";
 import { AppError } from "./appError.js";
 
-let cachedTransporter = null;
-let cachedConfigSignature = null;
+const require = createRequire(import.meta.url);
+
+type MailTransportOptions = {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+};
+
+type MailTransporter = {
+  sendMail(options: MailTransportOptions): Promise<unknown>;
+};
+
+const nodemailer = require("nodemailer") as {
+  createTransport(options: unknown): MailTransporter;
+};
+
+type MailerConfig = {
+  service: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  fromName: string;
+};
+
+type SiteSettingsRow = {
+  contact_info?: {
+    email?: string;
+  } | null;
+};
+
+type SendEmailInput = {
+  to: string;
+  subject: string;
+  body: string;
+};
+
+type SendEmailResult = {
+  mode: "mock" | "smtp";
+  from: string;
+  to: string;
+  subject: string;
+};
+
+let cachedTransporter: MailTransporter | null = null;
+let cachedConfigSignature: string | null = null;
 let warnedMockMode = false;
-let cachedSiteSender = null;
+let cachedSiteSender: string | null = null;
 let cachedSiteSenderExpiresAt = 0;
 
-function parseBoolean(value, fallback = false) {
+// Handles 'parseBoolean' workflow for this module.
+function parseBoolean(value: string | undefined, fallback = false): boolean {
   if (typeof value !== "string") return fallback;
   const normalized = value.trim().toLowerCase();
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
@@ -23,7 +68,8 @@ function parseBoolean(value, fallback = false) {
   return fallback;
 }
 
-function escapeHtml(value) {
+// Handles 'escapeHtml' workflow for this module.
+function escapeHtml(value: string): string {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -32,13 +78,15 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function buildHtmlFromText(text) {
+// Handles 'buildHtmlFromText' workflow for this module.
+function buildHtmlFromText(text: string): string {
   return `<div style="white-space:pre-line;font-family:Arial,sans-serif;font-size:14px;line-height:1.6;">${escapeHtml(
     text,
   )}</div>`;
 }
 
-function readMailerEnvConfig() {
+// Handles 'readMailerEnvConfig' workflow for this module.
+function readMailerEnvConfig(): MailerConfig {
   const service = process.env.SMTP_SERVICE?.trim() || process.env.EMAIL_SERVICE?.trim() || "";
   const host = process.env.SMTP_HOST?.trim() || "";
   const port = Number(process.env.SMTP_PORT || 587);
@@ -58,7 +106,8 @@ function readMailerEnvConfig() {
   };
 }
 
-function isSmtpUsable(config) {
+// Handles 'isSmtpUsable' workflow for this module.
+function isSmtpUsable(config: MailerConfig): boolean {
   if ((config.user && !config.pass) || (!config.user && config.pass)) return false;
   if (config.service) {
     return Boolean(config.user && config.pass);
@@ -68,7 +117,8 @@ function isSmtpUsable(config) {
   return true;
 }
 
-function getTransporter(config) {
+// Handles 'getTransporter' workflow for this module.
+function getTransporter(config: MailerConfig): MailTransporter {
   const signature = JSON.stringify({
     service: config.service,
     host: config.host,
@@ -106,14 +156,15 @@ function getTransporter(config) {
   return cachedTransporter;
 }
 
-async function getSiteSettingsSenderEmail() {
+// Handles 'getSiteSettingsSenderEmail' workflow for this module.
+async function getSiteSettingsSenderEmail(): Promise<string | null> {
   const now = Date.now();
   if (now < cachedSiteSenderExpiresAt) {
     return cachedSiteSender;
   }
 
   try {
-    const result = await pool.query(
+    const result = await pool.query<SiteSettingsRow>(
       `
         SELECT contact_info
         FROM site_settings
@@ -123,10 +174,7 @@ async function getSiteSettingsSenderEmail() {
     );
 
     const contactInfo = result.rows[0]?.contact_info;
-    const emailValue =
-      contactInfo && typeof contactInfo === "object" && typeof contactInfo.email === "string"
-        ? contactInfo.email.trim()
-        : "";
+    const emailValue = typeof contactInfo?.email === "string" ? contactInfo.email.trim() : "";
 
     cachedSiteSender = emailValue || null;
   } catch {
@@ -138,7 +186,8 @@ async function getSiteSettingsSenderEmail() {
   return cachedSiteSender;
 }
 
-async function resolveFromAddress(config) {
+// Handles 'resolveFromAddress' workflow for this module.
+async function resolveFromAddress(config: MailerConfig): Promise<string> {
   const siteSender = await getSiteSettingsSenderEmail();
   if (siteSender) return siteSender;
   return (
@@ -149,7 +198,8 @@ async function resolveFromAddress(config) {
   );
 }
 
-export async function sendDigitalHubEmail({ to, subject, body }) {
+// Handles 'sendDigitalHubEmail' workflow for this module.
+export async function sendDigitalHubEmail({ to, subject, body }: SendEmailInput): Promise<SendEmailResult> {
   const destination = String(to || "").trim();
   const subjectLine = String(subject || "").trim();
   const messageBody = String(body || "").trim();
@@ -209,3 +259,4 @@ export async function sendDigitalHubEmail({ to, subject, body }) {
     subject: subjectLine,
   };
 }
+

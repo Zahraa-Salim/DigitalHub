@@ -1,9 +1,7 @@
-// File: frontend/src/data/mock/courseCatalogData.ts
-// What this code does:
-// 1) Stores static/mock data used by UI and development flows.
-// 2) Defines predictable fixtures for cards, tables, and previews.
-// 3) Supports testing UI states without live API dependency.
-// 4) Keeps sample content centralized and reusable.
+﻿// File: frontend/src/data/mock/courseCatalogData.ts
+// Purpose: Provides frontend data for course catalog data.
+// It stores mock or static content consumed by pages and components.
+
 import { StaticImageData } from "@/components/common/Image";
 
 import course_thumb1 from "@/assets/img/courses/course_thumb01.jpg"
@@ -669,3 +667,4 @@ const inner_course_data: DataType[] = [
 ]
 
 export default inner_course_data;
+

@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/main.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/main.tsx
+// Purpose: Contains frontend code for main.
+// It supports this part of the user interface and page behavior.
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouter } from "./app/AppRouter";
@@ -14,3 +12,4 @@ createRoot(document.getElementById("root")!).render(
     <AppRouter />
   </StrictMode>,
 );
+

@@ -1,12 +1,32 @@
 // File: server/src/utils/pagination.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
+// Purpose: Provides shared helper logic for pagination.
+// It supports other backend modules with reusable utility functions.
+
+
 import { z } from "zod";
 import { AppError } from "./appError.js";
+
+type ParsedListQuery = {
+    page: number;
+    limit: number;
+    offset: number;
+    sortBy: string;
+    order: "asc" | "desc";
+    search?: string;
+    status?: string;
+    isPublic?: boolean;
+    featured?: boolean;
+    activeOnly?: boolean;
+    cohortId?: number;
+};
+
+type PaginationMeta = {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+};
+
 const baseListQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).default(10),
@@ -19,7 +39,8 @@ const baseListQuerySchema = z.object({
     active_only: z.union([z.boolean(), z.string()]).optional(),
     cohort_id: z.union([z.number(), z.string()]).optional(),
 });
-function parseBooleanValue(input, fieldName) {
+// Handles 'parseBooleanValue' workflow for this module.
+function parseBooleanValue(input: unknown, fieldName: string): boolean | undefined {
     if (input === undefined) {
         return undefined;
     }
@@ -37,7 +58,8 @@ function parseBooleanValue(input, fieldName) {
     }
     throw new AppError(400, "VALIDATION_ERROR", `Query param '${fieldName}' must be a boolean.`);
 }
-function parseOptionalInteger(input, fieldName) {
+// Handles 'parseOptionalInteger' workflow for this module.
+function parseOptionalInteger(input: unknown, fieldName: string): number | undefined {
     if (input === undefined) {
         return undefined;
     }
@@ -47,7 +69,12 @@ function parseOptionalInteger(input, fieldName) {
     }
     return parsed;
 }
-export function parseListQuery(query, allowedSortColumns, defaultSortColumn) {
+// Handles 'parseListQuery' workflow for this module.
+export function parseListQuery(
+    query: unknown,
+    allowedSortColumns: readonly string[],
+    defaultSortColumn: string,
+): ParsedListQuery {
     const parsed = baseListQuerySchema.parse(query);
     const normalizedLimit = Math.min(parsed.limit, 100);
     if (!allowedSortColumns.includes(defaultSortColumn)) {
@@ -70,10 +97,12 @@ export function parseListQuery(query, allowedSortColumns, defaultSortColumn) {
         cohortId: parseOptionalInteger(parsed.cohort_id, "cohort_id"),
     };
 }
-export function parseQueryBoolean(input, fieldName) {
+// Handles 'parseQueryBoolean' workflow for this module.
+export function parseQueryBoolean(input: unknown, fieldName: string): boolean | undefined {
     return parseBooleanValue(input, fieldName);
 }
-export function buildPagination(page, limit, total) {
+// Handles 'buildPagination' workflow for this module.
+export function buildPagination(page: number, limit: number, total: number): PaginationMeta {
     return {
         page,
         limit,
@@ -81,5 +110,4 @@ export function buildPagination(page, limit, total) {
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     };
 }
-
 

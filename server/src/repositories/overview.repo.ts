@@ -1,10 +1,9 @@
-// File: server/src/repositories/overview.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/overview.repo.ts
+// Purpose: Runs the database queries used for overview.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 import { buildPagination } from "../utils/pagination.js";
 
@@ -18,6 +17,7 @@ const PROGRAM_STAGES = [
   "participation_confirmed",
 ];
 
+// Handles 'tableExists' workflow for this module.
 async function tableExists(tableName, db = pool) {
   const result = await db.query(
     `
@@ -28,6 +28,7 @@ async function tableExists(tableName, db = pool) {
   return Boolean(result.rows[0]?.exists);
 }
 
+// Handles 'columnExists' workflow for this module.
 async function columnExists(tableName, columnName, db = pool) {
   const result = await db.query(
     `
@@ -44,10 +45,12 @@ async function columnExists(tableName, columnName, db = pool) {
   return Boolean(result.rows[0]?.exists);
 }
 
+// Handles 'countValue' workflow for this module.
 function countValue(result) {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+// Handles 'statusBuckets' workflow for this module.
 async function statusBuckets(whereClause, params, db = pool) {
   const result = await db.query(
     `
@@ -67,6 +70,7 @@ async function statusBuckets(whereClause, params, db = pool) {
   };
 }
 
+// Handles 'getGeneralApplySummary' workflow for this module.
 async function getGeneralApplySummary(db = pool) {
   const exists = await tableExists("program_applications", db);
   if (!exists) {
@@ -90,6 +94,7 @@ async function getGeneralApplySummary(db = pool) {
   return summary;
 }
 
+// Handles 'getConversionMetrics' workflow for this module.
 async function getConversionMetrics(applicationsHasCreatedUserId, db = pool) {
   const exists = await tableExists("program_applications", db);
   if (!exists) {
@@ -171,6 +176,7 @@ async function getConversionMetrics(applicationsHasCreatedUserId, db = pool) {
   };
 }
 
+// Handles 'getAdminOverviewAggregates' workflow for this module.
 export async function getAdminOverviewAggregates(includeSuperAdmin = false, db = pool) {
   const applicationsHasCreatedUserId = await columnExists("applications", "created_user_id", db);
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
@@ -422,6 +428,7 @@ export async function getAdminOverviewAggregates(includeSuperAdmin = false, db =
   };
 }
 
+// Handles 'listFailedMessagesForOverviewRetry' workflow for this module.
 export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db = pool) {
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
@@ -438,6 +445,47 @@ export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db
         FROM application_messages
         WHERE status = 'failed'
           AND channel = 'email'
+        ORDER BY created_at ASC, id ASC
+        LIMIT $1
+      `,
+      [safeLimit],
+    );
+  }
+
+  if (channel === "all") {
+    if (applicationMessagesHasMetadata) {
+      return db.query(
+        `
+          SELECT
+            id::int AS id,
+            application_id::int AS application_id,
+            program_application_id::int AS program_application_id,
+            channel,
+            to_value
+          FROM application_messages
+          WHERE status = 'failed'
+            AND (
+              channel = 'email'
+              OR (channel = 'sms' AND COALESCE(metadata->>'provider', '') = 'whatsapp')
+            )
+          ORDER BY created_at ASC, id ASC
+          LIMIT $1
+        `,
+        [safeLimit],
+      );
+    }
+
+    return db.query(
+      `
+        SELECT
+          id::int AS id,
+          application_id::int AS application_id,
+          program_application_id::int AS program_application_id,
+          channel,
+          to_value
+        FROM application_messages
+        WHERE status = 'failed'
+          AND (channel = 'email' OR channel = 'sms')
         ORDER BY created_at ASC, id ASC
         LIMIT $1
       `,
@@ -483,11 +531,17 @@ export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db
   );
 }
 
+// Handles 'listOverviewMessages' workflow for this module.
 export async function listOverviewMessages(filters, db = pool) {
   const page = Math.max(1, Number(filters?.page ?? 1));
   const limit = Math.max(1, Math.min(100, Number(filters?.limit ?? 20)));
   const offset = (page - 1) * limit;
-  const status = filters?.status === "failed" ? "failed" : "sent";
+  const status =
+    filters?.status === "failed"
+      ? "failed"
+      : filters?.status === "draft"
+        ? "draft"
+        : "sent";
   const channel = ["all", "email", "whatsapp"].includes(String(filters?.channel || ""))
     ? String(filters.channel)
     : "all";
@@ -562,3 +616,63 @@ export async function listOverviewMessages(filters, db = pool) {
     pagination: buildPagination(page, limit, total),
   };
 }
+
+// Handles 'getOverviewMessageById' workflow for this module.
+export async function getOverviewMessageById(messageId, db = pool) {
+  const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
+  const channelSelect = applicationMessagesHasMetadata
+    ? `CASE
+         WHEN am.channel = 'email' THEN 'email'
+         WHEN am.channel = 'sms' AND COALESCE(am.metadata->>'provider', '') = 'whatsapp' THEN 'whatsapp'
+         ELSE am.channel
+       END AS channel`
+    : `CASE WHEN am.channel = 'email' THEN 'email' ELSE 'whatsapp' END AS channel`;
+
+  return db.query(
+    `
+      SELECT
+        am.id::int AS id,
+        am.application_id::int AS application_id,
+        am.program_application_id::int AS program_application_id,
+        ${channelSelect},
+        am.status,
+        am.to_value
+      FROM application_messages am
+      WHERE am.id = $1
+      LIMIT 1
+    `,
+    [messageId],
+  );
+}
+
+// Handles 'deleteOverviewMessageById' workflow for this module.
+export async function deleteOverviewMessageById(messageId, db = pool) {
+  const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
+  const channelSelect = applicationMessagesHasMetadata
+    ? `CASE
+         WHEN am.channel = 'email' THEN 'email'
+         WHEN am.channel = 'sms' AND COALESCE(am.metadata->>'provider', '') = 'whatsapp' THEN 'whatsapp'
+         ELSE am.channel
+       END AS channel`
+    : `CASE WHEN am.channel = 'email' THEN 'email' ELSE 'whatsapp' END AS channel`;
+
+  return db.query(
+    `
+      WITH deleted AS (
+        DELETE FROM application_messages
+        WHERE id = $1
+        RETURNING *
+      )
+      SELECT
+        am.id::int AS id,
+        am.application_id::int AS application_id,
+        am.program_application_id::int AS program_application_id,
+        ${channelSelect},
+        am.status,
+        am.to_value
+      FROM deleted am
+    `,
+    [messageId],
+  );
+}
+

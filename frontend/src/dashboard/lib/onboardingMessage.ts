@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/lib/onboardingMessage.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/lib/onboardingMessage.ts
+// Purpose: Provides dashboard helper logic for onboarding message.
+// It keeps admin-specific text, API helpers, and derived behavior out of page components.
+
 type OnboardingSendEntry = {
   channel?: unknown;
   to?: unknown;
@@ -84,3 +82,4 @@ export function onboardingSkipReasonText(reason: string): string {
       return "Delivery was skipped.";
   }
 }
+

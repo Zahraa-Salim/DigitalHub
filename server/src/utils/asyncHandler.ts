@@ -1,14 +1,14 @@
 // File: server/src/utils/asyncHandler.ts
-// What this code does:
-// 1) Provides reusable helper functions for backend modules.
-// 2) Encapsulates common formatting, parsing, and safety checks.
-// 3) Keeps route/controller code focused on workflow logic.
-// 4) Avoids duplicating low-level utility code across files.
-// @ts-nocheck
-export function asyncHandler(handler) {
-    return (req, res, next) => {
+// Purpose: Provides shared helper logic for async handler.
+// It supports other backend modules with reusable utility functions.
+
+import type { NextFunction, Request, RequestHandler, Response } from "express";
+
+type AsyncExpressHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
+
+export function asyncHandler(handler: AsyncExpressHandler): RequestHandler {
+    return (req: Request, res: Response, next: NextFunction) => {
         handler(req, res, next).catch(next);
     };
 }
-
 

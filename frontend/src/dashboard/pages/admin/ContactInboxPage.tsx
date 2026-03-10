@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/ContactInboxPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/ContactInboxPage.tsx
+// Purpose: Renders the admin contact inbox page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -16,6 +14,7 @@ import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { applyTemplateTokens } from "../../lib/messageTemplates";
 import { buildQueryString } from "../../utils/query";
+import { WhatsAppMessageModal } from "@/components/WhatsAppMessageModal";
 
 type ContactKind = "question" | "feedback" | "visit_request";
 type ContactStatus = "new" | "in_progress" | "resolved";
@@ -130,6 +129,8 @@ export function ContactInboxPage() {
   const [isReplying, setIsReplying] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [detailStatus, setDetailStatus] = useState<ContactStatus>("new");
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [whatsAppPrefill, setWhatsAppPrefill] = useState<string | null>(null);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
@@ -143,7 +144,7 @@ export function ContactInboxPage() {
     setToasts((current) => [...current, { id, tone, message }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 3200);
+    }, 5000);
   }, []);
 
   const dismissToast = (id: number) => {
@@ -290,6 +291,11 @@ export function ContactInboxPage() {
     setReplyTemplateKey("");
     setReplyShowTemplates(false);
     setReplyError("");
+  };
+
+  const openWhatsAppComposer = (phone?: string | null) => {
+    setWhatsAppPrefill(phone ?? null);
+    setWhatsAppOpen(true);
   };
 
   const applyReplyTemplate = (template: ContactReplyTemplate) => {
@@ -448,6 +454,13 @@ export function ContactInboxPage() {
         onClick={() => openReplyComposer(row)}
       >
         Reply
+      </button>
+      <button
+        className="btn btn--primary btn--sm dh-btn"
+        type="button"
+        onClick={() => openWhatsAppComposer(row.phone)}
+      >
+        WhatsApp
       </button>
       <button
         className="btn btn--secondary btn--sm dh-btn"
@@ -659,8 +672,10 @@ export function ContactInboxPage() {
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button>
               <h3 className="modal-title">Message Details</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
             </header>
             <div className="post-details">
               <p className="post-details__line">
@@ -718,9 +733,6 @@ export function ContactInboxPage() {
               </label>
             </div>
             <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => setSelected(null)}>
-                Close
-              </button>
               <button
                 className="btn btn--primary"
                 type="button"
@@ -738,6 +750,16 @@ export function ContactInboxPage() {
                 }}
               >
                 Reply
+              </button>
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  openWhatsAppComposer(selected.phone);
+                  setSelected(null);
+                }}
+              >
+                WhatsApp
               </button>
             </div>
           </div>
@@ -864,6 +886,12 @@ export function ContactInboxPage() {
           </div>
         </div>
       ) : null}
+
+      <WhatsAppMessageModal
+        isOpen={whatsAppOpen}
+        onClose={() => setWhatsAppOpen(false)}
+        prefillPhone={whatsAppPrefill}
+      />
 
       {showFiltersMobile ? (
         <div className="dh-filter-modal" role="presentation" onClick={closeMobileFilters}>

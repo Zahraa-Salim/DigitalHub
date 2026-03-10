@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/profiles-students/types.ts
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/profiles-students/types.ts
+// Purpose: Contains frontend code for types.
+// It supports this part of the user interface and page behavior.
+
 export type StudentCohort = {
   enrollment_id: number;
   cohort_id: number | null;
@@ -74,3 +72,4 @@ export function summarizeCohorts(cohorts: StudentCohort[] | null | undefined): s
   if (labels.length <= 2) return labels.join(" | ");
   return `${labels.slice(0, 2).join(" | ")} +${labels.length - 2} more`;
 }
+

@@ -1,13 +1,12 @@
 // File: server/src/services/auth.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for auth.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
+import type { Secret, SignOptions } from "jsonwebtoken";
 import { pool } from "../db/index.js";
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
@@ -20,7 +19,28 @@ import { findActiveAdminByEmail, findAdminProfileByUserId, getUserPasswordHash, 
 import { countUsersForMessaging, listUsersForMessaging } from "../repositories/auth.repo.js";
 import { findUsersForMessagingByIds } from "../repositories/auth.repo.js";
 import { clearUserPasswordResetToken, findUserByEmailForPasswordReset, findUserByPasswordResetToken, setUserPasswordResetToken } from "../repositories/auth.repo.js";
-export async function loginAdmin(input) {
+
+type ActorRole = "admin" | "super_admin";
+type AuthLoginInput = {
+    email: string;
+    password: string;
+};
+type ForgotPasswordInput = {
+    email?: string | null;
+};
+type ResetPasswordInput = {
+    password?: string | null;
+};
+type AdminProfilePayload = Record<string, any>;
+type ListQuery = Record<string, any>;
+type MessagingUsersPayload = {
+    channel: "email" | "sms";
+    user_ids?: Array<number | string>;
+    subject?: string;
+    body?: string;
+};
+// Handles 'loginAdmin' workflow for this module.
+export async function loginAdmin(input: AuthLoginInput) {
     const userResult = await findActiveAdminByEmail(input.email.toLowerCase());
     if (!userResult.rowCount) {
         throw new AppError(401, "INVALID_CREDENTIALS", "Invalid credentials.");
@@ -31,14 +51,14 @@ export async function loginAdmin(input) {
         throw new AppError(401, "INVALID_CREDENTIALS", "Invalid credentials.");
     }
     const secret = process.env.JWT_SECRET;
-    const expiresIn = (process.env.JWT_EXPIRES_IN || "8h");
+    const expiresIn = (process.env.JWT_EXPIRES_IN || "8h") as SignOptions["expiresIn"];
     if (!secret) {
         throw new AppError(500, "INTERNAL_ERROR", "JWT_SECRET is not configured.");
     }
     const token = jwt.sign({
         userId: user.id,
         isAdmin: true,
-    }, secret, { expiresIn });
+    }, secret as Secret, { expiresIn });
     await updateLastLogin(user.id);
     await logAdminAction({
         actorUserId: user.id,
@@ -64,10 +84,12 @@ export async function loginAdmin(input) {
     };
 }
 
-function hashResetToken(token) {
+// Handles 'hashResetToken' workflow for this module.
+function hashResetToken(token: string) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+// Handles 'isDevForgotAnyEmailEnabled' workflow for this module.
 function isDevForgotAnyEmailEnabled() {
     if (process.env.NODE_ENV === "production") {
         return false;
@@ -76,6 +98,7 @@ function isDevForgotAnyEmailEnabled() {
     return !["0", "false", "no", "off"].includes(raw);
 }
 
+// Handles 'isDevResetDebugEnabled' workflow for this module.
 function isDevResetDebugEnabled() {
     if (process.env.NODE_ENV === "production") {
         return false;
@@ -84,6 +107,7 @@ function isDevResetDebugEnabled() {
     return !["0", "false", "no", "off"].includes(raw);
 }
 
+// Handles 'getPasswordResetBaseUrl' workflow for this module.
 function getPasswordResetBaseUrl() {
     return (process.env.PASSWORD_RESET_URL_BASE ||
         process.env.DASHBOARD_URL ||
@@ -91,7 +115,8 @@ function getPasswordResetBaseUrl() {
         "http://localhost:5174").replace(/\/$/, "");
 }
 
-export async function forgotPasswordService(input) {
+// Handles 'forgotPasswordService' workflow for this module.
+export async function forgotPasswordService(input: ForgotPasswordInput) {
     const email = String(input.email || "").trim().toLowerCase();
     const genericMessage = "If that email exists, a reset link has been sent.";
     if (!email) {
@@ -133,7 +158,8 @@ export async function forgotPasswordService(input) {
     return { message: genericMessage };
 }
 
-export async function resetPasswordService(token, input) {
+// Handles 'resetPasswordService' workflow for this module.
+export async function resetPasswordService(token: string, input: ResetPasswordInput) {
     const rawToken = String(token || "").trim();
     if (!rawToken) {
         throw new AppError(400, "INVALID_TOKEN", "Reset token is invalid or expired.");
@@ -153,14 +179,16 @@ export async function resetPasswordService(token, input) {
     await clearUserPasswordResetToken(user.id);
     return { message: "Password reset successful." };
 }
-export async function getMyAdminProfile(userId) {
+// Handles 'getMyAdminProfile' workflow for this module.
+export async function getMyAdminProfile(userId: number) {
     const result = await findAdminProfileByUserId(userId);
     if (!result.rowCount) {
         throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
     }
     return result.rows[0];
 }
-export async function updateMyAdminProfile(userId, payload) {
+// Handles 'updateMyAdminProfile' workflow for this module.
+export async function updateMyAdminProfile(userId: number, payload: AdminProfilePayload) {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
@@ -169,7 +197,7 @@ export async function updateMyAdminProfile(userId, payload) {
             throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
         }
         const existing = existingResult.rows[0];
-        const normalizedPayload = {
+        const normalizedPayload: AdminProfilePayload = {
             ...payload,
             phone: payload.phone === "" ? null : payload.phone,
             avatar_url: payload.avatar_url === "" ? null : payload.avatar_url,
@@ -194,7 +222,7 @@ export async function updateMyAdminProfile(userId, payload) {
             const newPasswordHash = await bcrypt.hash(normalizedPayload.new_password, 10);
             await updateUserPasswordHash(userId, newPasswordHash, client);
         }
-        const userUpdates = {};
+        const userUpdates: { email?: string; phone?: string | null } = {};
         if (normalizedPayload.email !== undefined) {
             userUpdates.email = normalizedPayload.email;
         }
@@ -241,14 +269,16 @@ export async function updateMyAdminProfile(userId, payload) {
         client.release();
     }
 }
-export async function listAllAdmins(actorRole) {
+// Handles 'listAllAdmins' workflow for this module.
+export async function listAllAdmins(actorRole: ActorRole) {
     if (actorRole !== "admin" && actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
     }
     const result = await listAdminProfiles();
     return result.rows;
 }
-export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUserId, payload) {
+// Handles 'updateAdminBySuperAdmin' workflow for this module.
+export async function updateAdminBySuperAdmin(actorUserId: number, actorRole: ActorRole, targetUserId: number, payload: AdminProfilePayload) {
     if (actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "Only super admin can edit other admin accounts.");
     }
@@ -260,7 +290,7 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
             throw new AppError(404, "USER_NOT_FOUND", "Admin user not found.");
         }
         const existing = existingResult.rows[0];
-        const normalizedPayload = {
+        const normalizedPayload: AdminProfilePayload = {
             ...payload,
             phone: payload.phone === "" ? null : payload.phone,
             avatar_url: payload.avatar_url === "" ? null : payload.avatar_url,
@@ -274,7 +304,7 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
             const newPasswordHash = await bcrypt.hash(normalizedPayload.new_password, 10);
             await updateUserPasswordHash(targetUserId, newPasswordHash, client);
         }
-        const userUpdates = {};
+        const userUpdates: { email?: string; phone?: string | null; is_active?: boolean } = {};
         if (normalizedPayload.email !== undefined) {
             userUpdates.email = normalizedPayload.email;
         }
@@ -325,21 +355,22 @@ export async function updateAdminBySuperAdmin(actorUserId, actorRole, targetUser
     }
 }
 
-const USER_SORT_COLUMN_MAP = {
+const USER_SORT_COLUMN_MAP: Record<string, string> = {
     full_name: "COALESCE(NULLIF(ap.full_name, ''), NULLIF(ip.full_name, ''), NULLIF(sp.full_name, ''), NULLIF(split_part(COALESCE(u.email, ''), '@', 1), ''), 'User')",
     email: "COALESCE(u.email, '')",
     created_at: "u.created_at",
 };
 
-export async function listUsersForMessagingService(actorRole, query) {
+// Handles 'listUsersForMessagingService' workflow for this module.
+export async function listUsersForMessagingService(actorRole: ActorRole, query: ListQuery) {
     if (actorRole !== "admin" && actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
     }
 
     const list = parseListQuery(query, ["full_name", "email", "created_at"], "full_name");
-    const sortColumn = USER_SORT_COLUMN_MAP[list.sortBy];
-    const params = [];
-    const where = ["u.is_active = TRUE"];
+    const sortColumn = USER_SORT_COLUMN_MAP[list.sortBy] ?? USER_SORT_COLUMN_MAP.full_name;
+    const params: Array<string | number | boolean> = [];
+    const where: string[] = ["u.is_active = TRUE"];
 
     if (list.search) {
         params.push(`%${list.search}%`);
@@ -363,12 +394,14 @@ export async function listUsersForMessagingService(actorRole, query) {
     };
 }
 
-export async function sendMessagingUsersService(actorUserId, actorRole, payload) {
+// Handles 'sendMessagingUsersService' workflow for this module.
+export async function sendMessagingUsersService(actorUserId: number, actorRole: ActorRole, payload: MessagingUsersPayload) {
     if (actorRole !== "admin" && actorRole !== "super_admin") {
         throw new AppError(403, "FORBIDDEN", "You do not have permission to perform this action.");
     }
 
-    const uniqueIds = [...new Set((payload.user_ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+    const rawIds = Array.isArray(payload.user_ids) ? payload.user_ids : [];
+    const uniqueIds = [...new Set(rawIds.map((id: number | string) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0))];
     if (!uniqueIds.length) {
         throw new AppError(400, "VALIDATION_ERROR", "At least one recipient user is required.");
     }
@@ -387,8 +420,8 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
     let sentCount = 0;
     let skippedCount = 0;
     let failedCount = 0;
-    const skippedUsers = [];
-    const failedUsers = [];
+    const skippedUsers: Array<Record<string, unknown>> = [];
+    const failedUsers: Array<Record<string, unknown>> = [];
 
     for (const user of users) {
         if (payload.channel === "email") {
@@ -409,7 +442,7 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
                 });
                 sentCount += 1;
             }
-            catch (error) {
+            catch (error: any) {
                 failedCount += 1;
                 failedUsers.push({
                     id: user.id,
@@ -436,7 +469,7 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
             });
             sentCount += 1;
         }
-        catch (error) {
+        catch (error: any) {
             failedCount += 1;
             failedUsers.push({
                 id: user.id,
@@ -475,5 +508,4 @@ export async function sendMessagingUsersService(actorUserId, actorRole, payload)
         failed_users: failedUsers,
     };
 }
-
 

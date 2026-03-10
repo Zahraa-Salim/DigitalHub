@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/ValidationMessage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/ValidationMessage.tsx
+// Purpose: Renders the dashboard validation message component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import React from 'react';
 import { AlertCircle, CheckCircle, InfoIcon } from 'lucide-react';
 
@@ -53,3 +51,4 @@ export const ValidationMessage: React.FC<ValidationMessageProps> = ({
     </div>
   );
 };
+

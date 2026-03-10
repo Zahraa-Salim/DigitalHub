@@ -1,10 +1,9 @@
-// File: server/src/routes/announcements.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/announcements.routes.ts
+// Purpose: Registers the Express routes for announcements.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import { createAnnouncement, deleteAnnouncement, getAnnouncements, patchAnnouncement, } from "../controllers/announcements.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
@@ -18,5 +17,4 @@ announcementsRouter.get("/", asyncHandler(getAnnouncements));
 announcementsRouter.patch("/:id", validateRequest({ params: idParamsSchema, body: announcementPatchSchema }), asyncHandler(patchAnnouncement));
 announcementsRouter.delete("/:id", validateRequest({ params: idParamsSchema }), asyncHandler(deleteAnnouncement));
 export { announcementsRouter };
-
 

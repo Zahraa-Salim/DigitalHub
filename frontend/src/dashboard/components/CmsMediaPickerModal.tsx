@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/CmsMediaPickerModal.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/CmsMediaPickerModal.tsx
+// Purpose: Renders the dashboard CMS media picker modal component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { API_URL, ApiError, api, apiList } from "../utils/api";
 
@@ -208,3 +206,4 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
     </div>
   );
 }
+

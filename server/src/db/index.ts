@@ -1,14 +1,15 @@
-// File: server/src/db/index.ts
-// What this code does:
-// 1) Builds DB connection config from env vars (DATABASE_URL or PGHOST/PGPORT/...).
-// 2) Applies SSL rules using PGSSLMODE/PGSSL/sslmode + rejectUnauthorized policy.
-// 3) Creates and exports a shared PostgreSQL pool with timeout/keepAlive settings.
-// 4) Exports withTransaction(handler): BEGIN -> COMMIT, with ROLLBACK on error.
+﻿// File: server/src/db/index.ts
+// Purpose: Creates the PostgreSQL pool and exposes the transaction helper used by the server.
+// It centralizes connection setup, SSL handling, and shared DB access.
+
 // @ts-nocheck
+
 import pkg from "pg";
+import type { Pool as PgPool, PoolClient } from "pg";
 import dns from "node:dns";
 const { Pool } = pkg;
 const LEGACY_SSL_MODES = new Set(["prefer", "require", "verify-ca"]);
+// Handles 'normalizeDatabaseUrl' workflow for this module.
 function normalizeDatabaseUrl(rawUrl: string, forceDisableSsl = false): string {
     if (!rawUrl) {
         return rawUrl;
@@ -42,6 +43,7 @@ const sslRejectUnauthorizedEnv = String(process.env.PGSSL_REJECT_UNAUTHORIZED ||
 const sslRejectUnauthorized = sslRejectUnauthorizedEnv
     ? ["1", "true", "yes", "on"].includes(sslRejectUnauthorizedEnv)
     : String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+// Handles 'connectionStringRequestsSsl' workflow for this module.
 const connectionStringRequestsSsl = (() => {
     if (!databaseUrl) {
         return false;
@@ -64,7 +66,7 @@ const sharedPoolOptions = {
   connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS || 15000),
   keepAlive: true,
 };
-export const pool = new Pool(databaseUrl
+export const pool: PgPool = new Pool(databaseUrl
     ? {
         connectionString: databaseUrl,
         ...sharedPoolOptions,
@@ -80,6 +82,7 @@ export const pool = new Pool(databaseUrl
 pool.on("error", (error) => {
     console.error("Unexpected idle PostgreSQL client error:", error);
 });
+// Handles 'withTransaction' workflow for this module.
 export async function withTransaction(handler) {
     const client = await pool.connect();
     try {
@@ -97,4 +100,5 @@ export async function withTransaction(handler) {
     }
 }
 
+export type DbClient = PgPool | PoolClient;
 

@@ -1,10 +1,8 @@
 // File: server/src/services/forms.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for forms.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import {
@@ -29,6 +27,49 @@ import {
 import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildUpdateQuery } from "../utils/sql.js";
+
+type FormFieldInput = {
+  name?: string;
+  label?: string;
+  type?: string;
+  required?: boolean;
+  options?: unknown;
+  placeholder?: string | null;
+  min_length?: number | null;
+  max_length?: number | null;
+  sort_order?: number;
+  is_enabled?: boolean;
+  [key: string]: unknown;
+};
+
+type FormDto = {
+  id: number | null;
+  key: string;
+  title: string | null;
+  description: string | null;
+  is_active: boolean;
+  updated_at: unknown;
+  fields: FormFieldInput[];
+};
+
+type FormMetaRow = Omit<FormDto, "fields">;
+
+type FormPayload = {
+  key?: string;
+  title?: string;
+  description?: string;
+  is_active?: boolean;
+  fields?: FormFieldInput[];
+  created_by?: number | null;
+  form?: {
+    title?: string;
+    description?: string;
+    is_active?: boolean;
+    fields?: FormFieldInput[];
+  };
+  mode?: "general" | "custom";
+  [key: string]: unknown;
+};
 
 const GENERAL_FORM_KEY = "cohort_application";
 const LEGACY_GENERAL_FORM_KEY = "general_application_form";
@@ -207,14 +248,16 @@ const DEFAULT_PROGRAM_APPLICATION_FIELDS = [
 const LEGACY_DEFAULT_FIELD_NAMES = new Set(["full_name", "email", "phone", "motivation"]);
 const RECOMMENDED_DEFAULT_FIELD_NAMES = new Set(DEFAULT_GENERAL_FIELDS.map((field) => field.name));
 
-function cloneFields(fields) {
-  return fields.map((field, index) => ({
+// Handles 'cloneFields' workflow for this module.
+function cloneFields(fields: FormFieldInput[]): FormFieldInput[] {
+  return fields.map((field: FormFieldInput, index: number) => ({
     ...field,
     sort_order: field.sort_order ?? index,
   }));
 }
 
-function toSafeFieldName(value) {
+// Handles 'toSafeFieldName' workflow for this module.
+function toSafeFieldName(value: unknown): string {
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -223,7 +266,8 @@ function toSafeFieldName(value) {
     .slice(0, 64);
 }
 
-function normalizeField(field, index) {
+// Handles 'normalizeField' workflow for this module.
+function normalizeField(field: FormFieldInput, index: number): FormFieldInput {
   const label = String(field.label ?? "").trim();
   const fallbackName = label ? toSafeFieldName(label) : `field_${index + 1}`;
   const name = toSafeFieldName(field.name) || fallbackName;
@@ -250,24 +294,27 @@ function normalizeField(field, index) {
   };
 }
 
-function normalizeFields(fieldsInput) {
-  const rawFields = Array.isArray(fieldsInput) ? fieldsInput : [];
+// Handles 'normalizeFields' workflow for this module.
+function normalizeFields(fieldsInput: unknown): FormFieldInput[] {
+  const rawFields = Array.isArray(fieldsInput) ? fieldsInput as FormFieldInput[] : [];
   if (!rawFields.length) {
     throw new AppError(400, "VALIDATION_ERROR", "At least one form field is required.");
   }
 
-  const seenNames = new Set();
-  return rawFields.map((field, index) => {
+  const seenNames = new Set<string>();
+  return rawFields.map((field: FormFieldInput, index: number) => {
     const normalized = normalizeField(field, index);
-    if (seenNames.has(normalized.name)) {
-      throw new AppError(400, "VALIDATION_ERROR", `Duplicate field name '${normalized.name}' in form.`);
+    const normalizedName = String(normalized.name);
+    if (seenNames.has(normalizedName)) {
+      throw new AppError(400, "VALIDATION_ERROR", `Duplicate field name '${normalizedName}' in form.`);
     }
-    seenNames.add(normalized.name);
+    seenNames.add(normalizedName);
     return normalized;
   });
 }
 
-function toFormDto(formRow, fieldsRows) {
+// Handles 'toFormDto' workflow for this module.
+function toFormDto(formRow: any, fieldsRows: FormFieldInput[]): FormDto {
   return {
     id: formRow.id,
     key: formRow.key,
@@ -279,7 +326,8 @@ function toFormDto(formRow, fieldsRows) {
   };
 }
 
-function asArray(value) {
+// Handles 'asArray' workflow for this module.
+function asArray(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;
   }
@@ -288,31 +336,35 @@ function asArray(value) {
     return [];
   }
 
-  if (Array.isArray(value.choices)) {
-    return value.choices;
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.choices)) {
+    return record.choices;
   }
 
-  if (Array.isArray(value.options)) {
-    return value.options;
+  if (Array.isArray(record.options)) {
+    return record.options;
   }
 
   return [];
 }
 
-function hasProgramOptions(value) {
+// Handles 'hasProgramOptions' workflow for this module.
+function hasProgramOptions(value: unknown): boolean {
   return asArray(value).length > 0;
 }
 
-function toProgramOptionsRows(rows) {
-  return rows.map((row) => ({
+// Handles 'toProgramOptionsRows' workflow for this module.
+function toProgramOptionsRows(rows: any[]): Array<{ label: string; value: string }> {
+  return rows.map((row: any) => ({
     label: row.title,
     value: String(row.id),
   }));
 }
 
-async function hydrateProgramFieldOptions(formId, fieldsRows, client) {
+// Handles 'hydrateProgramFieldOptions' workflow for this module.
+async function hydrateProgramFieldOptions(formId: number, fieldsRows: FormFieldInput[], client: any): Promise<FormFieldInput[]> {
   const requiresProgramOptions = fieldsRows.some(
-    (field) => field.name === "program_id" && field.type === "select" && !hasProgramOptions(field.options),
+    (field: FormFieldInput) => field.name === "program_id" && field.type === "select" && !hasProgramOptions(field.options),
   );
 
   if (!requiresProgramOptions) {
@@ -321,7 +373,7 @@ async function hydrateProgramFieldOptions(formId, fieldsRows, client) {
 
   const programsResult = await listPublishedProgramOptions(client);
   const options = toProgramOptionsRows(programsResult.rows);
-  const nextFields = fieldsRows.map((field) => {
+  const nextFields = fieldsRows.map((field: FormFieldInput) => {
     if (field.name !== "program_id" || field.type !== "select") {
       return field;
     }
@@ -336,7 +388,8 @@ async function hydrateProgramFieldOptions(formId, fieldsRows, client) {
   return nextFields;
 }
 
-function toFormAndFieldsPayload(formRow, fieldsRows) {
+// Handles 'toFormAndFieldsPayload' workflow for this module.
+function toFormAndFieldsPayload(formRow: any, fieldsRows: FormFieldInput[]) {
   return {
     form: {
       id: formRow.id,
@@ -350,12 +403,13 @@ function toFormAndFieldsPayload(formRow, fieldsRows) {
   };
 }
 
-function shouldUpgradeLegacyDefault(fieldsRows) {
+// Handles 'shouldUpgradeLegacyDefault' workflow for this module.
+function shouldUpgradeLegacyDefault(fieldsRows: FormFieldInput[]): boolean {
   if (!Array.isArray(fieldsRows) || fieldsRows.length === 0) {
     return true;
   }
 
-  const fieldNames = fieldsRows.map((field) => toSafeFieldName(field.name));
+  const fieldNames = fieldsRows.map((field: FormFieldInput) => toSafeFieldName(field.name));
   const uniqueNames = new Set(fieldNames);
   const recommendedNames = Array.from(RECOMMENDED_DEFAULT_FIELD_NAMES);
 
@@ -371,12 +425,13 @@ function shouldUpgradeLegacyDefault(fieldsRows) {
   return uniqueNames.size <= LEGACY_DEFAULT_FIELD_NAMES.size && Array.from(uniqueNames).every((name) => LEGACY_DEFAULT_FIELD_NAMES.has(name));
 }
 
-async function ensureGeneralForm(client) {
+// Handles 'ensureGeneralForm' workflow for this module.
+async function ensureGeneralForm(client: any): Promise<FormDto> {
   // Serialize general-form bootstrap/upgrade to avoid concurrent replace collisions.
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [GENERAL_FORM_KEY]);
 
   let formResult = await findFormByKey(GENERAL_FORM_KEY, client);
-  let formRow;
+  let formRow: any;
 
   if (!formResult.rowCount) {
     const legacyResult = await findFormByKey(LEGACY_GENERAL_FORM_KEY, client);
@@ -411,11 +466,12 @@ async function ensureGeneralForm(client) {
   return toFormDto(formRow, fields.rows);
 }
 
-async function ensureProgramApplicationForm(client) {
+// Handles 'ensureProgramApplicationForm' workflow for this module.
+async function ensureProgramApplicationForm(client: any): Promise<{ form: any; fields: FormFieldInput[] }> {
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [PROGRAM_APPLICATION_FORM_KEY]);
 
   let formResult = await findFormByKey(PROGRAM_APPLICATION_FORM_KEY, client);
-  let formRow;
+  let formRow: any;
 
   if (!formResult.rowCount) {
     const created = await createForm(
@@ -447,9 +503,10 @@ async function ensureProgramApplicationForm(client) {
   };
 }
 
-async function upsertFormByKey({ key, title, description, is_active, fields, created_by }, client) {
+// Handles 'upsertFormByKey' workflow for this module.
+async function upsertFormByKey({ key, title, description, is_active, fields, created_by }: FormPayload, client: any): Promise<FormDto> {
   const existing = await findFormByKey(key, client);
-  let formRow;
+  let formRow: any;
 
   if (!existing.rowCount) {
     const created = await createForm(
@@ -480,7 +537,8 @@ async function upsertFormByKey({ key, title, description, is_active, fields, cre
   return toFormDto(formRow, fieldsResult.rows);
 }
 
-async function buildCohortFormResponse(cohortId, client, cachedGeneralForm = null) {
+// Handles 'buildCohortFormResponse' workflow for this module.
+async function buildCohortFormResponse(cohortId: number, client: any, cachedGeneralForm: FormDto | null = null) {
   const generalForm = cachedGeneralForm ?? (await ensureGeneralForm(client));
   const cohortResult = await getCohortFormConfigById(cohortId, client);
 
@@ -517,17 +575,20 @@ async function buildCohortFormResponse(cohortId, client, cachedGeneralForm = nul
   };
 }
 
+// Handles 'listFormCohortsService' workflow for this module.
 export async function listFormCohortsService() {
   const result = await listCohortFormOptions();
   return result.rows;
 }
 
+// Handles 'getGeneralFormService' workflow for this module.
 export async function getGeneralFormService() {
-  return withTransaction(async (client) => ensureGeneralForm(client));
+  return withTransaction(async (client: any) => ensureGeneralForm(client));
 }
 
-export async function saveGeneralFormService(adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'saveGeneralFormService' workflow for this module.
+export async function saveGeneralFormService(adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
     await ensureGeneralForm(client);
 
     const form = await upsertFormByKey(
@@ -560,12 +621,14 @@ export async function saveGeneralFormService(adminId, payload) {
   });
 }
 
-export async function getCohortFormService(cohortId) {
-  return withTransaction(async (client) => buildCohortFormResponse(cohortId, client));
+// Handles 'getCohortFormService' workflow for this module.
+export async function getCohortFormService(cohortId: number) {
+  return withTransaction(async (client: any) => buildCohortFormResponse(cohortId, client));
 }
 
-export async function saveCohortFormService(cohortId, adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'saveCohortFormService' workflow for this module.
+export async function saveCohortFormService(cohortId: number, adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
     const generalForm = await ensureGeneralForm(client);
     const cohortResult = await getCohortFormConfigById(cohortId, client);
 
@@ -640,19 +703,22 @@ export async function saveCohortFormService(cohortId, adminId, payload) {
   });
 }
 
+// Handles 'getCohortApplicationFormService' workflow for this module.
 export async function getCohortApplicationFormService() {
-  return withTransaction(async (client) => ensureGeneralForm(client));
+  return withTransaction(async (client: any) => ensureGeneralForm(client));
 }
 
+// Handles 'getProgramApplicationFormService' workflow for this module.
 export async function getProgramApplicationFormService() {
-  return withTransaction(async (client) => {
+  return withTransaction(async (client: any) => {
     const { form, fields } = await ensureProgramApplicationForm(client);
     return toFormAndFieldsPayload(form, fields);
   });
 }
 
-export async function patchProgramApplicationFormService(adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchProgramApplicationFormService' workflow for this module.
+export async function patchProgramApplicationFormService(adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
     const { form } = await ensureProgramApplicationForm(client);
     const { setClause, values } = buildUpdateQuery(payload, ["title", "description", "is_active"], 1);
     const updated = await updateForm(form.id, setClause, values, client);
@@ -678,8 +744,9 @@ export async function patchProgramApplicationFormService(adminId, payload) {
   });
 }
 
-export async function patchProgramApplicationFormFieldsService(adminId, fields) {
-  return withTransaction(async (client) => {
+// Handles 'patchProgramApplicationFormFieldsService' workflow for this module.
+export async function patchProgramApplicationFormFieldsService(adminId: number, fields: FormFieldInput[]) {
+  return withTransaction(async (client: any) => {
     const { form } = await ensureProgramApplicationForm(client);
     const normalized = normalizeFields(fields);
     await replaceFormFields(form.id, normalized, client);
@@ -706,12 +773,14 @@ export async function patchProgramApplicationFormFieldsService(adminId, fields) 
   });
 }
 
-export async function assignCohortFormService(cohortId, adminId, mode) {
+// Handles 'assignCohortFormService' workflow for this module.
+export async function assignCohortFormService(cohortId: number, adminId: number, mode: "general" | "custom") {
   return saveCohortFormService(cohortId, adminId, { mode });
 }
 
-export async function patchFormByIdService(formId, adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchFormByIdService' workflow for this module.
+export async function patchFormByIdService(formId: number, adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
     const formResult = await getFormById(formId, client);
     if (!formResult.rowCount) {
       throw new AppError(404, "FORM_NOT_FOUND", "Form not found.");
@@ -755,8 +824,9 @@ export async function patchFormByIdService(formId, adminId, payload) {
   });
 }
 
-export async function patchFormFieldsService(formId, fields, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'patchFormFieldsService' workflow for this module.
+export async function patchFormFieldsService(formId: number, fields: FormFieldInput[], adminId: number) {
+  return withTransaction(async (client: any) => {
     const formResult = await getFormById(formId, client);
     if (!formResult.rowCount) {
       throw new AppError(404, "FORM_NOT_FOUND", "Form not found.");
@@ -784,13 +854,15 @@ export async function patchFormFieldsService(formId, fields, adminId) {
   });
 }
 
-export async function listFormsService(scope = "all") {
+// Handles 'listFormsService' workflow for this module.
+export async function listFormsService(scope: string = "all") {
   const normalizedScope = scope === "general" || scope === "cohort" ? scope : "all";
   const result = await listForms(normalizedScope);
   return result.rows;
 }
 
-export async function getFormByIdWithFieldsService(formId) {
+// Handles 'getFormByIdWithFieldsService' workflow for this module.
+export async function getFormByIdWithFieldsService(formId: number) {
   const [formResult, fieldsResult] = await Promise.all([getFormById(formId), listFormFields(formId)]);
   if (!formResult.rowCount) {
     throw new AppError(404, "FORM_NOT_FOUND", "Form not found.");
@@ -798,8 +870,9 @@ export async function getFormByIdWithFieldsService(formId) {
   return toFormDto(formResult.rows[0], fieldsResult.rows);
 }
 
-export async function createFormService(adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createFormService' workflow for this module.
+export async function createFormService(adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
     const created = await createForm(
       {
         key: payload.key,
@@ -836,8 +909,9 @@ export async function createFormService(adminId, payload) {
   });
 }
 
-export async function createFormFieldService(formId, adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'createFormFieldService' workflow for this module.
+export async function createFormFieldService(formId: number, adminId: number, payload: FormFieldInput) {
+  return withTransaction(async (client: any) => {
     const formResult = await getFormById(formId, client);
     if (!formResult.rowCount) {
       throw new AppError(404, "FORM_NOT_FOUND", "Form not found.");
@@ -865,7 +939,8 @@ export async function createFormFieldService(formId, adminId, payload) {
   });
 }
 
-function normalizeFormFieldPatchPayload(payload) {
+// Handles 'normalizeFormFieldPatchPayload' workflow for this module.
+function normalizeFormFieldPatchPayload(payload: FormFieldInput): FormFieldInput {
   const next = { ...payload };
   if (next.name !== undefined) {
     const safeName = toSafeFieldName(next.name);
@@ -877,8 +952,9 @@ function normalizeFormFieldPatchPayload(payload) {
   return next;
 }
 
-export async function patchFormFieldByIdService(fieldId, adminId, payload) {
-  return withTransaction(async (client) => {
+// Handles 'patchFormFieldByIdService' workflow for this module.
+export async function patchFormFieldByIdService(fieldId: number, adminId: number, payload: FormFieldInput) {
+  return withTransaction(async (client: any) => {
     const fieldResult = await getFormFieldById(fieldId, client);
     if (!fieldResult.rowCount) {
       throw new AppError(404, "FORM_FIELD_NOT_FOUND", "Form field not found.");
@@ -911,8 +987,9 @@ export async function patchFormFieldByIdService(fieldId, adminId, payload) {
   });
 }
 
-export async function deleteFormFieldByIdService(fieldId, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'deleteFormFieldByIdService' workflow for this module.
+export async function deleteFormFieldByIdService(fieldId: number, adminId: number) {
+  return withTransaction(async (client: any) => {
     const deleted = await deleteFormField(fieldId, client);
     if (!deleted.rowCount) {
       throw new AppError(404, "FORM_FIELD_NOT_FOUND", "Form field not found.");
@@ -937,8 +1014,9 @@ export async function deleteFormFieldByIdService(fieldId, adminId) {
   });
 }
 
-export async function reorderFormFieldsService(formId, orderedFieldIds, adminId) {
-  return withTransaction(async (client) => {
+// Handles 'reorderFormFieldsService' workflow for this module.
+export async function reorderFormFieldsService(formId: number, orderedFieldIds: Array<number | string>, adminId: number) {
+  return withTransaction(async (client: any) => {
     const formResult = await getFormById(formId, client);
     if (!formResult.rowCount) {
       throw new AppError(404, "FORM_NOT_FOUND", "Form not found.");
@@ -978,3 +1056,4 @@ export async function reorderFormFieldsService(formId, orderedFieldIds, adminId)
     return fieldsResult.rows;
   });
 }
+

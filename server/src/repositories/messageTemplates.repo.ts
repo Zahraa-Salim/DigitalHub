@@ -1,13 +1,14 @@
-// File: server/src/repositories/messageTemplates.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
-// @ts-nocheck
-import { pool } from "../db/index.js";
+﻿// File: server/src/repositories/messageTemplates.repo.ts
+// Purpose: Runs the database queries used for message templates.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-export async function ensureMessageTemplatesTable(db = pool) {
+// @ts-nocheck
+
+import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+// Handles 'ensureMessageTemplatesTable' workflow for this module.
+export async function ensureMessageTemplatesTable(db: DbClient = pool) {
   return db.query(`
     CREATE TABLE IF NOT EXISTS message_templates (
       id          BIGSERIAL PRIMARY KEY,
@@ -31,7 +32,8 @@ export async function ensureMessageTemplatesTable(db = pool) {
   `);
 }
 
-export async function insertDefaultMessageTemplate(input, db = pool) {
+// Handles 'insertDefaultMessageTemplate' workflow for this module.
+export async function insertDefaultMessageTemplate(input, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO message_templates (
@@ -72,7 +74,8 @@ export async function insertDefaultMessageTemplate(input, db = pool) {
   );
 }
 
-export async function countMessageTemplates(includeInactive = false, db = pool) {
+// Handles 'countMessageTemplates' workflow for this module.
+export async function countMessageTemplates(includeInactive = false, db: DbClient = pool) {
   return db.query(
     `
       SELECT COUNT(*)::int AS total
@@ -82,7 +85,8 @@ export async function countMessageTemplates(includeInactive = false, db = pool) 
   );
 }
 
-export async function listMessageTemplates(includeInactive = false, sortBy = "sort_order", order = "asc", limit = 10, offset = 0, db = pool) {
+// Handles 'listMessageTemplates' workflow for this module.
+export async function listMessageTemplates(includeInactive = false, sortBy = "sort_order", order = "asc", limit = 10, offset = 0, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -109,7 +113,8 @@ export async function listMessageTemplates(includeInactive = false, sortBy = "so
   );
 }
 
-export async function createMessageTemplate(input, db = pool) {
+// Handles 'createMessageTemplate' workflow for this module.
+export async function createMessageTemplate(input, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO message_templates (
@@ -154,7 +159,8 @@ export async function createMessageTemplate(input, db = pool) {
   );
 }
 
-export async function getMessageTemplateByKey(key, db = pool) {
+// Handles 'getMessageTemplateByKey' workflow for this module.
+export async function getMessageTemplateByKey(key, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -179,7 +185,8 @@ export async function getMessageTemplateByKey(key, db = pool) {
   );
 }
 
-export async function updateMessageTemplateByKey(key, setClause, values, updatedBy, db = pool) {
+// Handles 'updateMessageTemplateByKey' workflow for this module.
+export async function updateMessageTemplateByKey(key, setClause, values, updatedBy, db: DbClient = pool) {
   return db.query(
     `
       UPDATE message_templates
@@ -206,7 +213,8 @@ export async function updateMessageTemplateByKey(key, setClause, values, updated
   );
 }
 
-export async function setMessageTemplateActiveByKey(key, isActive, db = pool) {
+// Handles 'setMessageTemplateActiveByKey' workflow for this module.
+export async function setMessageTemplateActiveByKey(key, isActive, db: DbClient = pool) {
   return db.query(
     `
       UPDATE message_templates
@@ -218,3 +226,4 @@ export async function setMessageTemplateActiveByKey(key, isActive, db = pool) {
     [key, Boolean(isActive)],
   );
 }
+

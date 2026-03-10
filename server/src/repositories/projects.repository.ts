@@ -1,12 +1,12 @@
-// File: server/src/repositories/projects.repository.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/projects.repository.ts
+// Purpose: Runs the database queries used for projects.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 
+// Handles 'createProject' workflow for this module.
 export async function createProject(input, db = pool) {
   return db.query(
     `
@@ -30,6 +30,7 @@ export async function createProject(input, db = pool) {
   );
 }
 
+// Handles 'countProjects' workflow for this module.
 export async function countProjects(whereClause, params, db = pool) {
   const scopedWhere = whereClause
     ? `${whereClause} AND p.deleted_at IS NULL`
@@ -45,6 +46,7 @@ export async function countProjects(whereClause, params, db = pool) {
   );
 }
 
+// Handles 'listProjects' workflow for this module.
 export async function listProjects(whereClause, sortBy, order, params, limit, offset, db = pool) {
   const scopedWhere = whereClause
     ? `${whereClause} AND p.deleted_at IS NULL`
@@ -77,6 +79,7 @@ export async function listProjects(whereClause, sortBy, order, params, limit, of
   );
 }
 
+// Handles 'updateProject' workflow for this module.
 export async function updateProject(id, setClause, values, db = pool) {
   return db.query(
     `
@@ -90,6 +93,7 @@ export async function updateProject(id, setClause, values, db = pool) {
   );
 }
 
+// Handles 'deleteProject' workflow for this module.
 export async function deleteProject(id, db = pool) {
   return db.query(
     `
@@ -103,6 +107,7 @@ export async function deleteProject(id, db = pool) {
   );
 }
 
+// Handles 'getPublicProjectById' workflow for this module.
 export async function getPublicProjectById(id, db = pool) {
   return db.query(
     `
@@ -132,6 +137,7 @@ export async function getPublicProjectById(id, db = pool) {
   );
 }
 
+// Handles 'listPublicProjectsByStudentUserId' workflow for this module.
 export async function listPublicProjectsByStudentUserId(studentUserId, db = pool) {
   return db.query(
     `
@@ -158,6 +164,7 @@ export async function listPublicProjectsByStudentUserId(studentUserId, db = pool
   );
 }
 
+// Handles 'findCohortById' workflow for this module.
 export async function findCohortById(cohortId, db = pool) {
   return db.query(
     `
@@ -170,3 +177,4 @@ export async function findCohortById(cohortId, db = pool) {
     [cohortId],
   );
 }
+

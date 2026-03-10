@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/Topbar.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/Topbar.tsx
+// Purpose: Renders the dashboard topbar component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuthUser } from "../utils/auth";
@@ -173,3 +171,4 @@ export function Topbar({
     </header>
   );
 }
+

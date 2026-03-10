@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/AdvancedFilterPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/AdvancedFilterPanel.tsx
+// Purpose: Renders the dashboard advanced filter panel component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 
@@ -201,3 +199,4 @@ export const AdvancedFilterPanel: React.FC<AdvancedFilterPanelProps> = ({
     </div>
   );
 };
+

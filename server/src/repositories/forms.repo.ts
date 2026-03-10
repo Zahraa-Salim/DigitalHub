@@ -1,12 +1,12 @@
-// File: server/src/repositories/forms.repo.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/repositories/forms.repo.ts
+// Purpose: Runs the database queries used for forms.
+// It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
+
 // @ts-nocheck
+
 import { pool } from "../db/index.js";
 
+// Handles 'toJsonbParam' workflow for this module.
 function toJsonbParam(value) {
   if (value === undefined || value === null) {
     return null;
@@ -30,6 +30,7 @@ function toJsonbParam(value) {
   return JSON.stringify(value);
 }
 
+// Handles 'findFormByKey' workflow for this module.
 export async function findFormByKey(key, db = pool) {
   return db.query(
     `
@@ -42,6 +43,7 @@ export async function findFormByKey(key, db = pool) {
   );
 }
 
+// Handles 'listForms' workflow for this module.
 export async function listForms(scope = "all", db = pool) {
   let whereClause = "";
   const params = [];
@@ -70,6 +72,7 @@ export async function listForms(scope = "all", db = pool) {
   );
 }
 
+// Handles 'getFormById' workflow for this module.
 export async function getFormById(id, db = pool) {
   return db.query(
     `
@@ -82,6 +85,7 @@ export async function getFormById(id, db = pool) {
   );
 }
 
+// Handles 'renameFormKey' workflow for this module.
 export async function renameFormKey(formId, nextKey, db = pool) {
   return db.query(
     `
@@ -94,6 +98,7 @@ export async function renameFormKey(formId, nextKey, db = pool) {
   );
 }
 
+// Handles 'listFormFields' workflow for this module.
 export async function listFormFields(formId, db = pool) {
   return db.query(
     `
@@ -118,6 +123,7 @@ export async function listFormFields(formId, db = pool) {
   );
 }
 
+// Handles 'getFormFieldById' workflow for this module.
 export async function getFormFieldById(fieldId, db = pool) {
   return db.query(
     `
@@ -142,6 +148,7 @@ export async function getFormFieldById(fieldId, db = pool) {
   );
 }
 
+// Handles 'createForm' workflow for this module.
 export async function createForm(input, db = pool) {
   return db.query(
     `
@@ -159,6 +166,7 @@ export async function createForm(input, db = pool) {
   );
 }
 
+// Handles 'updateForm' workflow for this module.
 export async function updateForm(formId, setClause, values, db = pool) {
   return db.query(
     `
@@ -171,6 +179,7 @@ export async function updateForm(formId, setClause, values, db = pool) {
   );
 }
 
+// Handles 'replaceFormFields' workflow for this module.
 export async function replaceFormFields(formId, fields, db = pool) {
   await db.query(`DELETE FROM form_fields WHERE form_id = $1`, [formId]);
 
@@ -201,6 +210,7 @@ export async function replaceFormFields(formId, fields, db = pool) {
   return listFormFields(formId, db);
 }
 
+// Handles 'createFormField' workflow for this module.
 export async function createFormField(formId, field, db = pool) {
   return db.query(
     `
@@ -246,6 +256,7 @@ export async function createFormField(formId, field, db = pool) {
   );
 }
 
+// Handles 'updateFormField' workflow for this module.
 export async function updateFormField(fieldId, setClause, values, db = pool) {
   return db.query(
     `
@@ -259,6 +270,7 @@ export async function updateFormField(fieldId, setClause, values, db = pool) {
   );
 }
 
+// Handles 'deleteFormField' workflow for this module.
 export async function deleteFormField(fieldId, db = pool) {
   return db.query(
     `
@@ -270,6 +282,7 @@ export async function deleteFormField(fieldId, db = pool) {
   );
 }
 
+// Handles 'reorderFormFields' workflow for this module.
 export async function reorderFormFields(formId, orderedFieldIds, db = pool) {
   return db.query(
     `
@@ -289,6 +302,7 @@ export async function reorderFormFields(formId, orderedFieldIds, db = pool) {
   );
 }
 
+// Handles 'getCohortFormConfigById' workflow for this module.
 export async function getCohortFormConfigById(cohortId, db = pool) {
   return db.query(
     `
@@ -297,6 +311,9 @@ export async function getCohortFormConfigById(cohortId, db = pool) {
         c.name,
         c.program_id,
         p.title AS program_title,
+        p.summary AS program_summary,
+        p.description AS program_description,
+        p.requirements AS program_requirements,
         CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status,
         c.use_general_form,
         c.application_form_id,
@@ -312,6 +329,7 @@ export async function getCohortFormConfigById(cohortId, db = pool) {
   );
 }
 
+// Handles 'listCohortFormOptions' workflow for this module.
 export async function listCohortFormOptions(db = pool) {
   return db.query(`
       SELECT
@@ -330,6 +348,7 @@ export async function listCohortFormOptions(db = pool) {
     `);
 }
 
+// Handles 'updateCohortFormConfig' workflow for this module.
 export async function updateCohortFormConfig(cohortId, useGeneralForm, applicationFormId, db = pool) {
   return db.query(
     `
@@ -345,6 +364,7 @@ export async function updateCohortFormConfig(cohortId, useGeneralForm, applicati
   );
 }
 
+// Handles 'normalizeLegacyPlannedStatuses' workflow for this module.
 export async function normalizeLegacyPlannedStatuses(db = pool) {
   return db.query(`
       UPDATE cohorts
@@ -354,6 +374,7 @@ export async function normalizeLegacyPlannedStatuses(db = pool) {
     `);
 }
 
+// Handles 'listPublishedProgramOptions' workflow for this module.
 export async function listPublishedProgramOptions(db = pool) {
   return db.query(
     `
@@ -365,3 +386,4 @@ export async function listPublishedProgramOptions(db = pool) {
     `,
   );
 }
+

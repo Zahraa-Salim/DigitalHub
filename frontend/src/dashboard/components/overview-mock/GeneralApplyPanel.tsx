@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview-mock/GeneralApplyPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview-mock/GeneralApplyPanel.tsx
+// Purpose: Renders the mock overview general apply panel panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
+
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { ArrowRight } from 'lucide-react';
 import type { AdminOverviewData } from '../../lib/api';
@@ -97,3 +95,4 @@ export function GeneralApplyPanel({
     </Card>
   );
 }
+

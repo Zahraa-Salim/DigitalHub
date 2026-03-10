@@ -1,10 +1,9 @@
-// File: server/src/routes/applications.routes.ts
-// What this code does:
-// 1) Declares endpoint paths and HTTP methods for this module.
-// 2) Applies authentication/validation middleware before handlers run.
-// 3) Delegates request processing to controllers and shared helpers.
-// 4) Exports a router consumed by the server bootstrap layer.
+﻿// File: server/src/routes/applications.routes.ts
+// Purpose: Registers the Express routes for applications.
+// It wires endpoint paths to middleware and controller handlers for this feature area.
+
 // @ts-nocheck
+
 import { Router } from "express";
 import {
   approveApplication,
@@ -64,5 +63,4 @@ applicationsRouter.post("/:id/create-user", validateRequest({ params: idParamsSc
 applicationsRouter.patch("/:id/approve", validateRequest({ params: idParamsSchema, body: approveBodySchema }), asyncHandler(approveApplication));
 applicationsRouter.patch("/:id/reject", validateRequest({ params: idParamsSchema, body: rejectBodySchema }), asyncHandler(rejectApplication));
 export { applicationsRouter };
-
 

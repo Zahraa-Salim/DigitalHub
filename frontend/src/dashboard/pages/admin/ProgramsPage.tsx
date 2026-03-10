@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/pages/admin/ProgramsPage.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/pages/admin/ProgramsPage.tsx
+// Purpose: Renders the admin programs page page in the dashboard.
+// It combines dashboard data loading, actions, and page-level UI for this screen.
+
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "../../components/Card";
 import type { ChangeEvent } from "react";
@@ -619,7 +617,12 @@ export function ProgramsPage() {
       {selected && (
         <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <header className="modal-header"><button className="modal-close" type="button" onClick={() => setSelected(null)}>X</button><h3 className="modal-title">Program Details</h3></header>
+            <header className="modal-header">
+              <h3 className="modal-title">Program Details</h3>
+              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
+                X
+              </button>
+            </header>
             <div className="post-details">
               {resolveProgramImageUrl(selected.image_url) && <p className="post-details__line"><img src={resolveProgramImageUrl(selected.image_url) || ""} alt="preview" style={{ width: "100%", maxWidth: "360px", borderRadius: "12px" }} /></p>}
               <p className="post-details__line"><strong>Title:</strong> {selected.title}</p>
@@ -710,3 +713,4 @@ export function ProgramsPage() {
     </PageShell>
   );
 }
+

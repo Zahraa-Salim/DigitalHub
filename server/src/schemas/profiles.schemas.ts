@@ -1,10 +1,9 @@
-// File: server/src/schemas/profiles.schemas.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/schemas/profiles.schemas.ts
+// Purpose: Defines the Zod schemas for profiles.
+// It describes the request shapes and validation rules used before service logic runs.
+
 // @ts-nocheck
+
 import { z } from "zod";
 export const userIdParamsSchema = z.object({
     userId: z.coerce.number().int().positive(),
@@ -136,3 +135,4 @@ export const studentStatusPatchSchema = z.object({
     message: "Dropout reason is required.",
     path: ["reason"],
   });
+

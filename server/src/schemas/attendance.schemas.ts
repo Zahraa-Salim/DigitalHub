@@ -1,10 +1,9 @@
-// File: server/src/schemas/attendance.schemas.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/schemas/attendance.schemas.ts
+// Purpose: Defines the Zod schemas for attendance.
+// It describes the request shapes and validation rules used before service logic runs.
+
 // @ts-nocheck
+
 import { z } from "zod";
 
 const attendanceStatusSchema = z.enum(["present", "absent", "late"]);
@@ -47,3 +46,4 @@ export const studentAttendanceQuerySchema = z
     limit: z.coerce.number().int().min(1).max(120).optional(),
   })
   .strict();
+

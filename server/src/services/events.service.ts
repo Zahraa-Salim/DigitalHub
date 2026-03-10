@@ -1,10 +1,8 @@
 // File: server/src/services/events.service.ts
-// What this code does:
-// 1) Implements core business rules and workflow decisions.
-// 2) Performs data access through DB helpers and utilities.
-// 3) Enforces domain constraints before state changes.
-// 4) Returns structured results for controller/route layers.
-// @ts-nocheck
+// Purpose: Implements the business rules for events.
+// It coordinates validation, data access, and side effects before results go back to controllers.
+
+
 import { withTransaction } from "../db/index.js";
 import {
     createAnnouncement,
@@ -30,7 +28,38 @@ const EVENT_IMAGE_MIME_TO_EXT = {
 
 const MAX_EVENT_IMAGE_BYTES = 3 * 1024 * 1024;
 
-function sanitizeFilenamePart(value) {
+type EventPayload = {
+    slug?: string;
+    title?: string;
+    description?: string | null;
+    post_body?: string | null;
+    location?: string | null;
+    starts_at?: string;
+    ends_at?: string | null;
+    is_published?: boolean;
+    auto_announce?: boolean;
+    is_done?: boolean;
+    done_at?: string | null;
+    completion_image_urls?: unknown;
+    mime_type?: string;
+    data_base64?: string;
+    filename?: string;
+};
+
+type EventListQuery = Record<string, unknown>;
+
+type EventRecord = {
+    id: number;
+    title?: string | null;
+    location?: string | null;
+    starts_at?: string | null;
+    is_published?: boolean | null;
+    is_done?: boolean | null;
+    auto_announce?: boolean | null;
+};
+
+// Handles 'sanitizeFilenamePart' workflow for this module.
+function sanitizeFilenamePart(value: unknown): string {
     return String(value || "event-image")
         .toLowerCase()
         .replace(/[^a-z0-9-_]+/g, "-")
@@ -39,7 +68,8 @@ function sanitizeFilenamePart(value) {
         .slice(0, 48) || "event-image";
 }
 
-function normalizeCompletionImageUrls(value) {
+// Handles 'normalizeCompletionImageUrls' workflow for this module.
+function normalizeCompletionImageUrls(value: unknown): string[] {
     if (!Array.isArray(value)) {
         return [];
     }
@@ -49,12 +79,14 @@ function normalizeCompletionImageUrls(value) {
     return Array.from(new Set(normalized));
 }
 
-function isEventUpcoming(event) {
+// Handles 'isEventUpcoming' workflow for this module.
+function isEventUpcoming(event: EventRecord | null | undefined): boolean {
     const startsAt = new Date(event?.starts_at || "");
     return !Number.isNaN(startsAt.getTime()) && startsAt.getTime() >= Date.now();
 }
 
-function buildEventAnnouncementContent(event) {
+// Handles 'buildEventAnnouncementContent' workflow for this module.
+function buildEventAnnouncementContent(event: EventRecord) {
     const eventTitle = event?.title || `Event #${event.id}`;
     const location = event?.location ? ` at ${event.location}` : "";
     return {
@@ -63,7 +95,8 @@ function buildEventAnnouncementContent(event) {
     };
 }
 
-async function syncEventAnnouncement(adminId, event, autoAnnounce, dbClient) {
+// Handles 'syncEventAnnouncement' workflow for this module.
+async function syncEventAnnouncement(adminId: number, event: EventRecord | null | undefined, autoAnnounce: boolean | null | undefined, dbClient: Parameters<typeof createAnnouncement>[1]) {
     if (!event?.id) {
         return;
     }
@@ -107,9 +140,10 @@ async function syncEventAnnouncement(adminId, event, autoAnnounce, dbClient) {
     }, dbClient);
 }
 
-export async function createEventService(adminId, payload) {
+// Handles 'createEventService' workflow for this module.
+export async function createEventService(adminId: number, payload: EventPayload) {
     const body = payload;
-    return withTransaction(async (client) => {
+    return withTransaction(async (client: Parameters<typeof createEvent>[1]) => {
         const result = await createEvent({
             slug: body.slug,
             title: body.title,
@@ -137,10 +171,11 @@ export async function createEventService(adminId, payload) {
         return created;
     });
 }
-export async function listEventsService(query) {
+// Handles 'listEventsService' workflow for this module.
+export async function listEventsService(query: EventListQuery) {
     const list = parseListQuery(query, ["id", "starts_at", "created_at", "title"], "starts_at");
-    const params = [];
-    const where = [];
+    const params: string[] = [];
+    const where: string[] = [];
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(["title", "COALESCE(description, '')", "COALESCE(location, '')"], params.length));
@@ -162,8 +197,9 @@ export async function listEventsService(query) {
         pagination: buildPagination(list.page, list.limit, total),
     };
 }
-export async function patchEventService(id, adminId, payload) {
-    return withTransaction(async (client) => {
+// Handles 'patchEventService' workflow for this module.
+export async function patchEventService(id: number, adminId: number, payload: EventPayload) {
+    return withTransaction(async (client: Parameters<typeof createEvent>[1]) => {
         const currentResult = await listEvents("WHERE id = $1", "id", "desc", [id], 1, 0, client);
         if (!currentResult.rowCount) {
             throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
@@ -209,8 +245,9 @@ export async function patchEventService(id, adminId, payload) {
         return updated;
     });
 }
-export async function deleteEventService(id, adminId) {
-    return withTransaction(async (client) => {
+// Handles 'deleteEventService' workflow for this module.
+export async function deleteEventService(id: number, adminId: number) {
+    return withTransaction(async (client: Parameters<typeof createEvent>[1]) => {
         const existingAnnouncement = await findActiveAutoAnnouncementByEventId(id, client);
         const result = await deleteEvent(id, client);
         if (!result.rowCount) {
@@ -231,8 +268,9 @@ export async function deleteEventService(id, adminId) {
         return { id };
     });
 }
-export async function markEventDoneService(id, adminId) {
-    return withTransaction(async (client) => {
+// Handles 'markEventDoneService' workflow for this module.
+export async function markEventDoneService(id: number, adminId: number) {
+    return withTransaction(async (client: Parameters<typeof createEvent>[1]) => {
         const result = await markEventDone(id, client);
         if (!result.rowCount) {
             throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
@@ -251,9 +289,10 @@ export async function markEventDoneService(id, adminId) {
     });
 }
 
-export async function uploadEventImageService(actorUserId, payload) {
+// Handles 'uploadEventImageService' workflow for this module.
+export async function uploadEventImageService(actorUserId: number, payload: EventPayload) {
     const mimeType = String(payload.mime_type || "").trim().toLowerCase();
-    const extension = EVENT_IMAGE_MIME_TO_EXT[mimeType];
+    const extension = EVENT_IMAGE_MIME_TO_EXT[mimeType as keyof typeof EVENT_IMAGE_MIME_TO_EXT];
     if (!extension) {
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported event image mime type.");
     }
@@ -298,5 +337,4 @@ export async function uploadEventImageService(actorUserId, payload) {
     });
     return { image_url: imageUrl };
 }
-
 

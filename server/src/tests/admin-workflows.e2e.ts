@@ -1,9 +1,7 @@
-// File: server/src/tests/admin-workflows.e2e.ts
-// What this code does:
-// 1) Implements module-specific behavior for this code unit.
-// 2) Coordinates inputs, internal processing, and outputs.
-// 3) Uses shared utilities to keep logic consistent and reusable.
-// 4) Exports functions/components used by other project modules.
+﻿// File: server/src/tests/admin-workflows.e2e.ts
+// Purpose: Exercises end-to-end backend behavior for admin workflows e2e.
+// It verifies important server workflows with test requests and assertions.
+
 import assert from "node:assert/strict";
 
 type JsonEnvelope<T> = {
@@ -87,6 +85,7 @@ function unwrapData<T>(payload: JsonEnvelope<T>): T {
   return payload as unknown as T;
 }
 
+// Handles 'loginAdmin' workflow for this module.
 async function loginAdmin(): Promise<string> {
   assert(ADMIN_EMAIL, "Missing E2E_ADMIN_EMAIL (or ADMIN_EMAIL) environment variable.");
   assert(ADMIN_PASSWORD, "Missing E2E_ADMIN_PASSWORD (or ADMIN_PASSWORD) environment variable.");
@@ -105,6 +104,7 @@ async function loginAdmin(): Promise<string> {
   return token;
 }
 
+// Handles 'authHeaders' workflow for this module.
 function authHeaders(token: string): HeadersInit {
   return {
     "Content-Type": "application/json",
@@ -112,6 +112,7 @@ function authHeaders(token: string): HeadersInit {
   };
 }
 
+// Handles 'findOpenCohortId' workflow for this module.
 async function findOpenCohortId(): Promise<number> {
   const response = await requestJson<CohortRow[]>("/public/cohorts?page=1&limit=200&sortBy=start_date&order=asc");
   const cohorts = unwrapData(response);
@@ -120,6 +121,7 @@ async function findOpenCohortId(): Promise<number> {
   return openCohort.id;
 }
 
+// Handles 'main' workflow for this module.
 async function main() {
   console.log(`[e2e] base url: ${BASE_URL}`);
   const token = await loginAdmin();
@@ -295,3 +297,4 @@ main().catch((error) => {
   console.error("[e2e] admin workflows failed:", error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
+

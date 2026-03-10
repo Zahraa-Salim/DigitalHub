@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview-mock/PipelineHealthPanel.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview-mock/PipelineHealthPanel.tsx
+// Purpose: Renders the mock overview pipeline health panel panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
+
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import type { AdminOverviewData } from '../../lib/api';
@@ -129,3 +127,4 @@ export function PipelineHealthPanel({ pipelineHealth, onAction }: PipelineHealth
     </div>
   );
 }
+

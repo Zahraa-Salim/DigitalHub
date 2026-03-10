@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/overview-mock/ui/Badge.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/overview-mock/ui/Badge.tsx
+// Purpose: Renders the overview mock badge primitive for dashboard demos.
+// It supports the mock overview panels with small reusable UI building blocks.
+
 import React from 'react';
 
 export type BadgeVariant =
@@ -46,3 +44,4 @@ export function Badge({
     </span>
   );
 }
+

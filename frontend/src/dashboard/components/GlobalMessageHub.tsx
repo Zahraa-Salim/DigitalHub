@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/GlobalMessageHub.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/GlobalMessageHub.tsx
+// Purpose: Renders the dashboard global message hub component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createApplicationMessage,
@@ -243,7 +241,7 @@ export function GlobalMessageHub() {
     const timeoutId = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
       delete toastTimersRef.current[id];
-    }, 4000);
+    }, 5000);
     toastTimersRef.current[id] = timeoutId;
   };
 
@@ -508,3 +506,4 @@ export function GlobalMessageHub() {
     </>
   );
 }
+

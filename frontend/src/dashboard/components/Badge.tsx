@@ -1,9 +1,7 @@
-// File: frontend/src/dashboard/components/Badge.tsx
-// What this code does:
-// 1) Implements admin dashboard screens and operator workflows.
-// 2) Loads and binds management data to interactive controls.
-// 3) Coordinates tables, forms, filters, and modal state.
-// 4) Triggers API actions and surfaces user-facing feedback.
+﻿// File: frontend/src/dashboard/components/Badge.tsx
+// Purpose: Renders the dashboard badge component.
+// It packages reusable admin UI and behavior for dashboard pages.
+
 import { cn } from "../utils/cn";
 
 type BadgeTone =
@@ -36,3 +34,4 @@ type BadgeProps = {
 export function Badge({ children, tone = "default" }: BadgeProps) {
   return <span className={cn("status-badge", `status-badge--${tone}`)}>{children}</span>;
 }
+
