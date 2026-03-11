@@ -103,7 +103,7 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
       throw new AppError(400, "VALIDATION_ERROR", "WhatsApp destination phone is required.", undefined);
     }
 
-    const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(config.metaPhoneNumberId)}/messages`;
+    const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(config.metaPhoneNumberId)}/messages`;
     const payload = {
       messaging_product: "whatsapp",
       to: metaDestination,

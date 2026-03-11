@@ -10,7 +10,7 @@ import { useCmsBreadcrumb } from "@/hooks/useCmsPage";
 
 export const CohortDetails = () => {
   const breadcrumb = useCmsBreadcrumb("cohort_details", {
-    defaultsTitle: "Cohort Details",
+    defaultsTitle: "Program Details",
     defaultsSubTitle: "Programs",
   });
 

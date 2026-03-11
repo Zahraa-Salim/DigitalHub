@@ -120,7 +120,7 @@ async function syncEventAnnouncement(adminId: number, event: EventRecord | null 
     if (existing) {
         await updateAnnouncement(
             existing.id,
-            "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, cohort_id = NULL",
+            "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, cohort_id = NULL, cta_label = NULL, cta_url = NULL, cta_open_in_new_tab = FALSE",
             [content.title, content.body, "website", true, new Date().toISOString()],
             dbClient,
         );

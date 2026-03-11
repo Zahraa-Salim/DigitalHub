@@ -10,9 +10,9 @@ import type { DbClient } from "../db/index.js";
 export async function createAnnouncement(input, db: DbClient = pool) {
     return db.query(`
       INSERT INTO announcements
-        (title, body, target_audience, cohort_id, event_id, is_auto, is_published, publish_at, created_by, created_at)
+        (title, body, target_audience, cohort_id, event_id, is_auto, is_published, publish_at, cta_label, cta_url, cta_open_in_new_tab, created_by, created_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
       RETURNING *
     `, [
         input.title,
@@ -23,6 +23,9 @@ export async function createAnnouncement(input, db: DbClient = pool) {
         input.is_auto,
         input.is_published,
         input.publish_at ?? null,
+        input.cta_label ?? null,
+        input.cta_url ?? null,
+        input.cta_open_in_new_tab ?? false,
         input.created_by,
     ]);
 }

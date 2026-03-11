@@ -269,6 +269,9 @@ export type PublicAnnouncement = {
   event_title?: string | null;
   event_starts_at?: string | null;
   event_image_url?: string | null;
+  cta_label?: string | null;
+  cta_url?: string | null;
+  cta_open_in_new_tab?: boolean | null;
 };
 
 export type PublicProgramOption = {

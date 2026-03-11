@@ -18,6 +18,7 @@ export default function CourseArea() {
   const [courses, setCourses] = useState<CohortProgramCard[]>([]);
   const [programCardStyle, setProgramCardStyle] = useState<ProgramCardStyle>(DEFAULT_PROGRAM_CARD_STYLE);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const itemsPerPage = 6;
   const [itemOffset, setItemOffset] = useState(0);
@@ -29,6 +30,8 @@ export default function CourseArea() {
 
   const totalItems = courses.length;
   const startOffset = totalItems === 0 ? 0 : normalizedOffset + 1;
+  const showSkeletonCards = !hasLoadedOnce || (Boolean(loadError) && totalItems === 0);
+  const skeletonItems = Array.from({ length: itemsPerPage }, (_value, index) => index);
 
   const handlePageClick = (event: { selected: number }) => {
     if (courses.length === 0) {
@@ -61,7 +64,10 @@ export default function CourseArea() {
         setLoadError(null);
       } catch {
         if (!active) return;
-        setLoadError("Unable to load cohorts right now.");
+        setLoadError("Unable to load programs right now.");
+      } finally {
+        if (!active) return;
+        setHasLoadedOnce(true);
       }
     };
 
@@ -174,6 +180,31 @@ export default function CourseArea() {
                 id="grid"
               >
                 <div className="row courses__grid-wrap row-cols-1 row-cols-xl-3 row-cols-lg-3 row-cols-md-2 row-cols-sm-1">
+                  {showSkeletonCards &&
+                    skeletonItems.map((item) => (
+                      <div key={`grid-skeleton-${item}`} className="col">
+                        <div className="courses__item dh-program-card dh-program-card--skeleton">
+                          <div className="dh-program-card__hero dh-program-card__hero--skeleton">
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--icon" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--pill" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--program" />
+                          </div>
+                          <div className="dh-program-card__body">
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--title" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--desc" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--desc dh-program-skeleton-block--desc-short" />
+                            <ul className="dh-program-card__meta list-wrap">
+                              <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                              <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                            </ul>
+                            <div className="dh-program-card__bottom">
+                              <span className="dh-program-skeleton-block dh-program-skeleton-block--cta" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
                   {currentItems.map((item) => (
                     <div key={item.id} className="col">
                       <div className={`courses__item dh-program-card dh-program-card--${item.status} dh-program-card--style-${programCardStyle}`}>
@@ -193,7 +224,7 @@ export default function CourseArea() {
                             </div>
                             <div className="dh-program-card__body">
                               <h5 className="title">
-                                {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                                <Link to={item.detailHref}>{item.title}</Link>
                               </h5>
 
                               <p className="dh-program-card__desc">{item.shortDescription}</p>
@@ -231,7 +262,7 @@ export default function CourseArea() {
                               <span className="dh-program-card__chip">{item.category.name}</span>
 
                               <h5 className="title">
-                                {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                                <Link to={item.detailHref}>{item.title}</Link>
                               </h5>
 
                               <p className="dh-program-card__desc">{item.shortDescription}</p>
@@ -255,34 +286,36 @@ export default function CourseArea() {
                     </div>
                   ))}
 
-                  {currentItems.length === 0 && (
+                  {!showSkeletonCards && currentItems.length === 0 && (
                     <div className="col-12">
-                      <p>{loadError || "No cohorts available right now."}</p>
+                      <p>No programs available right now.</p>
                     </div>
                   )}
                 </div>
 
-                <nav className="pagination__wrap mt-30">
-                  <ReactPaginate
-                    breakLabel="..."
-                    onPageChange={handlePageClick}
-                    pageRangeDisplayed={3}
-                    pageCount={pageCount}
-                    forcePage={Math.floor(normalizedOffset / itemsPerPage)}
-                    className="list-wrap"
-                    previousLabel={
-                      <i
-                        className="flaticon-arrow-right"
-                        style={{ transform: "rotate(180deg)", display: "inline-block" }}
-                      ></i>
-                    }
-                    nextLabel={<i className="flaticon-arrow-right"></i>}
-                    previousAriaLabel="Previous page"
-                    nextAriaLabel="Next page"
-                    previousClassName="previous pagination__arrow"
-                    nextClassName="next pagination__arrow"
-                  />
-                </nav>
+                {!showSkeletonCards && pageCount > 1 && (
+                  <nav className="pagination__wrap mt-30">
+                    <ReactPaginate
+                      breakLabel="..."
+                      onPageChange={handlePageClick}
+                      pageRangeDisplayed={3}
+                      pageCount={pageCount}
+                      forcePage={Math.floor(normalizedOffset / itemsPerPage)}
+                      className="list-wrap"
+                      previousLabel={
+                        <i
+                          className="flaticon-arrow-right"
+                          style={{ transform: "rotate(180deg)", display: "inline-block" }}
+                        ></i>
+                      }
+                      nextLabel={<i className="flaticon-arrow-right"></i>}
+                      previousAriaLabel="Previous page"
+                      nextAriaLabel="Next page"
+                      previousClassName="previous pagination__arrow"
+                      nextClassName="next pagination__arrow"
+                    />
+                  </nav>
+                )}
               </div>
 
               <div
@@ -290,6 +323,27 @@ export default function CourseArea() {
                 id="list"
               >
                 <div className="row courses__list-wrap row-cols-1">
+                  {showSkeletonCards &&
+                    skeletonItems.map((item) => (
+                      <div key={`list-skeleton-${item}`} className="col">
+                        <div className="courses__item dh-program-card dh-program-card--list dh-program-card--skeleton">
+                          <div className="dh-program-card__thumb dh-program-card__thumb--list dh-program-card__thumb--skeleton" />
+                          <div className="dh-program-card__body dh-program-card__body--list">
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--title" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--desc" />
+                            <span className="dh-program-skeleton-block dh-program-skeleton-block--desc dh-program-skeleton-block--desc-short" />
+                            <ul className="dh-program-card__meta list-wrap">
+                              <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                              <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                            </ul>
+                            <div className="dh-program-card__bottom">
+                              <span className="dh-program-skeleton-block dh-program-skeleton-block--cta" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
                   {currentItems.map((item) => (
                     <div key={item.id} className="col">
                       <div className={`courses__item dh-program-card dh-program-card--list dh-program-card--${item.status} dh-program-card--style-${programCardStyle}`}>
@@ -309,7 +363,7 @@ export default function CourseArea() {
                             </div>
                             <div className="dh-program-card__body dh-program-card__body--list">
                               <h5 className="title">
-                                {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                                <Link to={item.detailHref}>{item.title}</Link>
                               </h5>
 
                               <p className="dh-program-card__desc">{item.shortDescription}</p>
@@ -347,7 +401,7 @@ export default function CourseArea() {
                               <span className="dh-program-card__chip">{item.category.name}</span>
 
                               <h5 className="title">
-                                {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                                <Link to={item.detailHref}>{item.title}</Link>
                               </h5>
 
                               <p className="dh-program-card__desc">{item.shortDescription}</p>

@@ -57,17 +57,21 @@ export default function CourseArea({ style, content }: StyleType) {
   const [programs, setPrograms] = useState<ReturnType<typeof mapOpenCohortsToProgramCards>>([]);
   const [programCardStyle, setProgramCardStyle] = useState<ProgramCardStyle>(DEFAULT_PROGRAM_CARD_STYLE);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const swiperRef = useRef<SwiperClass | null>(null);
+  const skeletonItems = Array.from({ length: 3 }, (_value, index) => index);
+  const replaceCohortWord = (value: string) =>
+    value.replace(/\bcohorts?\b/gi, (match) => (match[0] === match[0].toUpperCase() ? "Programs" : "programs"));
   const maxCards = Math.trunc(getCmsNumber(content, ["limit", "max_items", "items_limit"], 6, 1, 24));
-  const sectionSubtitle = getCmsString(content, ["subtitle", "sub_title"], "Programs & Cohorts");
-  const sectionTitle = getCmsString(content, ["title", "heading"], "Explore Current and Upcoming Cohorts");
-  const sectionDescription = getCmsString(
+  const sectionSubtitle = replaceCohortWord(getCmsString(content, ["subtitle", "sub_title"], "Programs"));
+  const sectionTitle = replaceCohortWord(getCmsString(content, ["title", "heading"], "Explore Current and Upcoming Programs"));
+  const sectionDescription = replaceCohortWord(getCmsString(
     content,
     ["description", "body"],
-    "Open cohorts support direct enrollment, while other cohorts show details."
-  );
+    "Open programs support direct enrollment, while other programs show details."
+  ));
   const allTabLabel = "All";
-  const emptyStateText = getCmsString(content, ["empty_state_text"], "No cohorts available at the moment.");
+  const emptyStateText = replaceCohortWord(getCmsString(content, ["empty_state_text"], "No programs available at the moment."));
   const moreButtonText = getCmsString(content, ["more_button_text", "cta_text"], "See More Programs");
   const moreButtonLink = getCmsString(content, ["more_button_link", "cta_link"], "/programs");
   const showStatusTabs = getCmsBoolean(content, ["show_status_tabs"], true);
@@ -109,7 +113,10 @@ export default function CourseArea({ style, content }: StyleType) {
         setLoadError(null);
       } catch {
         if (!active) return;
-        setLoadError("Unable to load cohorts right now.");
+        setLoadError("Unable to load programs right now.");
+      } finally {
+        if (!active) return;
+        setHasLoadedOnce(true);
       }
     };
 
@@ -168,6 +175,7 @@ export default function CourseArea({ style, content }: StyleType) {
     !showStatusTabs || activeTab === 0
       ? programs
       : programs.filter((p) => p.status === statusFilters[activeTab - 1]?.value);
+  const showSkeletonCards = !hasLoadedOnce || (Boolean(loadError) && programs.length === 0);
 
   useEffect(() => {
     const swiper = swiperRef.current;
@@ -264,6 +272,31 @@ export default function CourseArea({ style, content }: StyleType) {
                 }, 0);
               }}
             >
+              {showSkeletonCards &&
+                skeletonItems.map((item) => (
+                  <SwiperSlide key={`home-skeleton-${item}`}>
+                    <div className="courses__item dh-program-card dh-program-card--skeleton">
+                      <div className="dh-program-card__hero dh-program-card__hero--skeleton">
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--icon" />
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--pill" />
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--program" />
+                      </div>
+                      <div className="dh-program-card__body">
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--title" />
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--desc" />
+                        <span className="dh-program-skeleton-block dh-program-skeleton-block--desc dh-program-skeleton-block--desc-short" />
+                        <ul className="dh-program-card__meta list-wrap">
+                          <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                          <li><span className="dh-program-skeleton-block dh-program-skeleton-block--meta" /></li>
+                        </ul>
+                        <div className="dh-program-card__bottom">
+                          <span className="dh-program-skeleton-block dh-program-skeleton-block--cta" />
+                        </div>
+                      </div>
+                    </div>
+                  </SwiperSlide>
+                ))}
+
               {filteredPrograms.map((item) => (
                 <SwiperSlide key={item.id}>
                 <div className={`courses__item dh-program-card dh-program-card--${item.status} dh-program-card--style-${programCardStyle}`}>
@@ -283,10 +316,10 @@ export default function CourseArea({ style, content }: StyleType) {
                       </div>
                       <div className="dh-program-card__body">
                         <h5 className="title">
-                          {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                          <Link to={item.detailHref}>{replaceCohortWord(item.title)}</Link>
                         </h5>
 
-                        <p className="dh-program-card__desc">{item.shortDescription}</p>
+                        <p className="dh-program-card__desc">{replaceCohortWord(item.shortDescription)}</p>
 
                         <ul className="dh-program-card__meta list-wrap">
                           <li>
@@ -321,10 +354,10 @@ export default function CourseArea({ style, content }: StyleType) {
 
                       <div className="dh-program-card__body dh-program-card__body--classic">
                         <h5 className="title">
-                          {item.isActionDisabled ? <span>{item.title}</span> : <Link to={item.actionHref}>{item.title}</Link>}
+                          <Link to={item.detailHref}>{replaceCohortWord(item.title)}</Link>
                         </h5>
 
-                        <p className="dh-program-card__desc">{item.shortDescription}</p>
+                        <p className="dh-program-card__desc">{replaceCohortWord(item.shortDescription)}</p>
 
                         <ul className="dh-program-card__meta dh-program-card__meta--two-col list-wrap">
                           <li>
@@ -349,21 +382,21 @@ export default function CourseArea({ style, content }: StyleType) {
             </Swiper>
           </div>
 
-          {!style && filteredPrograms.length > 1 && (
-            <div className="home-cohorts-controls" aria-label="Cohorts navigation">
-              <button type="button" className="home-cohorts-arrow home-cohorts-arrow-prev" aria-label="Previous cohorts">
+          {!style && !showSkeletonCards && filteredPrograms.length > 1 && (
+            <div className="home-cohorts-controls" aria-label="Programs navigation">
+              <button type="button" className="home-cohorts-arrow home-cohorts-arrow-prev" aria-label="Previous programs">
                 <i className="flaticon-arrow-right"></i>
               </button>
-              <button type="button" className="home-cohorts-arrow home-cohorts-arrow-next" aria-label="Next cohorts">
+              <button type="button" className="home-cohorts-arrow home-cohorts-arrow-next" aria-label="Next programs">
                 <i className="flaticon-arrow-right"></i>
               </button>
             </div>
           )}
         </div>
 
-        {filteredPrograms.length === 0 && (
+        {!showSkeletonCards && filteredPrograms.length === 0 && (
           <div className="text-center mt-30">
-            <p>{loadError || emptyStateText}</p>
+            <p>{emptyStateText}</p>
           </div>
         )}
 

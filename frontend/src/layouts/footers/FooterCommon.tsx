@@ -79,7 +79,6 @@ const parseLinks = (value: unknown): SectionLink[] => {
 
 const FooterCommon = () => {
   const [data, setData] = useState<FooterData>(DEFAULT_FOOTER);
-  const footerBrandTitle = data.brand.title.replace(/\bDigital\b/, "igital");
 
   const resolveLinkUrl = (link: SectionLink) => {
     const normalized = link.label.trim().toLowerCase();
@@ -145,8 +144,6 @@ const FooterCommon = () => {
                     e.currentTarget.src = "/assets/img/logo/logoD.png";
                   }}
                 />
-
-                <h4 className="footer__brand-title">{footerBrandTitle}</h4>
               </div>
             </Link>
           </div>

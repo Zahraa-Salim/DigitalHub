@@ -19,6 +19,9 @@ type AnnouncementPayload = {
     is_auto?: boolean;
     is_published?: boolean;
     publish_at?: string | null;
+    cta_label?: string | null;
+    cta_url?: string | null;
+    cta_open_in_new_tab?: boolean;
 };
 
 type AnnouncementListQuery = Record<string, unknown>;
@@ -35,6 +38,9 @@ export async function createAnnouncementService(adminId: number, payload: Announ
             is_auto: body.is_auto ?? false,
             is_published: body.is_published ?? true,
             publish_at: body.publish_at ?? null,
+            cta_label: body.cta_label ?? null,
+            cta_url: body.cta_url ?? null,
+            cta_open_in_new_tab: body.cta_open_in_new_tab ?? false,
             created_by: adminId,
         }, client);
         const created = result.rows[0];
@@ -85,7 +91,7 @@ export async function listAnnouncementsService(query: AnnouncementListQuery) {
 }
 // Handles 'patchAnnouncementService' workflow for this module.
 export async function patchAnnouncementService(id: number, adminId: number, payload: Partial<AnnouncementPayload>) {
-    const { setClause, values } = buildUpdateQuery(payload, ["title", "body", "target_audience", "cohort_id", "event_id", "is_auto", "is_published", "publish_at"], 1);
+    const { setClause, values } = buildUpdateQuery(payload, ["title", "body", "target_audience", "cohort_id", "event_id", "is_auto", "is_published", "publish_at", "cta_label", "cta_url", "cta_open_in_new_tab"], 1);
     const result = await updateAnnouncement(id, setClause, values);
     if (!result.rowCount) {
         throw new AppError(404, "ANNOUNCEMENT_NOT_FOUND", "Announcement not found.");

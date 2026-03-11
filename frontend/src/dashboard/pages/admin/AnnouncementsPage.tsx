@@ -25,6 +25,9 @@ type AnnouncementRow = {
   event_id: number | null;
   is_published: boolean;
   publish_at: string | null;
+  cta_label: string | null;
+  cta_url: string | null;
+  cta_open_in_new_tab: boolean;
   created_at: string;
 };
 
@@ -38,6 +41,9 @@ type FormState = {
   publishAt: string;
   cohortId: string;
   eventId: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  ctaOpenInNewTab: boolean;
 };
 
 type FormMode = "create" | "edit" | null;
@@ -52,6 +58,9 @@ const initialForm: FormState = {
   publishAt: "",
   cohortId: "none",
   eventId: "none",
+  ctaLabel: "",
+  ctaUrl: "",
+  ctaOpenInNewTab: false,
 };
 
 function toDateTimeInputValue(value: string | null): string {
@@ -77,6 +86,9 @@ function toFormState(item: AnnouncementRow | null): FormState {
     publishAt: toDateTimeInputValue(item.publish_at),
     cohortId: item.cohort_id === null ? "none" : String(item.cohort_id),
     eventId: item.event_id === null ? "none" : String(item.event_id),
+    ctaLabel: item.cta_label || "",
+    ctaUrl: item.cta_url || "",
+    ctaOpenInNewTab: Boolean(item.cta_open_in_new_tab),
   };
 }
 
@@ -253,6 +265,8 @@ export function AnnouncementsPage() {
   const saveAnnouncement = async () => {
     const title = form.title.trim();
     const body = form.body.trim();
+    const ctaLabel = form.ctaLabel.trim();
+    const ctaUrl = form.ctaUrl.trim();
     if (!title) {
       setFormError("Title is required.");
       return;
@@ -273,6 +287,22 @@ export function AnnouncementsPage() {
       return;
     }
 
+    if (ctaUrl) {
+      const isSupportedLink =
+        /^https?:\/\//i.test(ctaUrl) ||
+        ctaUrl.startsWith("/") ||
+        ctaUrl.startsWith("#") ||
+        /^mailto:/i.test(ctaUrl) ||
+        /^tel:/i.test(ctaUrl);
+      if (!isSupportedLink) {
+        setFormError("CTA link must be an absolute URL, site path, anchor, mailto, or tel link.");
+        return;
+      }
+    } else if (ctaLabel) {
+      setFormError("CTA link is required when CTA label is provided.");
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       title,
       body,
@@ -281,6 +311,9 @@ export function AnnouncementsPage() {
       publish_at: publishAt,
       cohort_id: form.cohortId === "none" ? null : Number(form.cohortId),
       event_id: form.eventId === "none" ? null : Number(form.eventId),
+      cta_label: ctaUrl ? ctaLabel || "Learn More" : null,
+      cta_url: ctaUrl || null,
+      cta_open_in_new_tab: ctaUrl ? form.ctaOpenInNewTab : false,
     };
 
     setIsSubmitting(true);
@@ -621,6 +654,9 @@ export function AnnouncementsPage() {
               <p className="post-details__line"><strong>Publish At:</strong> {selected.publish_at ? formatDateTime(selected.publish_at) : "N/A"}</p>
               <p className="post-details__line"><strong>Cohort:</strong> {getCohortLabel(selected.cohort_id)}</p>
               <p className="post-details__line"><strong>Event:</strong> {getEventLabel(selected.event_id)}</p>
+              <p className="post-details__line"><strong>CTA Label:</strong> {selected.cta_label || "N/A"}</p>
+              <p className="post-details__line"><strong>CTA Link:</strong> {selected.cta_url || "N/A"}</p>
+              <p className="post-details__line"><strong>Open CTA in new tab:</strong> {selected.cta_open_in_new_tab ? "Yes" : "No"}</p>
               <p className="post-details__line"><strong>Body:</strong> {selected.body}</p>
             </div>
             <div className="modal-actions">
@@ -643,6 +679,11 @@ export function AnnouncementsPage() {
             <div className="form-stack">
               <label className="field"><span className="field__label">Title</span><input className="field__control" type="text" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></label>
               <label className="field"><span className="field__label">Body</span><textarea className="textarea-control" value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} /></label>
+              <div className="announcement-form-grid">
+                <label className="field"><span className="field__label">CTA Label (optional)</span><input className="field__control" type="text" placeholder="Learn More" value={form.ctaLabel} onChange={(event) => setForm((current) => ({ ...current, ctaLabel: event.target.value }))} /></label>
+                <label className="field"><span className="field__label">CTA Link (optional)</span><input className="field__control" type="text" placeholder="https://example.com or /programs" value={form.ctaUrl} onChange={(event) => setForm((current) => ({ ...current, ctaUrl: event.target.value }))} /></label>
+                <label className="field announcement-form-switch"><span className="field__label">Open CTA in new tab</span><input type="checkbox" checked={form.ctaOpenInNewTab} onChange={(event) => setForm((current) => ({ ...current, ctaOpenInNewTab: event.target.checked }))} /></label>
+              </div>
               <div className="announcement-form-grid">
                 <label className="field"><span className="field__label">Cohort (optional)</span><select className="field__control" value={form.cohortId} onChange={(event) => setForm((current) => ({ ...current, cohortId: event.target.value, eventId: event.target.value === "none" ? current.eventId : "none" }))}><option value="none">General</option>{cohorts.map((cohort) => <option value={cohort.id} key={cohort.id}>{cohort.name}</option>)}</select></label>
                 <label className="field"><span className="field__label">Event (optional)</span><select className="field__control" value={form.eventId} onChange={(event) => setForm((current) => ({ ...current, eventId: event.target.value, cohortId: event.target.value === "none" ? current.cohortId : "none" }))}><option value="none">None</option>{events.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label>

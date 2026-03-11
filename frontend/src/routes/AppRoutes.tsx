@@ -4,17 +4,23 @@
 
 import NotFoundPage from "@/pages/not-found";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { DashboardRouteElements } from "./DashboardRoutes";
 
 type PageModule = { default: ComponentType };
 
 const pageModules = import.meta.glob<PageModule>(["../pages/*.tsx", "!../pages/not-found.tsx"]);
 
+const LegacyCohortRouteRedirect = () => {
+  const { id } = useParams<{ id: string }>();
+  const targetId = String(id || "").trim();
+  return <Navigate to={targetId ? `/programs/${targetId}` : "/programs"} replace />;
+};
+
 const toRoutePath = (name: string) => {
   if (name === "home") return "/";
   if (name === "course-details-id") return "/course-details/:id";
-  if (name === "cohorts-id") return "/cohorts/:id";
+  if (name === "cohorts-id") return "/programs/:id";
   if (name === "shop-details-id") return "/shop-details/:id";
   if (name === "events-slug") return "/events/:slug";
   return `/${name}`;
@@ -47,6 +53,7 @@ const AppRoutes = () => {
       <Routes>
         {DashboardRouteElements()}
         <Route path="/dashboard/*" element={<Navigate to="/admin" replace />} />
+        <Route path="/cohorts/:id" element={<LegacyCohortRouteRedirect />} />
         {pageRoutes.map(({ routePath, Page }) => (
           <Route
             key={routePath}

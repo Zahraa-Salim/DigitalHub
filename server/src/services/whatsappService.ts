@@ -4,7 +4,7 @@
 
 import axios from "axios";
 
-const META_GRAPH_BASE_URL = "https://graph.facebook.com/v19.0";
+const META_GRAPH_BASE_URL = "https://graph.facebook.com/v22.0";
 
 type WhatsAppSendSuccess = {
   provider: "meta";

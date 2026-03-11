@@ -154,7 +154,7 @@ const CourseSidebar = ({ allCourses, setCourses }: CourseSidebarProps) => {
 
         {/* STATUS FILTER */}
         <div className="courses-widget">
-          <h4 className="widget-title">Cohort Status</h4>
+          <h4 className="widget-title">Program Status</h4>
           <div className="courses-cat-list">
             <ul className="list-wrap">
               {skillToShow.map((skill, i) => (

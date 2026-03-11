@@ -10,8 +10,12 @@ import BtnArrow from "@/svg/BtnArrow";
 import {
   API_BASE_URL,
   getPublicCohortDetail,
+  getPublicStudentBySlug,
+  listPublicCohorts,
+  type PublicCohort,
   type PublicCohortDetail,
   type PublicCohortPerson,
+  type PublicStudentDetail,
 } from "@/lib/publicApi";
 import { useCmsPage } from "@/hooks/useCmsPage";
 import { getCmsString } from "@/lib/cmsContent";
@@ -67,6 +71,13 @@ const formatAttendanceTime = (start?: string | null, end?: string | null) => {
   return startValue || endValue;
 };
 
+const toTitleCase = (value?: string | null) =>
+  String(value || "")
+    .split(/[\s_]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
 const parseSkills = (value?: string | null) =>
   String(value || "")
     .split(/[,;\n]/g)
@@ -86,15 +97,19 @@ const STATUS_LABELS: Record<string, string> = {
 const CohortPersonCard = ({
   person,
   fallbackRole,
+  onOpen,
 }: {
   person: PublicCohortPerson;
   fallbackRole: string;
+  onOpen?: (person: PublicCohortPerson) => void;
 }) => {
   const avatar = toAbsolutePublicUrl(person.avatar_url);
   const roleText = String(person.expertise || person.cohort_role || person.enrollment_status || fallbackRole).trim();
   const skills = parseSkills(person.skills);
   const linkedin = String(person.linkedin_url || "").trim();
   const github = String(person.github_url || "").trim();
+  const portfolio = String(person.portfolio_url || "").trim();
+  const isInteractive = typeof onOpen === "function";
   const socialLinks = [
     linkedin
       ? {
@@ -114,6 +129,15 @@ const CohortPersonCard = ({
           itemClass: "dh-instructor-card__social-item--github",
         }
       : null,
+    portfolio
+      ? {
+          key: "portfolio",
+          href: portfolio,
+          label: "Portfolio",
+          iconClass: "fas fa-globe",
+          itemClass: "dh-instructor-card__social-item--portfolio",
+        }
+      : null,
   ].filter(Boolean) as Array<{
     key: string;
     href: string;
@@ -122,21 +146,47 @@ const CohortPersonCard = ({
     itemClass: string;
   }>;
 
+  const handleOpen = () => {
+    if (onOpen) onOpen(person);
+  };
+
   return (
-    <article className="instructor__item cohort-details__person-card">
+    <article className={`instructor__item cohort-details__person-card${isInteractive ? " cohort-details__person-card--interactive" : ""}`}>
       <div className="instructor__thumb">
-        <div className="dh-instructor-card__avatar-wrap cohort-details__avatar-wrap">
-          {avatar ? (
-            <Image className="dh-instructor-card__avatar-image" src={avatar} alt={person.full_name} />
-          ) : (
-            <span className="dh-instructor-card__avatar-fallback" aria-hidden="true">
-              {toInitials(person.full_name)}
-            </span>
-          )}
-        </div>
+        {isInteractive ? (
+          <button type="button" className="cohort-details__person-trigger" onClick={handleOpen} aria-label={`View ${person.full_name} profile`}>
+            <div className="dh-instructor-card__avatar-wrap cohort-details__avatar-wrap">
+              {avatar ? (
+                <Image className="dh-instructor-card__avatar-image" src={avatar} alt={person.full_name} />
+              ) : (
+                <span className="dh-instructor-card__avatar-fallback" aria-hidden="true">
+                  {toInitials(person.full_name)}
+                </span>
+              )}
+            </div>
+          </button>
+        ) : (
+          <div className="dh-instructor-card__avatar-wrap cohort-details__avatar-wrap">
+            {avatar ? (
+              <Image className="dh-instructor-card__avatar-image" src={avatar} alt={person.full_name} />
+            ) : (
+              <span className="dh-instructor-card__avatar-fallback" aria-hidden="true">
+                {toInitials(person.full_name)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="instructor__content cohort-details__person-body">
-        <h2 className="title">{person.full_name}</h2>
+        <h2 className="title">
+          {isInteractive ? (
+            <button type="button" className="cohort-details__person-name-btn" onClick={handleOpen}>
+              {person.full_name}
+            </button>
+          ) : (
+            person.full_name
+          )}
+        </h2>
         <span className="designation">{roleText || fallbackRole}</span>
         {skills.length ? (
           <div className="cohort-details__person-skills">
@@ -168,20 +218,35 @@ const CohortDetailsArea = () => {
   const page = useCmsPage("cohort_details");
   const content = page?.content ?? null;
   const [cohort, setCohort] = useState<PublicCohortDetail | null>(null);
+  const [similarPrograms, setSimilarPrograms] = useState<PublicCohort[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeProfile, setActiveProfile] = useState<{
+    kind: "mentor" | "participant";
+    person: PublicCohortPerson;
+    detail: PublicStudentDetail | null;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
 
-  const cohortNotFoundText = getCmsString(content, ["error_not_found_text", "errorNotFoundText"], "Cohort not found.");
-  const cohortLoadErrorText = getCmsString(content, ["error_load_text", "errorLoadText"], "Unable to load cohort details right now.");
+  const cohortNotFoundText = getCmsString(content, ["error_not_found_text", "errorNotFoundText"], "Program details not found.");
+  const cohortLoadErrorText = getCmsString(content, ["error_load_text", "errorLoadText"], "Unable to load program details right now.");
   const backToProgramsText = getCmsString(content, ["back_to_programs_text", "backToProgramsText"], "Back to Programs");
   const mentorsTitle = getCmsString(content, ["mentors_title", "mentorsTitle"], "Mentors");
-  const mentorsEmptyText = getCmsString(content, ["mentors_empty_text", "mentorsEmptyText"], "No mentors are assigned to this cohort yet.");
+  const mentorsEmptyText = getCmsString(content, ["mentors_empty_text", "mentorsEmptyText"], "No mentors are assigned to this program yet.");
   const participantsTitle = getCmsString(content, ["participants_title", "participantsTitle"], "Participants");
   const participantsEmptyText = getCmsString(
     content,
     ["participants_empty_text", "participantsEmptyText"],
-    "No public participants are listed for this cohort yet.",
+    "No public participants are listed for this program yet.",
   );
+  const similarProgramsTitle = getCmsString(content, ["similar_programs_title", "similarProgramsTitle"], "Similar Programs");
+  const similarProgramsEmptyText = getCmsString(
+    content,
+    ["similar_programs_empty_text", "similarProgramsEmptyText"],
+    "No similar programs are available right now.",
+  );
+  const similarProgramsCtaText = getCmsString(content, ["similar_programs_cta_text", "similarProgramsCtaText"], "View Details");
   const sidebarTitle = getCmsString(content, ["sidebar_title", "sidebarTitle"], "Program Information");
   const sidebarStatusLabel = getCmsString(content, ["status_label", "statusLabel"], "Status");
   const sidebarProgramLabel = getCmsString(content, ["program_label", "programLabel"], "Program");
@@ -198,6 +263,10 @@ const CohortDetailsArea = () => {
   const metaAttendanceLabel = getCmsString(content, ["meta_attendance_label", "metaAttendanceLabel"], "Attendance");
   const ctaApplyFutureText = getCmsString(content, ["cta_apply_future_text", "ctaApplyFutureText"], "Apply for Future Programs");
   const ctaApplyNowText = getCmsString(content, ["cta_apply_now_text", "ctaApplyNowText"], "Apply Now");
+  const profileModalLoadingText = getCmsString(content, ["profile_modal_loading_text", "profileModalLoadingText"], "Loading profile...");
+  const profileModalErrorText = getCmsString(content, ["profile_modal_error_text", "profileModalErrorText"], "Unable to load full profile details.");
+  const profileModalCloseText = getCmsString(content, ["profile_modal_close_text", "profileModalCloseText"], "Close profile modal");
+  const profileModalContactText = getCmsString(content, ["profile_modal_contact_text", "profileModalContactText"], "Contact");
 
   useEffect(() => {
     let active = true;
@@ -232,7 +301,80 @@ const CohortDetailsArea = () => {
     };
   }, [id, cohortLoadErrorText, cohortNotFoundText]);
 
-  const statusText = STATUS_LABELS[String(cohort?.status || "").toLowerCase()] || "Cohort";
+  useEffect(() => {
+    let active = true;
+
+    const loadSimilarPrograms = async () => {
+      if (!cohort) {
+        setSimilarPrograms([]);
+        return;
+      }
+      try {
+        const rows = await listPublicCohorts({
+          page: 1,
+          limit: 200,
+          sortBy: "start_date",
+          order: "asc",
+        });
+        if (!active) return;
+        const related = rows
+          .filter((row) => Number(row.program_id) === Number(cohort.program_id) && Number(row.id) !== Number(cohort.id))
+          .slice(0, 4);
+        setSimilarPrograms(related);
+      } catch {
+        if (!active) return;
+        setSimilarPrograms([]);
+      }
+    };
+
+    void loadSimilarPrograms();
+
+    return () => {
+      active = false;
+    };
+  }, [cohort]);
+
+  useEffect(() => {
+    if (!activeProfile) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveProfile(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeProfile]);
+
+  const openProfileModal = (person: PublicCohortPerson, kind: "mentor" | "participant") => {
+    const hasSlug = kind === "participant" && Boolean(String(person.public_slug || "").trim());
+    setActiveProfile({
+      kind,
+      person,
+      detail: null,
+      loading: hasSlug,
+      error: null,
+    });
+
+    if (!hasSlug) return;
+
+    void getPublicStudentBySlug(String(person.public_slug))
+      .then((detail) => {
+        setActiveProfile((current) => {
+          if (!current) return current;
+          if (current.kind !== kind || current.person.user_id !== person.user_id) return current;
+          return { ...current, detail, loading: false, error: null };
+        });
+      })
+      .catch(() => {
+        setActiveProfile((current) => {
+          if (!current) return current;
+          if (current.kind !== kind || current.person.user_id !== person.user_id) return current;
+          return { ...current, loading: false, error: profileModalErrorText };
+        });
+      });
+  };
+
+  const statusText = STATUS_LABELS[String(cohort?.status || "").toLowerCase()] || "Program";
   const isFuture = cohort?.status === "coming_soon" || cohort?.status === "planned";
   const isOpen = cohort?.status === "open";
 
@@ -242,6 +384,49 @@ const CohortDetailsArea = () => {
     if (isOpen) return { href: `/apply?cohortId=${cohort.id}`, label: ctaApplyNowText };
     return null;
   }, [cohort, ctaApplyFutureText, ctaApplyNowText, isFuture, isOpen]);
+
+  const activeProfileName = String(activeProfile?.detail?.full_name || activeProfile?.person?.full_name || "").trim();
+  const activeProfileRole =
+    activeProfile?.kind === "mentor"
+      ? String(activeProfile?.person?.expertise || activeProfile?.person?.cohort_role || "Mentor").trim()
+      : String(
+          activeProfile?.detail?.headline ||
+            activeProfile?.person?.enrollment_status ||
+            activeProfile?.person?.cohort_role ||
+            "Participant",
+        ).trim();
+  const activeProfileBio = String(activeProfile?.detail?.bio || activeProfile?.person?.bio || "").trim();
+  const activeProfileAvatar = toAbsolutePublicUrl(activeProfile?.detail?.avatar_url || activeProfile?.person?.avatar_url);
+  const activeProfileSkills = parseSkills(activeProfile?.detail?.skills || activeProfile?.person?.skills);
+  const activeProfileLocation = String(
+    activeProfile?.detail?.location ||
+      [activeProfile?.detail?.city, activeProfile?.detail?.country].filter(Boolean).join(", "),
+  ).trim();
+  const activeProfileEmail = String(activeProfile?.detail?.email || "").trim();
+  const activeProfilePhone = String(activeProfile?.detail?.phone || "").trim();
+  const activeProfileSocials = [
+    {
+      key: "linkedin",
+      href: String(activeProfile?.detail?.linkedin_url || activeProfile?.person?.linkedin_url || "").trim(),
+      iconClass: "fab fa-linkedin-in",
+      label: "LinkedIn",
+      itemClass: "dh-instructor-card__social-item--linkedin",
+    },
+    {
+      key: "github",
+      href: String(activeProfile?.detail?.github_url || activeProfile?.person?.github_url || "").trim(),
+      iconClass: "fab fa-github",
+      label: "GitHub",
+      itemClass: "dh-instructor-card__social-item--github",
+    },
+    {
+      key: "portfolio",
+      href: String(activeProfile?.detail?.portfolio_url || activeProfile?.person?.portfolio_url || "").trim(),
+      iconClass: "fas fa-globe",
+      label: "Portfolio",
+      itemClass: "dh-instructor-card__social-item--portfolio",
+    },
+  ].filter((item) => Boolean(item.href));
 
   return (
     <section className="courses__details-area section-py-120 cohort-details">
@@ -329,7 +514,12 @@ const CohortDetailsArea = () => {
                   {cohort.instructors.length ? (
                     <div className="cohort-details__person-list">
                       {cohort.instructors.map((person) => (
-                        <CohortPersonCard key={`ins-${person.user_id}`} person={person} fallbackRole="Instructor" />
+                        <CohortPersonCard
+                          key={`ins-${person.user_id}`}
+                          person={person}
+                          fallbackRole="Instructor"
+                          onOpen={(profile) => openProfileModal(profile, "mentor")}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -342,11 +532,42 @@ const CohortDetailsArea = () => {
                   {cohort.students.length ? (
                     <div className="cohort-details__person-list">
                       {cohort.students.map((person) => (
-                        <CohortPersonCard key={`stu-${person.user_id}`} person={person} fallbackRole="Student" />
+                        <CohortPersonCard
+                          key={`stu-${person.user_id}`}
+                          person={person}
+                          fallbackRole="Participant"
+                          onOpen={(profile) => openProfileModal(profile, "participant")}
+                        />
                       ))}
                     </div>
                   ) : (
                     <p>{participantsEmptyText}</p>
+                  )}
+                </div>
+
+                <div className="courses__overview-wrap cohort-details__section cohort-details__related">
+                  <h3 className="title">{similarProgramsTitle}</h3>
+                  {similarPrograms.length ? (
+                    <div className="cohort-details__related-grid">
+                      {similarPrograms.map((item) => {
+                        const itemStatus = STATUS_LABELS[String(item.status || "").toLowerCase()] || toTitleCase(item.status) || "Program";
+                        return (
+                          <Link key={`related-${item.id}`} to={`/programs/${item.id}`} className="cohort-details__related-card">
+                            <span className="cohort-details__related-status">{itemStatus}</span>
+                            <h4>{item.name}</h4>
+                            <p>{item.program_title}</p>
+                            <small>
+                              {formatDate(item.start_date)} - {formatDate(item.end_date)}
+                            </small>
+                            <span className="cohort-details__related-cta">
+                              {similarProgramsCtaText} <i className="flaticon-arrow-right" />
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p>{similarProgramsEmptyText}</p>
                   )}
                 </div>
               </div>
@@ -394,6 +615,71 @@ const CohortDetailsArea = () => {
           </div>
         ) : null}
       </div>
+
+      {activeProfile ? (
+        <div className="dh-team-modal" role="dialog" aria-modal="true" aria-label={`${activeProfileName} profile`} onClick={() => setActiveProfile(null)}>
+          <div className="dh-team-modal__dialog cohort-details__person-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="dh-team-modal__close" onClick={() => setActiveProfile(null)} aria-label={profileModalCloseText}>
+              <i className="fas fa-times" />
+            </button>
+            <div className="dh-team-modal__head">
+              <div className="dh-team-modal__avatar">
+                {activeProfileAvatar ? (
+                  <Image className="dh-team-modal__avatar-image" src={activeProfileAvatar} alt={activeProfileName} />
+                ) : (
+                  <span className="dh-team-modal__avatar-fallback" aria-hidden="true">
+                    {toInitials(activeProfileName)}
+                  </span>
+                )}
+              </div>
+              <div className="dh-team-modal__identity">
+                <h3>{activeProfileName}</h3>
+                <p>{toTitleCase(activeProfileRole) || "Profile"}</p>
+              </div>
+            </div>
+
+            {activeProfile.loading ? <p className="cohort-details__person-modal-state">{profileModalLoadingText}</p> : null}
+            {!activeProfile.loading && activeProfile.error ? <p className="cohort-details__person-modal-state cohort-details__person-modal-state--error">{activeProfile.error}</p> : null}
+
+            {activeProfileBio ? <p className="dh-team-modal__bio">{activeProfileBio}</p> : null}
+
+            {activeProfileSkills.length ? (
+              <div className="dh-team-modal__skills">
+                {activeProfileSkills.map((skill) => (
+                  <span key={`${activeProfile.person.user_id}-${skill}`}>{skill}</span>
+                ))}
+              </div>
+            ) : null}
+
+            {activeProfileSocials.length ? (
+              <ul className="list-wrap dh-team-modal__social-list">
+                {activeProfileSocials.map((social) => (
+                  <li key={`${activeProfile.person.user_id}-${social.key}`} className={`dh-instructor-card__social-item ${social.itemClass}`}>
+                    <a href={social.href} target="_blank" rel="noreferrer" aria-label={social.label}>
+                      <i className={social.iconClass} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {(activeProfileLocation || activeProfileEmail || activeProfilePhone) ? (
+              <div className="cohort-details__person-modal-contact">
+                {activeProfileLocation ? <span><i className="fas fa-location-dot" />{activeProfileLocation}</span> : null}
+                {activeProfileEmail ? <span><i className="fas fa-envelope" />{activeProfileEmail}</span> : null}
+                {activeProfilePhone ? <span><i className="fas fa-phone" />{activeProfilePhone}</span> : null}
+              </div>
+            ) : null}
+
+            <div className="dh-team-modal__actions">
+              <Link to="/contact" className="btn arrow-btn dh-team-modal__contact-btn">
+                {profileModalContactText}
+                <BtnArrow />
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 };

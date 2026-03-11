@@ -7,6 +7,7 @@ import { API_BASE_URL, type PublicCohort } from "@/lib/publicApi";
 export type CohortProgramCard = {
   id: number;
   cohortId: number;
+  detailHref: string;
   title: string;
   shortDescription: string;
   status: PublicCohort["status"];
@@ -106,11 +107,12 @@ export const mapOpenCohortsToProgramCards = (cohorts: PublicCohort[]): CohortPro
       const isComingSoon = cohort.status === "coming_soon" || cohort.status === "planned";
       const isRunningOrCompleted = cohort.status === "running" || cohort.status === "completed";
       const isCancelled = cohort.status === "cancelled";
+      const detailHref = `/programs/${cohort.id}`;
       const actionHref = canEnroll
         ? `/apply?cohortId=${cohort.id}`
         : isComingSoon
           ? "/apply"
-          : `/cohorts/${cohort.id}`;
+          : detailHref;
       const actionLabel = canEnroll
         ? "Enroll Now"
         : isComingSoon
@@ -122,7 +124,8 @@ export const mapOpenCohortsToProgramCards = (cohorts: PublicCohort[]): CohortPro
       return {
         id: cohort.id,
         cohortId: cohort.id,
-        title: cohort.name || `${cohort.program_title} Cohort`,
+        detailHref,
+        title: cohort.name || `${cohort.program_title} Program`,
         shortDescription: getEnrollmentSummary(cohort),
         status: cohort.status,
         allowApplications: cohort.allow_applications,

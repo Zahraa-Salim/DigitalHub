@@ -232,6 +232,9 @@ async function ensureSoftDeleteColumns() {
       UPDATE events SET completion_image_urls = '[]'::jsonb WHERE completion_image_urls IS NULL;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE announcements ADD COLUMN IF NOT EXISTS event_id BIGINT;
+      ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_label TEXT;
+      ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_url TEXT;
+      ALTER TABLE announcements ADD COLUMN IF NOT EXISTS cta_open_in_new_tab BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
       ALTER TABLE admin_profiles ADD COLUMN IF NOT EXISTS skills TEXT;
       ALTER TABLE instructor_profiles ADD COLUMN IF NOT EXISTS skills TEXT;
