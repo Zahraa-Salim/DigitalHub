@@ -6551,7 +6551,7 @@ body {
 .banner-area.banner-bg {
   min-height: 640px;
   align-items: center;
-  padding: 56px 0 28px;
+  padding: 130px 0 28px;  /* was 56px — needs to clear the fixed header */
 }
 
 .banner-area .banner__content {
