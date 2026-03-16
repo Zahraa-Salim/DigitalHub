@@ -7,13 +7,16 @@ import React from 'react';
 export function Card({
   children,
   className = '',
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 shadow-sm ${className}`}
+      className={`rounded-lg border shadow-sm ${className}`}
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)', ...style }}
     >
       {children}
     </div>
@@ -23,11 +26,13 @@ export function Card({
 export function CardHeader({
   children,
   className = '',
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
-  return <div className={`p-6 pb-3 ${className}`}>{children}</div>;
+  return <div className={`p-6 pb-3 ${className}`} style={style}>{children}</div>;
 }
 
 export function CardTitle({

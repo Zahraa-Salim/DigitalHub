@@ -17,6 +17,7 @@ interface BadgeProps {
   children: React.ReactNode;
   variant?: BadgeVariant;
   className?: string;
+  style?: React.CSSProperties;
   onClick?: () => void;
 }
 
@@ -24,6 +25,7 @@ export function Badge({
   children,
   variant = 'default',
   className = '',
+  style,
   onClick,
 }: BadgeProps) {
   const variants = {
@@ -38,6 +40,7 @@ export function Badge({
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[variant]} ${className}`}
+      style={style}
       onClick={onClick}
     >
       {children}
