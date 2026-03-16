@@ -2,12 +2,14 @@
 // Purpose: Renders the admin profiles students page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { PulseDots } from "../../components/PulseDots";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -52,7 +54,6 @@ export function ProfilesStudentsPage() {
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [search, setSearch] = useState("");
@@ -84,14 +85,7 @@ export function ProfilesStudentsPage() {
   const [messageBody, setMessageBody] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
 
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
-
-  const pushToast = useCallback((tone: "success" | "error", message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 5000);
-  }, []);
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   const publicCount = useMemo(() => rows.filter((entry) => entry.is_public).length, [rows]);
   const activeCount = useMemo(() => rows.filter((entry) => getStudentStatus(entry) === "active").length, [rows]);
@@ -147,7 +141,6 @@ export function ProfilesStudentsPage() {
 
     const load = async () => {
       setLoading(true);
-      setError("");
       try {
         const result = await apiList<StudentRow>(
           `/profiles/students${buildQueryString({
@@ -175,7 +168,6 @@ export function ProfilesStudentsPage() {
       } catch (err) {
         if (!active) return;
         const message = err instanceof ApiError ? err.message : "Failed to load students.";
-        setError(message);
         pushToast("error", message);
       } finally {
         if (active) setLoading(false);
@@ -410,16 +402,10 @@ export function ProfilesStudentsPage() {
           </section>
         ) : null}
 
-        {error ? (
-          <section className="students-feedback">
-            <p className="alert alert--error">{error}</p>
-          </section>
-        ) : null}
-
         {loading ? (
-          <section className="students-feedback">
-            <div className="spinner">Loading students...</div>
-          </section>
+          <div className="admx-empty">
+            <PulseDots padding={32} label="Loading" />
+          </div>
         ) : (
           <StudentsTable
             rows={rows}
@@ -492,7 +478,7 @@ export function ProfilesStudentsPage() {
             </section>
             <section className="profile-modal-section">
               <h4 className="section-title">Attendance History</h4>
-              {loadingDetailsAttendance ? <p className="post-details__line">Loading attendance...</p> : null}
+              {loadingDetailsAttendance ? <PulseDots layout="inline" label="Loading attendance" /> : null}
               {!loadingDetailsAttendance && detailsAttendanceError ? (
                 <p className="post-details__line">{detailsAttendanceError}</p>
               ) : null}
@@ -647,7 +633,7 @@ export function ProfilesStudentsPage() {
         />
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

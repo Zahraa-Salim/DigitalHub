@@ -38,41 +38,39 @@ export function WeeklySnapshotPanel({ weeklySnapshot }: WeeklySnapshotPanelProps
   ];
   return (
     <Card className="h-full">
-      <CardHeader className="border-b border-gray-100 pb-4">
+      <CardHeader style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
         <CardTitle>
           Weekly Operations Snapshot
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
         <div className="grid grid-cols-2 gap-4">
-          {stats.map((stat, index) => (
+          {stats.map((stat, index) => {
+            const cardStyles = [
+              { background: "var(--accent-soft)", borderColor: "var(--accent-soft)" },
+              { background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.2)" },
+              { background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" },
+              { background: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.2)" },
+            ];
+            return (
             <div
               key={stat.label}
-              className={`p-4 rounded-lg border ${
-                index === 0
-                  ? "bg-blue-50 border-blue-100"
-                  : index === 1
-                    ? "bg-amber-50 border-amber-200"
-                    : index === 2
-                      ? "bg-purple-50 border-purple-200"
-                      : "bg-green-50 border-green-200"
-              }`}
+              style={{ padding: "16px", borderRadius: "8px", border: "1px solid", ...cardStyles[index] }}
             >
-              <div className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">
+              <div style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                 {stat.label}
               </div>
               <div className="flex items-end gap-2">
-                <span className="text-3xl font-bold text-gray-900 leading-none">
+                <span style={{ fontSize: "30px", fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>
                   {stat.value}
                 </span>
-                <span
-                  className={`text-xs font-medium mb-1 ${stat.trend.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}
-                >
+                <span style={{ fontSize: "12px", fontWeight: 500, marginBottom: "4px", color: stat.trend.startsWith('+') ? "var(--success, #15803d)" : "var(--danger)" }}>
                   {stat.trend}
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

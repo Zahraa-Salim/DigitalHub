@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "@/components/common/Link";
 import { getCmsNumber } from "@/lib/cmsContent";
 import { listPublicAnnouncements, type PublicAnnouncement } from "@/lib/publicApi";
+import { PulseDots } from "../../PulseDots";
 import { EditableSpan } from "../EditableSpan";
 
 type AnnouncementsEditorProps = {
@@ -77,6 +78,41 @@ const tonePillColor: Record<AnnouncementTone, string> = {
   general: "#9A6800",
 };
 
+const PREVIEW_FALLBACKS = [
+  {
+    id: "preview-announcement-1",
+    title: "New program applications are now open",
+    body: "Explore the latest cohort openings and submit your application directly from the website.",
+    meta: {
+      tone: "cohort" as AnnouncementTone,
+      label: "Open Program",
+      href: "/apply",
+      actionLabel: "Apply Now",
+      eyebrow: "Digital Hub",
+      note: "Applications are live now.",
+      openInNewTab: false,
+    },
+    displayDate: "Today",
+    secondaryDate: "",
+  },
+  {
+    id: "preview-announcement-2",
+    title: "Upcoming community event announced",
+    body: "Join the next Digital Hub event to meet the team, review projects, and ask questions.",
+    meta: {
+      tone: "event" as AnnouncementTone,
+      label: "Upcoming Event",
+      href: "/events",
+      actionLabel: "View Event",
+      eyebrow: "Community",
+      note: "Save the date and review the agenda.",
+      openInNewTab: false,
+    },
+    displayDate: "This week",
+    secondaryDate: "",
+  },
+] as const;
+
 const AnnouncementsEditor = ({ content, sectionId }: AnnouncementsEditorProps) => {
   const [items, setItems] = useState<PublicAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,18 +149,18 @@ const AnnouncementsEditor = ({ content, sectionId }: AnnouncementsEditorProps) =
     [cardsLimit, items],
   );
 
-  if (loading || banners.length === 0) return null;
+  const visibleBanners = banners.length ? banners : PREVIEW_FALLBACKS;
 
   return (
     <section className="home-announcements section-py-80">
       <div className="container">
-        <div className="home-announcements__heading" data-aos="fade-up">
+        <div className="home-announcements__heading">
           <EditableSpan sectionId={sectionId} field="subtitle" fallback="Latest Updates" tag="span" className="sub-title" />
           <EditableSpan sectionId={sectionId} field="title" fallback="What Is Happening At The Digital Hub" tag="h2" className="title" />
         </div>
 
         <div className="home-announcements__list">
-          {banners.map((item, index) => {
+          {visibleBanners.map((item, index) => {
             const accent = toneAccent[item.meta.tone];
             const pillBg = tonePillBg[item.meta.tone];
             const pillColor = tonePillColor[item.meta.tone];
@@ -134,8 +170,6 @@ const AnnouncementsEditor = ({ content, sectionId }: AnnouncementsEditorProps) =
               <article
                 key={item.id}
                 className="home-announcements__banner"
-                data-aos="fade-up"
-                data-aos-delay={80 + index * 60}
                 style={{ "--banner-accent": accent } as React.CSSProperties}
               >
                 <span className="home-announcements__accent-bar" aria-hidden="true" />
@@ -168,6 +202,11 @@ const AnnouncementsEditor = ({ content, sectionId }: AnnouncementsEditorProps) =
             );
           })}
         </div>
+        {loading ? (
+          <div style={{ marginTop: "0.75rem" }}>
+            <PulseDots layout="inline" label="Loading live announcements for preview" />
+          </div>
+        ) : null}
       </div>
     </section>
   );

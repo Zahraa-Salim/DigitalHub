@@ -28,7 +28,7 @@ import {
   updateStudentAdminStatus,
   updateStudentProfile,
   getUserById,
-} from "../repositories/profiles.repository.js";
+} from "../repositories/students.repo.js";
 
 type ProfileTableName = "admin_profiles" | "instructor_profiles" | "student_profiles";
 type ProfileQuery = Record<string, unknown>;

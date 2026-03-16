@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, getBroadcastPreview } from "../utils/api";
+import { useDashboardToasts } from "../hooks/useDashboardToasts";
+import { PulseDots } from "./PulseDots";
+import { ToastStack } from "./ToastStack";
 
 type BroadcastChannel = "email" | "whatsapp" | "both";
 type RecipientType = "all_contacts" | "manual";
@@ -55,8 +58,7 @@ export function BroadcastModal({
     user_count: number;
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState("");
-  const [error, setError] = useState("");
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const preview = useMemo(() => {
     const ctaLine = ctaLabel && ctaUrl ? `${ctaLabel}: ${ctaUrl}` : "";
     return [body, ctaLine].filter(Boolean).join("\n\n");
@@ -76,8 +78,6 @@ export function BroadcastModal({
     setIncludeSubscribers(false);
     setPreviewData(null);
     setPreviewLoading(false);
-    setPreviewError("");
-    setError("");
   }, [open]);
 
   useEffect(() => {
@@ -89,7 +89,6 @@ export function BroadcastModal({
 
     const loadPreview = async () => {
       setPreviewLoading(true);
-      setPreviewError("");
       try {
         const result = await getBroadcastPreview(announcementId);
         if (!active) return;
@@ -102,7 +101,7 @@ export function BroadcastModal({
         onPreviewLoad?.(next);
       } catch (err) {
         if (!active) return;
-        setPreviewError(err instanceof ApiError ? err.message : "Failed to load broadcast preview.");
+        pushToast("error", err instanceof ApiError ? err.message : "Failed to load broadcast preview.");
       } finally {
         if (active) {
           setPreviewLoading(false);
@@ -133,11 +132,10 @@ export function BroadcastModal({
       .filter(Boolean);
 
     if (recipientType === "manual" && recipients.length === 0) {
-      setError("Add at least one manual recipient.");
+      pushToast("error", "Add at least one manual recipient.");
       return;
     }
 
-    setError("");
     await onConfirm({
       channel,
       recipient_type: recipientType,
@@ -234,10 +232,7 @@ export function BroadcastModal({
               </p>
             ) : null}
             {includeSubscribers && previewLoading ? (
-              <p className="info-text ann-broadcast-hint">Loading subscriber preview...</p>
-            ) : null}
-            {includeSubscribers && previewError ? (
-              <p className="alert alert--error">{previewError}</p>
+              <PulseDots layout="inline" label="Loading subscriber preview" />
             ) : null}
             {includeSubscribers && previewData && !previewLoading ? (
               <p className="info-text ann-broadcast-hint">
@@ -253,8 +248,6 @@ export function BroadcastModal({
           </div>
         </div>
 
-        {error ? <p className="alert alert--error">{error}</p> : null}
-
         <div className="modal-actions">
           <button className="btn btn--secondary" type="button" onClick={onClose} disabled={sending}>
             Cancel
@@ -268,6 +261,7 @@ export function BroadcastModal({
             {sending ? "Sending..." : "Send Broadcast"}
           </button>
         </div>
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </div>
     </div>
   );

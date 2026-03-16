@@ -2,10 +2,11 @@
 // Purpose: Renders the admin CMS site settings page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Badge } from "../../../components/Badge";
 import { Card } from "../../../components/Card";
 import { PageShell } from "../../../components/PageShell";
+import { PulseDots } from "../../../components/PulseDots";
 import { ToastStack } from "../../../components/ToastStack";
 import { useDashboardToasts } from "../../../hooks/useDashboardToasts";
 import { ApiError, api } from "../../../utils/api";
@@ -21,6 +22,8 @@ type SiteSettingsRow = {
 type SiteSettingsForm = {
   siteName: string;
   defaultEventLocation: string;
+  browserTitle: string;
+  faviconUrl: string;
   contactEmail: string;
   contactPhone: string;
   contactAddress: string;
@@ -37,6 +40,8 @@ type SiteSettingsForm = {
 const initialForm: SiteSettingsForm = {
   siteName: "",
   defaultEventLocation: "",
+  browserTitle: "",
+  faviconUrl: "",
   contactEmail: "",
   contactPhone: "",
   contactAddress: "",
@@ -59,12 +64,14 @@ function asText(value: unknown): string {
 }
 
 export function CmsSiteSettingsPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [form, setForm] = useState<SiteSettingsForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [faviconError, setFaviconError] = useState("");
   const [rawContactInfo, setRawContactInfo] = useState<Record<string, unknown>>({});
   const [rawSocialLinks, setRawSocialLinks] = useState<Record<string, unknown>>({});
 
@@ -100,6 +107,8 @@ export function CmsSiteSettingsPage() {
         setForm({
           siteName: asText(settings.site_name),
           defaultEventLocation: asText(settings.default_event_location),
+          browserTitle: asText(contactInfo.browser_title ?? contactInfo.browserTitle),
+          faviconUrl: asText(contactInfo.favicon_url ?? contactInfo.faviconUrl),
           contactEmail: asText(contactInfo.email),
           contactPhone: asText(contactInfo.phone),
           contactAddress: asText(contactInfo.address),
@@ -128,14 +137,62 @@ export function CmsSiteSettingsPage() {
     };
   }, []);
 
+  const handleFaviconUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {
+      setFaviconError("Favicon must be 500 KB or less.");
+      event.target.value = "";
+      return;
+    }
+
+    setFaviconError("");
+    setUploadingFavicon(true);
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read file."));
+        reader.readAsDataURL(file);
+      });
+
+      const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(dataUrl);
+      if (!match) {
+        throw new Error("Unsupported file type.");
+      }
+
+      const result = await api<{ public_url: string }>("/cms/media", {
+        method: "POST",
+        body: JSON.stringify({
+          filename: file.name,
+          mime_type: match[1],
+          data_base64: match[2],
+          alt_text: "favicon",
+        }),
+      });
+
+      setForm((prev) => ({ ...prev, faviconUrl: result.public_url }));
+    } catch (err) {
+      setFaviconError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploadingFavicon(false);
+      event.target.value = "";
+    }
+  };
+
   const saveSettings = async () => {
     setSaving(true);
     setError("");
     setSuccess("");
+    setFaviconError("");
 
     try {
       const nextContactInfo: Record<string, unknown> = {
         ...rawContactInfo,
+        browser_title: form.browserTitle.trim(),
+        favicon_url: form.faviconUrl.trim(),
         email: form.contactEmail.trim(),
         phone: form.contactPhone.trim(),
         address: form.contactAddress.trim(),
@@ -191,6 +248,21 @@ export function CmsSiteSettingsPage() {
       const updatedSocialLinks = isObjectRecord(updated.social_links) ? updated.social_links : {};
       setRawContactInfo(updatedContactInfo);
       setRawSocialLinks(updatedSocialLinks);
+
+      if (form.browserTitle.trim()) {
+        document.title = form.browserTitle.trim();
+      }
+
+      if (form.faviconUrl.trim()) {
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+        }
+        link.href = form.faviconUrl.trim();
+      }
+
       setSuccess("Site settings saved successfully.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message || "Failed to save site settings." : "Failed to save site settings.");
@@ -209,12 +281,76 @@ export function CmsSiteSettingsPage() {
         </button>
       }
     >
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <Card className="card--compact-row">
         <p className="info-text">Contact defaults and social links are managed here. Navbar and Footer are now managed in CMS Pages.</p>
-        <Badge tone="default">{loading ? "Loading..." : "Live CMS"}</Badge>
+        {loading ? <PulseDots layout="inline" label="Loading" /> : <Badge tone="default">Live CMS</Badge>}
       </Card>
       <div className="two-col-grid">
+        <Card>
+          <h3 className="section-title">Browser &amp; SEO</h3>
+          <div className="form-stack">
+            <label className="field">
+              <span className="field__label">Browser tab title</span>
+              <span className="field__hint">Shown in the browser tab and bookmarks.</span>
+              <input
+                className="field__control"
+                value={form.browserTitle}
+                onChange={(event) => setForm((prev) => ({ ...prev, browserTitle: event.target.value }))}
+                placeholder="Digital Hub | Learn & Grow"
+                disabled={loading || saving}
+              />
+            </label>
+
+            <div className="field">
+              <span className="field__label">Favicon</span>
+              <span className="field__hint">
+                The small icon shown in the browser tab. Use a .ico, .png, or .svg file.
+                Recommended size: 32x32 px.
+              </span>
+
+              {form.faviconUrl ? (
+                <div className="favicon-preview">
+                  <img
+                    src={form.faviconUrl}
+                    alt="Favicon preview"
+                    className="favicon-preview__img"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <span className="favicon-preview__label">
+                    {form.browserTitle || "Digital Hub"} - preview
+                  </span>
+                </div>
+              ) : null}
+
+              <input
+                className="field__control"
+                value={form.faviconUrl}
+                onChange={(event) => setForm((prev) => ({ ...prev, faviconUrl: event.target.value }))}
+                placeholder="https://... or /favicon.ico"
+                disabled={loading || saving}
+              />
+
+              <div className="favicon-upload-row">
+                <span className="favicon-upload-row__or">or upload a file</span>
+                <label className="favicon-upload-btn">
+                  <input
+                    type="file"
+                    accept="image/x-icon,image/png,image/svg+xml,image/jpeg,image/webp"
+                    style={{ display: "none" }}
+                    disabled={loading || saving || uploadingFavicon}
+                    onChange={(event) => void handleFaviconUpload(event)}
+                  />
+                  {uploadingFavicon ? "Uploading..." : "Choose file"}
+                </label>
+              </div>
+              {faviconError ? <span className="field__error">{faviconError}</span> : null}
+            </div>
+          </div>
+        </Card>
+
         <Card>
           <h3 className="section-title">General</h3>
           <div className="form-stack">
@@ -351,7 +487,7 @@ export function CmsSiteSettingsPage() {
 
       <Card className="card--compact-row">
         <div>
-          {loading ? <p className="info-text">Loading site settings...</p> : null}
+          {loading ? <PulseDots padding={24} label="Loading settings" /> : null}
         </div>
         <button className="btn btn--secondary" type="button" onClick={() => void saveSettings()} disabled={loading || saving}>
           {saving ? "Saving..." : "Save again"}

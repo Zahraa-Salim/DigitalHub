@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
-import { LoadingSpinner } from "../../components/LoadingSpinner";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { QuickPreviewPanel, type PreviewField } from "../../components/QuickPreviewPanel";
 import { Table } from "../../components/Table";
 import { ToastStack } from "../../components/ToastStack";
@@ -41,7 +41,7 @@ function formatPreferenceLabel(value: string) {
 }
 
 export function SubscribersPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [rows, setRows] = useState<SubscriberRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
@@ -179,7 +179,7 @@ export function SubscribersPage() {
       subtitle="Manage website subscribers and the WhatsApp topics they receive."
     >
       <div className="dh-page">
-        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
         <div className="stats-grid stats-grid--compact dh-stats">
           <Card className="stats-card">
             <p className="stats-card__label">Active (Page)</p>
@@ -228,9 +228,7 @@ export function SubscribersPage() {
 
         <Card className="card--table desktop-only dh-table-wrap">
           {loading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
-              <LoadingSpinner />
-            </div>
+            <PulseDots padding={32} label="Loading subscribers" />
           ) : (
             <Table<SubscriberRow>
               rows={rows}
@@ -272,9 +270,7 @@ export function SubscribersPage() {
         <div className="mobile-only programs-mobile-list">
           {loading ? (
             <Card>
-              <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
-                <LoadingSpinner />
-              </div>
+              <PulseDots padding={24} label="Loading subscribers" />
             </Card>
           ) : rows.length ? (
             rows.map((row) => (

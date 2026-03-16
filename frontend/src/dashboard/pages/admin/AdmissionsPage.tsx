@@ -8,6 +8,8 @@ import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExport
 import { ConfirmActionModal } from "../../components/ConfirmActionModal";
 import { useGlobalMessagingContext } from "../../components/GlobalMessagingContext";
 import { PageShell } from "../../components/PageShell";
+import { PulseDots } from "../../components/PulseDots";
+import { ToastStack } from "../../components/ToastStack";
 import {
   createApplicationMessage,
   markApplicationInterviewCompleted,
@@ -32,6 +34,7 @@ import {
   workflowStatusLabel,
 } from "../../lib/adminWorkflowText";
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api, apiList } from "../../utils/api";
 import { buildQueryString } from "../../utils/query";
 import "../../styles/general-apply.css";
@@ -418,7 +421,6 @@ type ComposerProps = {
   selectedIds: string[];
   templates: MessageTemplate[];
   busy: boolean;
-  error: string;
   onSend: (input: {
     recipients: Applicant[];
     channel: "email" | "sms";
@@ -430,7 +432,6 @@ type ComposerProps = {
 type InterviewSchedulerProps = {
   applicant: Applicant | null;
   busy: boolean;
-  error: string;
   initial: {
     scheduled_at: string;
     duration_minutes: number;
@@ -446,7 +447,7 @@ type InterviewSchedulerProps = {
   }) => void;
 };
 
-function InterviewSchedulerModal({ applicant, busy, error, initial, onClose, onSubmit }: InterviewSchedulerProps) {
+function InterviewSchedulerModal({ applicant, busy, initial, onClose, onSubmit }: InterviewSchedulerProps) {
   const [scheduledAt, setScheduledAt] = useState(initial.scheduled_at);
   const [durationMinutes, setDurationMinutes] = useState(initial.duration_minutes);
   const [locationType, setLocationType] = useState<InterviewLocationType>(initial.location_type);
@@ -465,7 +466,6 @@ function InterviewSchedulerModal({ applicant, busy, error, initial, onClose, onS
           </div>
         </header>
         <div className="admx-modal__body">
-          {error ? <p className="admx-inline-error">{error}</p> : null}
           <div className="form-grid form-grid--two">
             <label className="field">
               <span className="field__label">Interview Date/Time</span>
@@ -532,7 +532,7 @@ function InterviewSchedulerModal({ applicant, busy, error, initial, onClose, onS
   );
 }
 
-function MessageComposer({ onClose, preselected, applicants, selectedIds, templates, busy, error, onSend }: ComposerProps) {
+function MessageComposer({ onClose, preselected, applicants, selectedIds, templates, busy, onSend }: ComposerProps) {
   const [group, setGroup] = useState<RecipientGroup>(preselected ? "individual" : selectedIds.length ? "selected" : "all");
   const [single, setSingle] = useState<Applicant | null>(preselected);
   const [subject, setSubject] = useState("");
@@ -565,7 +565,6 @@ function MessageComposer({ onClose, preselected, applicants, selectedIds, templa
           </div>
         </header>
         <div className="admx-modal__body">
-          {error ? <p className="admx-inline-error">{error}</p> : null}
           <label className="admx-label">Send To</label>
           <div className="admx-chip-row">
             <button className={group === "individual" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("individual")}>Individual</button>
@@ -643,6 +642,7 @@ type CreateUserDeliveryModalProps = {
   busy: boolean;
   onClose: () => void;
   onSubmit: (channels: CreateUserDeliveryChannels) => void;
+  onInvalidSubmit: () => void;
 };
 
 function CreateUserDeliveryModal({
@@ -653,6 +653,7 @@ function CreateUserDeliveryModal({
   busy,
   onClose,
   onSubmit,
+  onInvalidSubmit,
 }: CreateUserDeliveryModalProps) {
   const [emailEnabled, setEmailEnabled] = useState(initialChannels.email);
   const [smsEnabled, setSmsEnabled] = useState(initialChannels.sms);
@@ -703,9 +704,6 @@ function CreateUserDeliveryModal({
               </span>
             </label>
           </div>
-          {!canSubmit ? (
-            <p className="admx-inline-error">Select at least one delivery channel.</p>
-          ) : null}
         </div>
         <footer className="admx-modal__footer">
           <button className="btn btn--secondary btn--sm" type="button" onClick={onClose} disabled={busy}>
@@ -714,8 +712,14 @@ function CreateUserDeliveryModal({
           <button
             className="btn btn--primary btn--sm"
             type="button"
-            disabled={!canSubmit || busy}
-            onClick={() => onSubmit({ email: emailEnabled, sms: smsEnabled })}
+            disabled={busy}
+            onClick={() => {
+              if (!canSubmit) {
+                onInvalidSubmit();
+                return;
+              }
+              onSubmit({ email: emailEnabled, sms: smsEnabled });
+            }}
           >
             {busy ? "Creating..." : "Create User"}
           </button>
@@ -733,7 +737,6 @@ type DetailsProps = {
   savingReviewMessage: boolean;
   actionBusy: boolean;
   reviewMessageDraft: string;
-  error: string;
   onMessageApplicant: (applicant: Applicant) => void;
   onReviewMessageDraftChange: (value: string) => void;
   onSaveReviewMessage: (applicant: Applicant, message: string) => void;
@@ -750,7 +753,6 @@ function DetailsModal({
   savingReviewMessage,
   actionBusy,
   reviewMessageDraft,
-  error,
   onMessageApplicant,
   onReviewMessageDraftChange,
   onSaveReviewMessage,
@@ -826,8 +828,7 @@ function DetailsModal({
           </div>
         </header>
         <div className="admx-modal__body">
-          {loading ? <p className="admx-subtext">Loading application details...</p> : null}
-          {error ? <p className="admx-inline-error">{error}</p> : null}
+          {loading ? <PulseDots layout="inline" label="Loading details" /> : null}
 
           <p className="admx-details-title">Application Summary</p>
           <p className="admx-details-line"><strong>Email:</strong> {applicantEmail}</p>
@@ -880,6 +881,7 @@ function DetailsModal({
 
 export function AdmissionsPage() {
   const { setPageData: setGlobalMessagingPageData } = useGlobalMessagingContext();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [searchParams] = useSearchParams();
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [selectedCohortId, setSelectedCohortId] = useState("");
@@ -893,15 +895,12 @@ export function AdmissionsPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [messageTarget, setMessageTarget] = useState<Applicant | null>(null);
   const [composerBusy, setComposerBusy] = useState(false);
-  const [composerError, setComposerError] = useState("");
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [existingUserEmails, setExistingUserEmails] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingCohorts, setLoadingCohorts] = useState(false);
   const [loadingApplications, setLoadingApplications] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [loadSuccess, setLoadSuccess] = useState("");
   const [showRescheduleOnly, setShowRescheduleOnly] = useState(false);
   const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
   const [creatingUserIds, setCreatingUserIds] = useState<Set<number>>(new Set());
@@ -911,7 +910,6 @@ export function AdmissionsPage() {
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [schedulerTarget, setSchedulerTarget] = useState<Applicant | null>(null);
   const [schedulerBusy, setSchedulerBusy] = useState(false);
-  const [schedulerError, setSchedulerError] = useState("");
   const [schedulerInitial, setSchedulerInitial] = useState({
     scheduled_at: "",
     duration_minutes: 30,
@@ -933,7 +931,6 @@ export function AdmissionsPage() {
   const [savingReviewMessage, setSavingReviewMessage] = useState(false);
   const [detailsActionBusy, setDetailsActionBusy] = useState(false);
   const [detailsReviewMessageDraft, setDetailsReviewMessageDraft] = useState("");
-  const [detailsError, setDetailsError] = useState("");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const overviewNavigationRef = useRef(false);
   const overviewFallbackAttemptedRef = useRef(false);
@@ -978,13 +975,12 @@ export function AdmissionsPage() {
 
     if (sourceParam === "overview") {
       setShowRescheduleOnly(focusParam === "reschedule_requests");
-      setLoadSuccess(overviewFocusMessage(focusParam));
-      setLoadError("");
+      pushToast("success", overviewFocusMessage(focusParam));
       setSelectedIds(new Set());
       setCurrentPage(1);
       setFilterPanelOpen(false);
     }
-  }, [searchParams]);
+  }, [pushToast, searchParams]);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -1065,14 +1061,14 @@ export function AdmissionsPage() {
         setSelectedCohortId((current) => current || getStoredAdmissionsCohortId() || (result.data[0] ? String(result.data[0].id) : ""));
       } catch (err) {
         if (!active) return;
-        setLoadError(err instanceof ApiError ? err.message : "Failed to load cohorts.");
+        pushToast("error", err instanceof ApiError ? err.message : "Failed to load cohorts.");
       } finally {
         if (active) setLoadingCohorts(false);
       }
     };
     void load();
     return () => { active = false; };
-  }, []);
+  }, [pushToast]);
 
   useEffect(() => {
     let active = true;
@@ -1101,7 +1097,6 @@ export function AdmissionsPage() {
         return;
       }
       setLoadingApplications(true);
-      setLoadError("");
       try {
         const result = await apiList<ApiApplicationRow>(`/applications${buildQueryString({ cohort_id: Number(selectedCohortId), limit: 100, sortBy: "submitted_at", order: "desc" })}`);
         if (!active) return;
@@ -1136,7 +1131,8 @@ export function AdmissionsPage() {
                 : probeMapped.length > 0;
               if (probeHasTarget) {
                 setSelectedCohortId(String(cohort.id));
-                setLoadSuccess(
+                pushToast(
+                  "success",
                   targetStage
                     ? `Overview shortcut: switched to a cohort with '${workflowStatusLabel(targetStage, { confirmedLabel: "Confirmed" })}' applications.`
                     : "Overview shortcut: switched to a cohort with active applications.",
@@ -1156,14 +1152,14 @@ export function AdmissionsPage() {
         setApplicants(mapped);
       } catch (err) {
         if (!active) return;
-        setLoadError(err instanceof ApiError ? err.message : "Failed to load applications.");
+        pushToast("error", err instanceof ApiError ? err.message : "Failed to load applications.");
       } finally {
         if (active) setLoadingApplications(false);
       }
     };
     void load();
     return () => { active = false; };
-  }, [cohorts, selectedCohortId]);
+  }, [cohorts, pushToast, selectedCohortId]);
 
   useEffect(() => {
     if (!selectedCohortId) return;
@@ -1268,7 +1264,6 @@ export function AdmissionsPage() {
       location_type: "online",
       location_details: "",
     });
-    setSchedulerError("");
     setSchedulerOpen(true);
   };
 
@@ -1276,7 +1271,6 @@ export function AdmissionsPage() {
     if (schedulerBusy && !force) return;
     setSchedulerOpen(false);
     setSchedulerTarget(null);
-    setSchedulerError("");
   };
 
   const submitScheduler = async (input: {
@@ -1291,7 +1285,6 @@ export function AdmissionsPage() {
     const hasPhone = Boolean(schedulerTarget.phone?.trim());
 
     setSchedulerBusy(true);
-    setSchedulerError("");
     try {
       await scheduleApplicationInterview(schedulerTarget.applicationId, {
         scheduled_at: toIsoDateTime(input.scheduled_at),
@@ -1318,11 +1311,10 @@ export function AdmissionsPage() {
       if (detailsOpen && detailsTarget?.id === schedulerTarget.id) {
         await openDetails(schedulerTarget);
       }
-      setLoadError("");
-      setLoadSuccess(buildInterviewScheduleFeedback(schedulerTarget.name, hasEmail, hasPhone));
+      pushToast("success", buildInterviewScheduleFeedback(schedulerTarget.name, hasEmail, hasPhone));
       closeScheduler(true);
     } catch (err) {
-      setSchedulerError(err instanceof ApiError ? err.message : "Failed to schedule interview.");
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to schedule interview.");
     } finally {
       setSchedulerBusy(false);
     }
@@ -1364,17 +1356,15 @@ export function AdmissionsPage() {
   const onStatusChange = async (id: string, status: ApplicationStatus) => {
     const target = applicants.find((a) => a.id === id);
     if (!target) return;
-    setLoadSuccess("");
     setUpdatingIds((current) => new Set(current).add(target.applicationId));
     try {
       const nextStatus = await updateStatus(target, status);
       setApplicants((current) => current.map((a) => (a.id === id ? { ...a, status: nextStatus } : a)));
       if (nextStatus !== target.status) {
-        setLoadError("");
-        setLoadSuccess(`${target.name} moved to ${workflowStatusLabel(nextStatus, { confirmedLabel: "Confirmed" })}.`);
+        pushToast("success", `${target.name} moved to ${workflowStatusLabel(nextStatus, { confirmedLabel: "Confirmed" })}.`);
       }
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : "Failed to update status.");
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to update status.");
     } finally {
       setUpdatingIds((current) => {
         const next = new Set(current);
@@ -1387,9 +1377,8 @@ export function AdmissionsPage() {
   const onBulkStageChange = async (status: ApplicationStatus) => {
     const targets = applicants.filter((a) => selectedIds.has(a.id));
     if (targets.length === 0) return;
-    setLoadSuccess("");
     if (status === "invited_to_interview") {
-      setLoadError("Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
+      pushToast("error", "Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
       return;
     }
 
@@ -1424,7 +1413,8 @@ export function AdmissionsPage() {
         successIds.forEach((id) => next.delete(id));
         return next;
       });
-      setLoadSuccess(
+      pushToast(
+        "success",
         `${successIds.length} applicant${successIds.length === 1 ? "" : "s"} moved to ${workflowStatusLabel(status, {
           confirmedLabel: "Confirmed",
         })}.`,
@@ -1434,7 +1424,7 @@ export function AdmissionsPage() {
     const firstFailed = results.find((result) => result.status === "rejected");
     if (firstFailed && firstFailed.status === "rejected") {
       const reason = firstFailed.reason;
-      setLoadError(reason instanceof ApiError ? reason.message : "Some status updates failed.");
+      pushToast("error", reason instanceof ApiError ? reason.message : "Some status updates failed.");
     }
   };
 
@@ -1456,7 +1446,7 @@ export function AdmissionsPage() {
         (entry.status === "accepted" || entry.status === "participation_confirmed"),
     );
     if (!eligibleTargets.length) {
-      setLoadError("Create user is only available for accepted or participation-confirmed applicants without accounts.");
+      pushToast("error", "Create user is only available for accepted or participation-confirmed applicants without accounts.");
       return;
     }
     const emailAvailable = eligibleTargets.some((entry) => hasDeliverableEmail(entry.email));
@@ -1481,8 +1471,6 @@ export function AdmissionsPage() {
     applicant: Applicant,
     channels?: CreateUserDeliveryChannels,
   ) => {
-    setLoadError("");
-    setLoadSuccess("");
     setCreatingUserIds((current) => new Set(current).add(applicant.applicationId));
     try {
       const response = await createUserFromApplication(applicant.applicationId, {
@@ -1512,19 +1500,21 @@ export function AdmissionsPage() {
       const extras: string[] = [];
       if (summary.sentCount > 0) extras.push(`credentials sent (${summary.sentCount})`);
       if (summary.skipped) extras.push(onboardingSkipReasonText(summary.reason));
-      setLoadSuccess(
+      pushToast(
+        "success",
         extras.length
           ? `${existingUser ? "Existing account linked" : "User created"} for ${applicant.name}; ${extras.join(", ")}.`
           : `${existingUser ? "Existing account linked" : "User created"} for ${applicant.name}.`,
       );
       if (summary.failedCount > 0) {
         const firstFailure = summary.firstFailure ? toFriendlyDeliveryFailure(summary.firstFailure) : "";
-        setLoadError(
+        pushToast(
+          "error",
           `${existingUser ? "Account linked" : "User created"}, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${firstFailure ? ` ${firstFailure}` : ""}`,
         );
       }
     } catch (error) {
-      setLoadError(toFriendlyCreateUserError(error, applicant.name));
+      pushToast("error", toFriendlyCreateUserError(error, applicant.name));
     } finally {
       setCreatingUserIds((current) => {
         const next = new Set(current);
@@ -1541,8 +1531,6 @@ export function AdmissionsPage() {
     if (!targets.length || bulkCreatingUsers) return;
 
     setBulkCreatingUsers(true);
-    setLoadError("");
-    setLoadSuccess("");
     try {
       const results = await Promise.allSettled(
         targets.map((applicant) =>
@@ -1603,7 +1591,7 @@ export function AdmissionsPage() {
             .join(" ");
           parts.push(`Delivery skipped: ${skippedCount}.${skippedReasonText ? ` ${skippedReasonText}` : ""}`);
         }
-        setLoadSuccess(parts.join(" "));
+        pushToast("success", parts.join(" "));
       }
 
       if (failed.length || deliveryFailedCount > 0) {
@@ -1619,7 +1607,7 @@ export function AdmissionsPage() {
             `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${friendlyFailure ? ` ${friendlyFailure}` : ""}`,
           );
         }
-        setLoadError(messages.join(" "));
+        pushToast("error", messages.join(" "));
       }
     } finally {
       setBulkCreatingUsers(false);
@@ -1650,13 +1638,16 @@ export function AdmissionsPage() {
       .filter((recipient) => recipient.to.trim().length > 0);
 
     if (!recipientsToSend.length) {
-      setComposerError(payload.channel === "email" ? "Selected recipients do not have email addresses." : "Selected recipients do not have phone numbers.");
+      pushToast(
+        "error",
+        payload.channel === "email"
+          ? "Selected recipients do not have email addresses."
+          : "Selected recipients do not have phone numbers.",
+      );
       return;
     }
 
     setComposerBusy(true);
-    setComposerError("");
-    setLoadSuccess("");
     try {
       await Promise.all(
         recipientsToSend.map(async (recipient) => {
@@ -1671,20 +1662,18 @@ export function AdmissionsPage() {
       );
       setComposerOpen(false);
       setMessageTarget(null);
-      setLoadSuccess(
+      pushToast(
+        "success",
         `Message sent to ${recipientsToSend.length} recipient${recipientsToSend.length === 1 ? "" : "s"}.`,
       );
     } catch (error) {
-      setComposerError(error instanceof ApiError ? error.message : "Failed to send message.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to send message.");
     } finally {
       setComposerBusy(false);
     }
   };
 
   const openMessageComposer = (target: Applicant | null = null) => {
-    setComposerError("");
-    setLoadError("");
-    setLoadSuccess("");
     setMessageTarget(target);
     setComposerOpen(true);
   };
@@ -1700,9 +1689,6 @@ export function AdmissionsPage() {
     );
 
     setSavingReviewMessage(true);
-    setDetailsError("");
-    setLoadError("");
-    setLoadSuccess("");
     try {
       const updated = await api<ApiApplicationRow>(`/applications/${applicant.applicationId}/stage`, {
         method: "PATCH",
@@ -1740,9 +1726,9 @@ export function AdmissionsPage() {
       });
       setDetailsReviewMessageDraft(nextReviewMessage);
 
-      setLoadSuccess(`Review message saved for ${applicant.name}.`);
+      pushToast("success", `Review message saved for ${applicant.name}.`);
     } catch (err) {
-      setDetailsError(err instanceof ApiError ? err.message : "Failed to save review message.");
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to save review message.");
     } finally {
       setSavingReviewMessage(false);
     }
@@ -1752,7 +1738,6 @@ export function AdmissionsPage() {
     setDetailsOpen(true);
     setDetailsTarget(applicant);
     setDetailsPipeline(null);
-    setDetailsError("");
     setSavingReviewMessage(false);
     setDetailsActionBusy(false);
     setDetailsReviewMessageDraft(String(applicant.reviewMessage || "").trim());
@@ -1764,7 +1749,7 @@ export function AdmissionsPage() {
         String(data.application?.review_message || applicant.reviewMessage || "").trim(),
       );
     } catch (err) {
-      setDetailsError(err instanceof ApiError ? err.message : "Failed to load details.");
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to load details.");
     } finally {
       setDetailsLoading(false);
     }
@@ -1772,17 +1757,14 @@ export function AdmissionsPage() {
 
   const resendAcceptanceForApplicant = async (applicant: Applicant) => {
     setDetailsActionBusy(true);
-    setDetailsError("");
-    setLoadError("");
-    setLoadSuccess("");
     try {
       await resendAcceptanceMessage(applicant.applicationId);
-      setLoadSuccess(`Acceptance message resent for ${applicant.name}.`);
+      pushToast("success", `Acceptance message resent for ${applicant.name}.`);
       if (detailsOpen && detailsTarget?.id === applicant.id) {
         await openDetails(applicant);
       }
     } catch (error) {
-      setDetailsError(error instanceof ApiError ? error.message : "Failed to resend acceptance message.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to resend acceptance message.");
     } finally {
       setDetailsActionBusy(false);
     }
@@ -1790,9 +1772,6 @@ export function AdmissionsPage() {
 
   const reopenApplication = async (applicant: Applicant) => {
     setDetailsActionBusy(true);
-    setDetailsError("");
-    setLoadError("");
-    setLoadSuccess("");
     try {
       const updated = await api<ApiApplicationRow>(`/applications/${applicant.applicationId}/stage`, {
         method: "PATCH",
@@ -1824,9 +1803,9 @@ export function AdmissionsPage() {
           },
         };
       });
-      setLoadSuccess(`Application reopened for ${applicant.name}.`);
+      pushToast("success", `Application reopened for ${applicant.name}.`);
     } catch (error) {
-      setDetailsError(error instanceof ApiError ? error.message : "Failed to reopen application.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to reopen application.");
     } finally {
       setDetailsActionBusy(false);
     }
@@ -1910,7 +1889,7 @@ export function AdmissionsPage() {
         <section className="admx-topbar">
           <div className="admx-topbar__left" ref={dropdownRef}>
             <button className="admx-program-btn" type="button" onClick={() => setCohortDropdownOpen((v) => !v)}>
-              {loadingCohorts ? "Loading cohorts..." : cohortName} <span>▾</span>
+              {loadingCohorts ? <PulseDots layout="inline" label="Loading cohorts" /> : cohortName} <span>▾</span>
             </button>
             {cohortDropdownOpen ? (
               <div className="admx-program-menu">
@@ -2045,12 +2024,9 @@ export function AdmissionsPage() {
           </section>
         ) : null}
 
-        {loadError ? <p className="admx-inline-error">{loadError}</p> : null}
-        {loadSuccess ? <p className="admx-inline-success">{loadSuccess}</p> : null}
-
         <section className="admx-table-wrap">
           {loadingApplications ? (
-            <div className="admx-empty"><h3>Loading applications...</h3></div>
+            <div className="admx-empty"><PulseDots padding={40} label="Loading applications" /></div>
           ) : filtered.length > 0 ? (
             <>
               <div className="admx-table-scroll">
@@ -2121,11 +2097,9 @@ export function AdmissionsPage() {
           savingReviewMessage={savingReviewMessage}
           actionBusy={detailsActionBusy}
           reviewMessageDraft={detailsReviewMessageDraft}
-          error={detailsError}
           onMessageApplicant={(target) => {
             setDetailsOpen(false);
             setDetailsPipeline(null);
-            setDetailsError("");
             setSavingReviewMessage(false);
             setDetailsActionBusy(false);
             setDetailsReviewMessageDraft("");
@@ -2145,7 +2119,6 @@ export function AdmissionsPage() {
             setDetailsOpen(false);
             setDetailsTarget(null);
             setDetailsPipeline(null);
-            setDetailsError("");
             setSavingReviewMessage(false);
             setDetailsActionBusy(false);
             setDetailsReviewMessageDraft("");
@@ -2162,12 +2135,14 @@ export function AdmissionsPage() {
           onSubmit={(channels) => {
             void submitCreateUserModal(channels);
           }}
+          onInvalidSubmit={() => {
+            pushToast("error", "Select at least one delivery channel.");
+          }}
         />
         {schedulerOpen ? (
           <InterviewSchedulerModal
             applicant={schedulerTarget}
             busy={schedulerBusy}
-            error={schedulerError}
             initial={schedulerInitial}
             onClose={() => closeScheduler()}
             onSubmit={(input) => void submitScheduler(input)}
@@ -2186,7 +2161,6 @@ export function AdmissionsPage() {
           <MessageComposer
             onClose={() => {
               setComposerBusy(false);
-              setComposerError("");
               setComposerOpen(false);
               setMessageTarget(null);
             }}
@@ -2195,7 +2169,6 @@ export function AdmissionsPage() {
             selectedIds={[...selectedIds]}
             templates={messageTemplates}
             busy={composerBusy}
-            error={composerError}
             onSend={(payload) => void sendComposerMessage(payload)}
           />
         ) : null}
@@ -2208,6 +2181,7 @@ export function AdmissionsPage() {
             rowScopes={csvRowScopes}
           />
         ) : null}
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </div>
     </PageShell>
   );

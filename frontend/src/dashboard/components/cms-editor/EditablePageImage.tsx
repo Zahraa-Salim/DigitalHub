@@ -5,7 +5,7 @@ import { CmsMediaPickerModal, type CmsMediaAsset } from "../CmsMediaPickerModal"
 import { useEditor } from "./EditorContext";
 
 type Props = {
-  sectionId: number;
+  pageKey: string;
   field: string;
   fallbackSrc: StaticImageData | string;
   alt?: string;
@@ -13,21 +13,24 @@ type Props = {
   previewSrc?: StaticImageData | string;
 };
 
+const toPseudoId = (pageKey: string) => -Math.max(1, pageKey.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0));
+
 const hasImageSrc = (value: StaticImageData | string | undefined): value is StaticImageData | string => {
   if (!value) return false;
   if (typeof value === "string") return value.trim().length > 0;
   return true;
 };
 
-export function EditableImage({ sectionId, field, fallbackSrc, alt, className, previewSrc }: Props) {
-  const { getValue, setValue, activeField, openField, closeField } = useEditor();
-  const rawUrl = getValue(sectionId, field);
+export function EditablePageImage({ pageKey, field, fallbackSrc, alt, className, previewSrc }: Props) {
+  const { getPageValue, setPageValue, activeField, openField, closeField } = useEditor();
+  const rawUrl = getPageValue(pageKey, field);
   const src = hasImageSrc(previewSrc)
     ? previewSrc
     : hasImageSrc(rawUrl)
       ? rawUrl
       : fallbackSrc;
-  const isActive = activeField?.sectionId === sectionId && activeField?.field === field;
+  const pseudoId = toPseudoId(pageKey);
+  const isActive = activeField?.sectionId === pseudoId && activeField?.field === field;
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState(rawUrl);
@@ -40,7 +43,7 @@ export function EditableImage({ sectionId, field, fallbackSrc, alt, className, p
       return;
     }
 
-    setDraft(getValue(sectionId, field));
+    setDraft(getPageValue(pageKey, field));
 
     const updatePosition = () => {
       if (!wrapRef.current) return;
@@ -72,24 +75,24 @@ export function EditableImage({ sectionId, field, fallbackSrc, alt, className, p
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [closeField, field, getValue, isActive, sectionId]);
+  }, [closeField, field, getPageValue, isActive, pageKey]);
 
   const handleClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     if (wrapRef.current) {
-      openField(sectionId, field, "image", wrapRef.current);
+      openField(pseudoId, field, "image", wrapRef.current);
     }
   };
 
   const handleApply = () => {
-    setValue(sectionId, field, draft);
+    setPageValue(pageKey, field, draft);
     closeField();
   };
 
   const handleSelectAsset = (asset: CmsMediaAsset) => {
     setDraft(asset.public_url);
-    setValue(sectionId, field, asset.public_url);
+    setPageValue(pageKey, field, asset.public_url);
     setPickerOpen(false);
     closeField();
   };

@@ -36,7 +36,14 @@ const AboutEditor = ({ sectionId }: AboutEditorProps) => {
           <div className="row align-items-center justify-content-center">
             <div className="col-lg-6 col-md-9">
               <div className="about__images">
-                <EditableImage sectionId={sectionId} field="main_image_url" fallbackSrc={mainImage} alt="img" className="main-img" />
+                <EditableImage
+                  sectionId={sectionId}
+                  field="main_image_url"
+                  fallbackSrc={about_img1}
+                  previewSrc={mainImage}
+                  alt="img"
+                  className="main-img"
+                />
                 <Image src={about_img2} alt="img" className="shape alltuchtopdown" />
               </div>
             </div>

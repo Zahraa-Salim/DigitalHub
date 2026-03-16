@@ -352,3 +352,209 @@
 .cms-popover__btn--cancel:hover {
   background: #e2e8f0;
 }
+
+.cms-popover__btn--secondary {
+  background: #eef2ff;
+  color: #3347c3;
+}
+
+.cms-popover__btn--secondary:hover {
+  background: #dfe7ff;
+}
+
+.cms-editor-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 16px;
+  flex-wrap: wrap;
+}
+
+.cms-editor-mode-tab {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 0.5px solid var(--border-color, #e5e7eb);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  transition: background 0.12s, color 0.12s;
+}
+
+.cms-editor-mode-tab--active {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+  font-weight: 500;
+  border-color: var(--border-active, #9ca3af);
+}
+
+.cms-page-editor {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cms-page-editor__section {
+  padding: 1.25rem 0;
+  border-bottom: 0.5px solid var(--border-color, #e5e7eb);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cms-page-editor__section:last-child {
+  border-bottom: none;
+}
+
+.cms-page-editor__section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0 0 4px;
+}
+
+.cms-page-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cms-page-editor__field > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
+}
+
+.cms-page-editor__field input,
+.cms-page-editor__field textarea {
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 0.5px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  width: 100%;
+  resize: vertical;
+}
+
+.cms-page-editor__field input:focus,
+.cms-page-editor__field textarea:focus {
+  outline: none;
+  border-color: var(--border-active, #6b7280);
+}
+
+.cms-page-editor__hint {
+  font-size: 11.5px;
+  color: var(--text-muted, #9ca3af);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cms-page-editor__hint code {
+  font-family: monospace;
+  font-size: 11px;
+  background: var(--bg-secondary, #f3f4f6);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.cms-page-editor__list-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cms-page-editor__list-row input {
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 0.5px solid var(--border-color, #d1d5db);
+  border-radius: 5px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  min-width: 0;
+}
+
+.cms-page-editor__remove-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 0.5px solid var(--border-color, #d1d5db);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-danger, #dc2626);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cms-page-editor__add-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 0.5px dashed var(--border-color, #9ca3af);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.cms-page-editor__add-btn:hover {
+  background: var(--bg-secondary, #f9fafb);
+  color: var(--text-primary, #111827);
+}
+
+.cms-editor-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: #f0f2f7;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.cms-editor-tab {
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #718096;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.cms-editor-tab--active {
+  background: #fff;
+  color: #1a202c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.cms-editor-canvas a {
+  pointer-events: none;
+  cursor: default;
+}
+
+.cms-editor-canvas .cms-editable-text,
+.cms-editor-canvas .cms-editable-image-wrap {
+  pointer-events: all;
+  cursor: text;
+}
+
+.cms-edit-array-hint {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(67, 97, 238, 0.1);
+  color: #4361ee;
+  margin-left: 8px;
+  cursor: default;
+}
+
+.cms-page-preview-navbar {
+  position: relative !important;
+  top: auto !important;
+}

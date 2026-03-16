@@ -14,19 +14,6 @@ import { normalizeUser } from "../utils/auth";
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    const savedTheme = window.localStorage.getItem("dh-theme");
-    if (savedTheme === "dark") {
-      return true;
-    }
-    if (savedTheme === "light") {
-      return false;
-    }
-    return document.documentElement.classList.contains("dark");
-  });
   const user = useAuthStore((state) => state.user);
   const storeSetAuth = useAuthStore((state) => state.setAuth);
   const storeClearAuth = useAuthStore((state) => state.clearAuth);
@@ -37,9 +24,10 @@ export function AdminLayout() {
     location.pathname.startsWith("/admin/general-apply");
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-    window.localStorage.setItem("dh-theme", isDark ? "dark" : "light");
-  }, [isDark]);
+    // Always force light mode — dark mode is disabled
+    document.documentElement.classList.remove("dark");
+    window.localStorage.removeItem("dh-theme");
+  }, []);
 
   useEffect(() => {
     const closeTimer = window.setTimeout(() => {
@@ -108,8 +96,6 @@ export function AdminLayout() {
             onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
             user={user ?? normalizeUser(null)}
             onLogout={handleLogout}
-            onToggleTheme={() => setIsDark((current) => !current)}
-            isDark={isDark}
           />
         </aside>
 
@@ -127,8 +113,6 @@ export function AdminLayout() {
                 user={user ?? normalizeUser(null)}
                 onNavigate={() => setMobileOpen(false)}
                 onLogout={handleLogout}
-                onToggleTheme={() => setIsDark((current) => !current)}
-                isDark={isDark}
               />
             </aside>
           </div>

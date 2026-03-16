@@ -83,16 +83,16 @@ export function ActivityFeedPanel({ activityFeed }: ActivityFeedPanelProps) {
             : 'Interviews';
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="border-b border-gray-100 pb-4 flex flex-row items-center justify-between">
+      <CardHeader style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }} className="flex flex-row items-center justify-between">
         <CardTitle>Admin Activity</CardTitle>
-        <Badge variant="gray" className="cursor-pointer hover:bg-gray-200" onClick={nextFilter}>
+        <Badge variant="gray" className="cursor-pointer hover:bg-gray-200" onClick={nextFilter} style={{ color: "var(--text-muted)", background: "var(--surface-soft)" }}>
           Filter: {filterLabel}
         </Badge>
       </CardHeader>
       <CardContent className="p-0 flex-1 overflow-hidden">
         <div className="h-[300px] overflow-y-auto p-4 space-y-4">
           {filteredActivities.length === 0 ? (
-            <div className="text-sm text-gray-500">No recent activity.</div>
+            <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>No recent activity.</div>
           ) : filteredActivities.map((activity) => {
             const Icon = activity.icon;
             return (
@@ -101,8 +101,8 @@ export function ActivityFeedPanel({ activityFeed }: ActivityFeedPanelProps) {
                   <Icon className={`w-4 h-4 ${activity.color}`} />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-800">{activity.text}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p style={{ fontSize: "14px", color: "var(--text)" }}>{activity.text}</p>
+                  <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
                     {activity.time}
                   </p>
                 </div>

@@ -7,6 +7,7 @@ import { Badge } from "../../../components/Badge";
 import { Card } from "../../../components/Card";
 import { CmsMediaPickerModal, type CmsMediaAsset } from "../../../components/CmsMediaPickerModal";
 import { PageShell } from "../../../components/PageShell";
+import { PulseDots } from "../../../components/PulseDots";
 import { ToastStack } from "../../../components/ToastStack";
 import { useDashboardToasts } from "../../../hooks/useDashboardToasts";
 import { ApiError, api, apiList } from "../../../utils/api";
@@ -854,7 +855,7 @@ const buildEditor = (row: CmsPageRow): CmsPageEditor => ({
 });
 
 export function CmsPagesPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [rows, setRows] = useState<CmsPageRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editor, setEditor] = useState<CmsPageEditor | null>(null);
@@ -1250,7 +1251,7 @@ export function CmsPagesPage() {
         </div>
       }
     >
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <Card className="cms-page-shell">
         <div className="cms-page-tabs" role="tablist" aria-label="CMS pages">
           {orderedRows.map((row) => {
@@ -1277,7 +1278,11 @@ export function CmsPagesPage() {
         {!editor ? (
           <div className="empty-state">
             <p className="empty-state__title">No page selected</p>
-            <p className="empty-state__description">{loading ? "Loading pages..." : "Select a page tab to edit."}</p>
+            {loading ? (
+              <PulseDots padding={20} label="Loading pages" />
+            ) : (
+              <p className="empty-state__description">Select a page tab to edit.</p>
+            )}
           </div>
         ) : (
           <div className="cms-page-layout">

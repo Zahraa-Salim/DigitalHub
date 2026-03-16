@@ -4,6 +4,7 @@
 
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { PulseDots } from "../components/PulseDots";
 import { AdminLayout } from "./AdminLayout";
 import { RequireAdmin } from "./RequireAdmin";
 import { RequireRole } from "./RequireRole";
@@ -18,7 +19,7 @@ const ResetPasswordPage = lazy(() =>
 );
 
 function RouteFallback() {
-  return <div style={{ padding: "24px", color: "#23314f" }}>Loading...</div>;
+  return <PulseDots padding={24} label="Loading" />;
 }
 
 export function AppRouter() {

@@ -7,6 +7,7 @@ import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { Table } from "../../components/Table";
 import { ToastStack } from "../../components/ToastStack";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
@@ -43,7 +44,7 @@ function toChannel(value: string | null): MessageChannel {
 }
 
 export function MessagesPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [status, setStatus] = useState<MessageStatus>(toStatus(searchParams.get("status")));
@@ -183,7 +184,7 @@ export function MessagesPage() {
   return (
     <PageShell title="Message Delivery Details" subtitle="Inspect draft, sent, and failed outbound messages.">
       <div className="dh-page">
-        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
         <div className="dh-filters">
           <div className="dh-filters-desktop-panel">
             <FilterBar
@@ -218,13 +219,7 @@ export function MessagesPage() {
         </div>
 
         {loading ? (
-          <Card className="card--table desktop-only dh-table-wrap">
-            <div className="program-skeleton-table" aria-hidden>
-              <div className="program-skeleton-line program-skeleton-line--lg" />
-              <div className="program-skeleton-line" />
-              <div className="program-skeleton-line program-skeleton-line--sm" />
-            </div>
-          </Card>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         ) : null}
 
         {!loading ? (

@@ -4,6 +4,9 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { API_URL, ApiError, api, apiList } from "../utils/api";
+import { useDashboardToasts } from "../hooks/useDashboardToasts";
+import { PulseDots } from "./PulseDots";
+import { ToastStack } from "./ToastStack";
 
 export type CmsMediaAsset = {
   id: number;
@@ -68,13 +71,12 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   const selectedNormalized = useMemo(() => String(selectedUrl || "").trim(), [selectedUrl]);
 
   const loadAssets = async (nextSearch = search) => {
     setLoading(true);
-    setError("");
     try {
       const query = new URLSearchParams({
         page: "1",
@@ -87,7 +89,7 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
       setRows(result.data);
     } catch (err) {
       setRows([]);
-      setError(err instanceof ApiError ? err.message || "Failed to load media library." : "Failed to load media library.");
+      pushToast("error", err instanceof ApiError ? err.message || "Failed to load media library." : "Failed to load media library.");
     } finally {
       setLoading(false);
     }
@@ -121,12 +123,11 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
     if (!file) return;
 
     if (!ACCEPTED_MIME_TYPES.includes(file.type.toLowerCase())) {
-      setError("Unsupported file type. Upload JPG, PNG, WEBP, GIF, or SVG.");
+      pushToast("error", "Unsupported file type. Upload JPG, PNG, WEBP, GIF, or SVG.");
       return;
     }
 
     setUploading(true);
-    setError("");
     try {
       const dataUrl = await fileToDataUrl(file);
       const parsed = parseImageDataUrl(dataUrl);
@@ -144,7 +145,7 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
       onSelect(uploaded);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message || "Upload failed." : "Upload failed.");
+      pushToast("error", err instanceof ApiError ? err.message || "Upload failed." : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -175,9 +176,8 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
             <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} />
           </label>
         </div>
-        {error ? <p className="field__error">{error}</p> : null}
         <div className="cms-media-modal__list">
-          {loading ? <p className="info-text">Loading media files...</p> : null}
+          {loading ? <PulseDots padding={20} label="Loading media files" /> : null}
           {!loading && rows.length === 0 ? <p className="info-text">No files found.</p> : null}
           {!loading ? (
             <div className="cms-media-grid">
@@ -202,6 +202,7 @@ export function CmsMediaPickerModal({ isOpen, selectedUrl, onClose, onSelect }: 
             </div>
           ) : null}
         </div>
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </div>
     </div>
   );

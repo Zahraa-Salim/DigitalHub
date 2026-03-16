@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PulseDots } from '../PulseDots';
 import { QuickActionsBar } from './QuickActionsBar';
 import { PipelineHealthPanel } from './PipelineHealthPanel';
 import { InterviewOpsPanel } from './InterviewOpsPanel';
@@ -153,7 +154,9 @@ export function OverviewTab() {
   if (loading) {
     return (
       <div className="flex flex-col gap-6 px-6 pb-20">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 text-gray-500">Loading overview...</div>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "8px", padding: "24px" }}>
+          <PulseDots padding={16} label="Loading overview" />
+        </div>
       </div>
     );
   }
@@ -161,7 +164,7 @@ export function OverviewTab() {
   if (error || !data) {
     return (
       <div className="flex flex-col gap-6 px-6 pb-20">
-        <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6 text-red-600">
+        <div style={{ background: "var(--surface)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "8px", padding: "24px", color: "var(--danger)" }}>
           {error || 'Overview data unavailable.'}
         </div>
       </div>
@@ -172,10 +175,10 @@ export function OverviewTab() {
     <div className="flex flex-col gap-6 px-6 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
             Operations Command Center
           </h2>
-          <p className="text-gray-500 mt-1">
+          <p style={{ color: "var(--text-muted)", marginTop: "4px" }}>
             Monitor admissions pipeline and resolve operational bottlenecks.
           </p>
         </div>
@@ -184,7 +187,7 @@ export function OverviewTab() {
         </div>
       </div>
       <section>
-        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">
+        <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{ color: "var(--text)" }}>
           Pipeline Health
         </h3>
         <PipelineHealthPanel
@@ -205,7 +208,7 @@ export function OverviewTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-3">
           {messagingActionError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div style={{ borderRadius: "6px", border: "1px solid rgba(220,38,38,0.35)", background: "rgba(220,38,38,0.08)", padding: "8px 12px", fontSize: "13px", color: "var(--danger)" }}>
               {messagingActionError}
             </div>
           ) : null}

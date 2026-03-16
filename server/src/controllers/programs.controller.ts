@@ -5,7 +5,7 @@
 
 import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, unassignInstructorService, uploadProgramImageService, } from "../services/programs.service.js";
+import { assignInstructorService, closeCohortService, createCohortService, createProgramService, deleteCohortService, deleteProgramService, getCohortEnrollmentsService, listCohortInstructorsService, listCohortsService, listProgramsService, openCohortService, patchCohortService, patchProgramService, unassignInstructorService, uploadProgramImageService, } from "../services/programs.service.js";
 // Handles 'createProgram' workflow for this module.
 export async function createProgram(req: Request, res: Response) {
     const data = await createProgramService(req.user!.id, req.body);
@@ -76,6 +76,11 @@ export async function unassignCohortInstructor(req: Request, res: Response) {
 export async function postProgramImage(req: Request, res: Response) {
     const data = await uploadProgramImageService(req.user!.id, req.body);
     sendSuccess(res, data, "Program image uploaded successfully.", 201);
+}
+
+export async function getCohortEnrollments(req: Request, res: Response) {
+    const data = await getCohortEnrollmentsService(Number(req.params.id));
+    sendSuccess(res, data);
 }
 
 

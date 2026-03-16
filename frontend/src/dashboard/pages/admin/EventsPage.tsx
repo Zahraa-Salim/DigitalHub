@@ -10,16 +10,17 @@ import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { Table } from "../../components/Table";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { ToastStack } from "../../components/ToastStack";
 import { buildEventAnnouncementDefaults, type AnnouncementPromptDefaults } from "../../lib/announcementPrompts";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 
 type SortBy = "starts_at" | "title" | "created_at";
 type FormMode = "create" | "edit" | null;
-type ToastTone = "success" | "error";
 type AnnouncementPromptState = {
   summary: string;
   defaults: AnnouncementPromptDefaults;
@@ -158,13 +159,11 @@ export function EventsPage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [form, setForm] = useState<EventFormState>(initialForm);
-  const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<EventRow | null>(null);
@@ -173,42 +172,12 @@ export function EventsPage() {
   const [isMarkingDone, setIsMarkingDone] = useState(false);
   const [announcementPrompt, setAnnouncementPrompt] = useState<AnnouncementPromptState | null>(null);
   const [isPublishingAnnouncement, setIsPublishingAnnouncement] = useState(false);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
-  const toastIdRef = useRef(1);
-  const toastTimersRef = useRef<Record<number, number>>({});
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
-
-  const showToast = (tone: ToastTone, message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    const timeoutId = window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-      delete toastTimersRef.current[id];
-    }, 5000);
-    toastTimersRef.current[id] = timeoutId;
-  };
-
-  const dismissToast = (id: number) => {
-    const timeoutId = toastTimersRef.current[id];
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      delete toastTimersRef.current[id];
-    }
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
-
-  useEffect(() => {
-    const timers = toastTimersRef.current;
-    return () => {
-      Object.values(timers).forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-    };
-  }, []);
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -224,7 +193,6 @@ export function EventsPage() {
 
     const loadEvents = async () => {
       setLoading(true);
-      setError("");
       try {
         const status = doneFilter === "all" ? undefined : doneFilter === "true" ? "done" : "upcoming";
         const result = await apiList<EventRow>(
@@ -237,8 +205,7 @@ export function EventsPage() {
       } catch (err) {
         if (!active) return;
         const message = err instanceof ApiError ? err.message || "Failed to load events." : "Failed to load events.";
-        setError(message);
-        showToast("error", message);
+        pushToast("error", message);
       } finally {
         if (active) setLoading(false);
       }
@@ -266,23 +233,18 @@ export function EventsPage() {
     setFormMode("create");
     setEditing(null);
     setForm(initialForm);
-    setFormError("");
-    setError("");
   };
 
   const openEdit = (item: EventRow) => {
     setFormMode("edit");
     setEditing(item);
     setForm(toFormState(item));
-    setFormError("");
-    setError("");
   };
 
   const closeForm = () => {
     if (isSubmitting || isUploadingImages) return;
     setFormMode(null);
     setEditing(null);
-    setFormError("");
   };
 
   const saveEvent = async () => {
@@ -292,23 +254,23 @@ export function EventsPage() {
     const slug = slugify(form.slug.trim() || title);
 
     if (!title) {
-      setFormError("Title is required.");
+      pushToast("error", "Title is required.");
       return;
     }
     if (!slug) {
-      setFormError("Slug is required.");
+      pushToast("error", "Slug is required.");
       return;
     }
     if (!startsAt) {
-      setFormError("Start datetime is required.");
+      pushToast("error", "Start datetime is required.");
       return;
     }
     if (form.endsAt && !endsAt) {
-      setFormError("End datetime is invalid.");
+      pushToast("error", "End datetime is invalid.");
       return;
     }
     if (endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
-      setFormError("End datetime must be after or equal to start datetime.");
+      pushToast("error", "End datetime must be after or equal to start datetime.");
       return;
     }
 
@@ -329,13 +291,11 @@ export function EventsPage() {
     };
 
     setIsSubmitting(true);
-    setFormError("");
-    setError("");
 
     try {
       if (formMode === "create") {
         const created = await api<EventRow>("/events", { method: "POST", body: JSON.stringify(payload) });
-        showToast("success", "Event created successfully.");
+        pushToast("success", "Event created successfully.");
         setAnnouncementPrompt({
           summary: `${created.title} has been created. Would you like to publish an announcement?`,
           defaults: buildEventAnnouncementDefaults({
@@ -347,7 +307,7 @@ export function EventsPage() {
         });
       } else if (formMode === "edit" && editing) {
         const updated = await api<EventRow>(`/events/${editing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-        showToast("success", "Event updated successfully.");
+        pushToast("success", "Event updated successfully.");
         if (!editing.is_published && updated.is_published) {
           setAnnouncementPrompt({
             summary: `${updated.title} has been published. Would you like to publish an announcement?`,
@@ -365,8 +325,7 @@ export function EventsPage() {
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to save event." : "Failed to save event.";
-      setFormError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -393,24 +352,23 @@ export function EventsPage() {
     event.target.value = "";
     if (!files.length) return;
     if (!editing?.is_done) {
-      setFormError("Mark the event as done first, then upload completion gallery images.");
+      pushToast("error", "Mark the event as done first, then upload completion gallery images.");
       return;
     }
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     for (const file of files) {
       if (!allowedTypes.includes(file.type)) {
-        setFormError("Only JPG, PNG, and WEBP files are allowed.");
+        pushToast("error", "Only JPG, PNG, and WEBP files are allowed.");
         return;
       }
       if (file.size > 3 * 1024 * 1024) {
-        setFormError("Each gallery image must be 3MB or less.");
+        pushToast("error", "Each gallery image must be 3MB or less.");
         return;
       }
     }
 
     setIsUploadingImages(true);
-    setFormError("");
     try {
       const uploadedUrls = await Promise.all(
         files.map(async (file) => {
@@ -423,7 +381,7 @@ export function EventsPage() {
         completionImageUrls: Array.from(new Set([...current.completionImageUrls, ...uploadedUrls])),
       }));
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to upload event gallery images.");
+      pushToast("error", err instanceof Error ? err.message : "Failed to upload event gallery images.");
     } finally {
       setIsUploadingImages(false);
     }
@@ -439,17 +397,15 @@ export function EventsPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
-    setError("");
     try {
       await api<{ id: number }>(`/events/${deleteTarget.id}`, { method: "DELETE" });
-      showToast("success", "Event deleted successfully.");
+      pushToast("success", "Event deleted successfully.");
       setDeleteTarget(null);
       setSelected(null);
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to delete event." : "Failed to delete event.";
-      setError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsDeleting(false);
     }
@@ -458,10 +414,9 @@ export function EventsPage() {
   const confirmMarkDone = async () => {
     if (!markDoneTarget) return;
     setIsMarkingDone(true);
-    setError("");
     try {
       const updated = await api<EventRow>(`/events/${markDoneTarget.id}/mark-done`, { method: "PATCH" });
-      showToast("success", "Event marked as done.");
+      pushToast("success", "Event marked as done.");
       setMarkDoneTarget(null);
       setSelected(null);
       setRefreshKey((current) => current + 1);
@@ -476,8 +431,7 @@ export function EventsPage() {
       });
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to mark event done." : "Failed to mark event done.";
-      setError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsMarkingDone(false);
     }
@@ -503,11 +457,11 @@ export function EventsPage() {
           event_id: announcementPrompt.eventId,
         }),
       });
-      showToast("success", "Announcement published successfully.");
+      pushToast("success", "Announcement published successfully.");
       setAnnouncementPrompt(null);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to publish announcement." : "Failed to publish announcement.";
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsPublishingAnnouncement(false);
     }
@@ -613,8 +567,6 @@ export function EventsPage() {
           </div>
         </div>
 
-        {error ? <Card><p className="alert alert--error dh-alert">{error}</p></Card> : null}
-
         {!loading ? (
           <Card className="card--table desktop-only dh-table-wrap">
             <Table<EventRow>
@@ -643,7 +595,7 @@ export function EventsPage() {
             />
           </Card>
         ) : (
-          <Card className="card--table desktop-only dh-table-wrap"><div className="program-skeleton-table" aria-hidden><div className="program-skeleton-line program-skeleton-line--lg" /><div className="program-skeleton-line" /><div className="program-skeleton-line program-skeleton-line--sm" /><div className="program-skeleton-line" /></div></Card>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         )}
 
         {!loading ? (
@@ -668,7 +620,7 @@ export function EventsPage() {
             )}
           </div>
         ) : (
-          <div className="mobile-only programs-mobile-list">{Array.from({ length: 2 }).map((_, index) => <Card key={index}><div className="program-skeleton-card" aria-hidden><div className="program-skeleton-line program-skeleton-line--md" /><div className="program-skeleton-line program-skeleton-line--sm" /></div></Card>)}</div>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         )}
 
         {!loading && pagination.total > 0 ? <Card><Pagination page={pagination.page} totalPages={totalPagesSafe} onChange={setPage} /></Card> : null}
@@ -780,7 +732,6 @@ export function EventsPage() {
                 </div>
               ) : null}
             </div>
-            {formError ? <p className="alert alert--error">{formError}</p> : null}
             <div className="modal-actions"><button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting || isUploadingImages}>Cancel</button><button className="btn btn--primary" type="button" onClick={saveEvent} disabled={isSubmitting || isUploadingImages}>{isSubmitting ? "Saving..." : isUploadingImages ? "Uploading..." : "Save"}</button></div>
           </div>
         </div>
@@ -844,7 +795,7 @@ export function EventsPage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

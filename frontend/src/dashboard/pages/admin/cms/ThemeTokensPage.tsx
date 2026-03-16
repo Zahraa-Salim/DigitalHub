@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "../../../components/Badge";
 import { Card } from "../../../components/Card";
 import { PageShell } from "../../../components/PageShell";
+import { PulseDots } from "../../../components/PulseDots";
 import { ToastStack } from "../../../components/ToastStack";
 import { useDashboardToasts } from "../../../hooks/useDashboardToasts";
 import { ApiError, api, apiList } from "../../../utils/api";
@@ -46,7 +47,7 @@ const toDraft = (row: ThemeTokenRow): ThemeTokenDraft => ({
 });
 
 export function CmsThemeTokensPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [rows, setRows] = useState<ThemeTokenRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<ThemeTokenDraft>(EMPTY_DRAFT);
@@ -166,7 +167,7 @@ export function CmsThemeTokensPage() {
         </div>
       }
     >
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <Card className="cms-page-shell">
         <div className="cms-page-tabs" role="tablist" aria-label="Theme tokens">
           {orderedRows.map((row) => {
@@ -261,7 +262,7 @@ export function CmsThemeTokensPage() {
                 <span className="field__hint">Use CSS-ready values like hex colors, spacing, gradients, or font stacks.</span>
               </label>
 
-              {loading ? <p className="info-text">Loading theme tokens...</p> : null}
+              {loading ? <PulseDots padding={24} label="Loading tokens" /> : null}
             </div>
           </Card>
         </div>

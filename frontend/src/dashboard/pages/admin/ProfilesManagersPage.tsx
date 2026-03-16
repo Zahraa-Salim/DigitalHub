@@ -2,13 +2,15 @@
 // Purpose: Renders the admin profiles managers page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { Table } from "../../components/Table";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { getUser, isSuperAdminUser } from "../../utils/auth";
 import { formatDateTime } from "../../utils/format";
@@ -105,7 +107,6 @@ export function ProfilesManagersPage() {
   const [rows, setRows] = useState<ManagerRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [page, setPage] = useState(1);
@@ -115,9 +116,6 @@ export function ProfilesManagersPage() {
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [sortBy, setSortBy] = useState<"created_at" | "full_name" | "sort_order">("sort_order");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
 
   const [editTarget, setEditTarget] = useState<ManagerRow | null>(null);
   const [editForm, setEditForm] = useState<ManagerFormState | null>(null);
@@ -130,11 +128,7 @@ export function ProfilesManagersPage() {
   const [toggleVisibilityTarget, setToggleVisibilityTarget] = useState<ManagerRow | null>(null);
   const [savingAction, setSavingAction] = useState(false);
 
-  const pushToast = useCallback((tone: "success" | "error", message: string) => {
-    const id = toastIdRef.current += 1;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 5000);
-  }, []);
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -149,7 +143,6 @@ export function ProfilesManagersPage() {
     let active = true;
     const load = async () => {
       setLoading(true);
-      setError("");
       try {
         const result = await apiList<ManagerRow>(
           `/profiles/managers${buildQueryString({
@@ -168,7 +161,6 @@ export function ProfilesManagersPage() {
       } catch (err) {
         if (!active) return;
         const message = err instanceof ApiError ? err.message : "Failed to load managers.";
-        setError(message);
         pushToast("error", message);
       } finally {
         if (active) setLoading(false);
@@ -337,16 +329,10 @@ export function ProfilesManagersPage() {
           ]}
         />
 
-        {error ? (
-          <section className="students-feedback">
-            <p className="alert alert--error">{error}</p>
-          </section>
-        ) : null}
-
         {loading ? (
-          <section className="students-feedback">
-            <div className="spinner">Loading managers...</div>
-          </section>
+          <div className="admx-empty">
+            <PulseDots padding={32} label="Loading" />
+          </div>
         ) : (
           <>
             <Card className="card--table dh-table-wrap">
@@ -533,7 +519,7 @@ export function ProfilesManagersPage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

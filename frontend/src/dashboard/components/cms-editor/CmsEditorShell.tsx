@@ -167,7 +167,7 @@ export function CmsEditorShell({ sections, onOpenEdit, onToggle, onMoveUp, onMov
                 isFirst={index === 0}
                 isLast={index === orderedSections.length - 1}
               >
-                {SectionComponent ? <SectionComponent content={section.localContent} /> : renderUnknownSection(section)}
+                {SectionComponent ? <SectionComponent content={section.local} /> : renderUnknownSection(section)}
               </SectionWrapper>
             );
           })}

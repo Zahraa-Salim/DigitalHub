@@ -8,6 +8,7 @@ import { AnnouncementPromptModal } from "../../components/AnnouncementPromptModa
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
+import { PulseDots } from "../../components/PulseDots";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
 import { ToastStack } from "../../components/ToastStack";
@@ -106,6 +107,16 @@ type CohortSavePayload = {
   attendance_start_time: string | null;
   attendance_end_time: string | null;
 };
+
+type EnrolledStudent = {
+  student_user_id: number;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  enrollment_status: string;
+};
+
+type DetailTab = "info" | "students";
 
 type OpenFormPrompt = {
   cohortId: number;
@@ -254,7 +265,7 @@ function parseProgramCapacity(value: string): number | undefined {
 }
 
 export function CohortsPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const navigate = useNavigate();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -273,6 +284,9 @@ export function CohortsPage() {
   const [success, setSuccess] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<CohortRow | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("info");
+  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editing, setEditing] = useState<CohortRow | null>(null);
   const [form, setForm] = useState<CohortFormState>(initialCohortForm);
@@ -281,7 +295,6 @@ export function CohortsPage() {
   const [loadingAssignedInstructors, setLoadingAssignedInstructors] = useState(false);
   const [inlineProgramForm, setInlineProgramForm] = useState<ProgramInlineFormState>(initialInlineProgramForm);
   const [isInlineProgramOpen, setIsInlineProgramOpen] = useState(false);
-  const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CohortRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -294,6 +307,13 @@ export function CohortsPage() {
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
 
+  const closeDetailModal = () => {
+    setSelected(null);
+    setDetailTab("info");
+    setEnrolledStudents([]);
+    setLoadingEnrollments(false);
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -303,6 +323,27 @@ export function CohortsPage() {
       window.clearTimeout(timer);
     };
   }, [search]);
+
+  useEffect(() => {
+    if (!selected || detailTab !== "students") return;
+    let active = true;
+    setLoadingEnrollments(true);
+    api<{ students: EnrolledStudent[]; total: number }>(`/cohorts/${selected.id}/enrollments`)
+      .then((res) => {
+        if (!active) return;
+        setEnrolledStudents(res.students);
+      })
+      .catch((err) => {
+        if (!active) return;
+        pushToast("error", err instanceof ApiError ? err.message : "Failed to load enrolled students.");
+      })
+      .finally(() => {
+        if (active) setLoadingEnrollments(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selected, detailTab]);
 
   useEffect(() => {
     let active = true;
@@ -638,7 +679,6 @@ export function CohortsPage() {
     setInitialInstructorIds([]);
     setSelectedInstructorIds([]);
     setLoadingAssignedInstructors(false);
-    setFormError("");
     setSuccess("");
   };
 
@@ -649,7 +689,6 @@ export function CohortsPage() {
     setLoadingAssignedInstructors(true);
     setInlineProgramForm(initialInlineProgramForm);
     setIsInlineProgramOpen(false);
-    setFormError("");
     setSuccess("");
   };
 
@@ -665,7 +704,6 @@ export function CohortsPage() {
     setInitialInstructorIds([]);
     setSelectedInstructorIds([]);
     setLoadingAssignedInstructors(false);
-    setFormError("");
   };
 
   const openInlineProgram = () => {
@@ -717,7 +755,7 @@ export function CohortsPage() {
   const buildSavePayload = async (): Promise<CohortSavePayload | null> => {
     const cohortName = form.name.trim();
     if (!cohortName) {
-      setFormError("Cohort name is required.");
+      pushToast("error", "Cohort name is required.");
       return null;
     }
 
@@ -732,7 +770,7 @@ export function CohortsPage() {
 
     const programId = Number(programIdValue);
     if (!Number.isInteger(programId) || programId <= 0) {
-      setFormError("Program selection is required.");
+      pushToast("error", "Program selection is required.");
       return null;
     }
 
@@ -741,17 +779,17 @@ export function CohortsPage() {
     const enrollmentCloseAt = toIsoDateTime(form.enrollmentCloseAt);
 
     if (form.enrollmentOpenAt && !enrollmentOpenAt) {
-      setFormError("Enrollment open date/time is invalid.");
+      pushToast("error", "Enrollment open date/time is invalid.");
       return null;
     }
 
     if (form.enrollmentCloseAt && !enrollmentCloseAt) {
-      setFormError("Enrollment close date/time is invalid.");
+      pushToast("error", "Enrollment close date/time is invalid.");
       return null;
     }
 
     if (form.startDate && form.endDate && form.endDate < form.startDate) {
-      setFormError("End date cannot be before start date.");
+      pushToast("error", "End date cannot be before start date.");
       return null;
     }
 
@@ -760,17 +798,17 @@ export function CohortsPage() {
     const attendanceEndTime = form.attendanceEndTime.trim() || null;
 
     if (attendanceStartTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(attendanceStartTime)) {
-      setFormError("Attendance start time must be in HH:MM format.");
+      pushToast("error", "Attendance start time must be in HH:MM format.");
       return null;
     }
 
     if (attendanceEndTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(attendanceEndTime)) {
-      setFormError("Attendance end time must be in HH:MM format.");
+      pushToast("error", "Attendance end time must be in HH:MM format.");
       return null;
     }
 
     if (attendanceStartTime && attendanceEndTime && attendanceEndTime <= attendanceStartTime) {
-      setFormError("Attendance end time must be after start time.");
+      pushToast("error", "Attendance end time must be after start time.");
       return null;
     }
 
@@ -819,7 +857,6 @@ export function CohortsPage() {
 
   const persistCohort = async (payload: CohortSavePayload) => {
     setIsSubmitting(true);
-    setFormError("");
     setError("");
 
     try {
@@ -920,11 +957,11 @@ export function CohortsPage() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setFormError(err.message || "Failed to save cohort.");
+        pushToast("error", err.message || "Failed to save cohort.");
       } else if (err instanceof Error) {
-        setFormError(err.message || "Failed to save cohort.");
+        pushToast("error", err.message || "Failed to save cohort.");
       } else {
-        setFormError("Failed to save cohort.");
+        pushToast("error", "Failed to save cohort.");
       }
     } finally {
       setIsSubmitting(false);
@@ -1008,7 +1045,6 @@ export function CohortsPage() {
   };
 
   const handleSave = async () => {
-    setFormError("");
     setError("");
 
     try {
@@ -1020,9 +1056,9 @@ export function CohortsPage() {
       await persistCohort(payload);
     } catch (err) {
       if (err instanceof Error) {
-        setFormError(err.message || "Failed to save cohort.");
+        pushToast("error", err.message || "Failed to save cohort.");
       } else {
-        setFormError("Failed to save cohort.");
+        pushToast("error", "Failed to save cohort.");
       }
     }
   };
@@ -1173,7 +1209,7 @@ export function CohortsPage() {
       }
     >
       <div className="dh-page">
-        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
 
         <div className="stats-grid stats-grid--compact dh-stats">
           <StatsCard label="Total Cohorts" value={String(totalCohorts)} hint="Rows after current filters" />
@@ -1256,27 +1292,7 @@ export function CohortsPage() {
         </div>
 
         {loading ? (
-          <>
-            <Card className="card--table desktop-only dh-table-wrap">
-              <div className="program-skeleton-table" aria-hidden>
-                <div className="program-skeleton-line program-skeleton-line--lg" />
-                <div className="program-skeleton-line" />
-                <div className="program-skeleton-line program-skeleton-line--sm" />
-                <div className="program-skeleton-line" />
-                <div className="program-skeleton-line program-skeleton-line--sm" />
-              </div>
-            </Card>
-            <div className="mobile-only programs-mobile-list">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Card key={index}>
-                  <div className="program-skeleton-card" aria-hidden>
-                    <div className="program-skeleton-line program-skeleton-line--md" />
-                    <div className="program-skeleton-line program-skeleton-line--sm" />
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         ) : null}
 
         {!loading ? (
@@ -1407,47 +1423,104 @@ export function CohortsPage() {
       </div>
 
       {selected ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
+        <div className="modal-overlay" role="presentation" onClick={closeDetailModal}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="modal-header">
-              <h3 className="modal-title">Cohort Details</h3>
-              <button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close modal" title="Close">
-                X
+              <h3 className="modal-title">{selected.name}</h3>
+              <button
+                className="modal-close"
+                type="button"
+                onClick={closeDetailModal}
+                aria-label="Close modal"
+              >
+                ✕
               </button>
             </header>
-            <div className="post-details">
-              <p className="post-details__line">
-                <strong>Name:</strong> {selected.name}
-              </p>
-              <p className="post-details__line">
-                <strong>Program:</strong> {selected.program_title}
-              </p>
-              <p className="post-details__line">
-                <strong>Status:</strong> {selected.status}
-              </p>
-              <p className="post-details__line">
-                <strong>Capacity:</strong> {selected.capacity ?? "N/A"}
-              </p>
-              <p className="post-details__line">
-                <strong>Enrollment Open:</strong> {selected.enrollment_open_at ? formatDateTime(selected.enrollment_open_at) : "N/A"}
-              </p>
-              <p className="post-details__line">
-                <strong>Enrollment Close:</strong> {selected.enrollment_close_at ? formatDateTime(selected.enrollment_close_at) : "N/A"}
-              </p>
-              <p className="post-details__line">
-                <strong>Start Date:</strong> {selected.start_date ? formatDate(selected.start_date) : "N/A"}
-              </p>
-              <p className="post-details__line">
-                <strong>End Date:</strong> {selected.end_date ? formatDate(selected.end_date) : "N/A"}
-              </p>
+
+            <div className="cohort-detail-tabs">
+              <button
+                type="button"
+                className={`cohort-detail-tab${detailTab === "info" ? " cohort-detail-tab--active" : ""}`}
+                onClick={() => setDetailTab("info")}
+              >
+                Info
+              </button>
+              <button
+                type="button"
+                className={`cohort-detail-tab${detailTab === "students" ? " cohort-detail-tab--active" : ""}`}
+                onClick={() => setDetailTab("students")}
+              >
+                Students {enrolledStudents.length > 0 ? `(${enrolledStudents.length})` : ""}
+              </button>
             </div>
+
+            {detailTab === "info" ? (
+              <div className="post-details">
+                <p className="post-details__line"><strong>Program:</strong> {selected.program_title}</p>
+                <p className="post-details__line"><strong>Status:</strong> {selected.status}</p>
+                <p className="post-details__line"><strong>Capacity:</strong> {selected.capacity ?? "N/A"}</p>
+                <p className="post-details__line">
+                  <strong>Enrollment Open:</strong> {selected.enrollment_open_at ? formatDateTime(selected.enrollment_open_at) : "N/A"}
+                </p>
+                <p className="post-details__line">
+                  <strong>Enrollment Close:</strong> {selected.enrollment_close_at ? formatDateTime(selected.enrollment_close_at) : "N/A"}
+                </p>
+                <p className="post-details__line">
+                  <strong>Start Date:</strong> {selected.start_date ? formatDate(selected.start_date) : "N/A"}
+                </p>
+                <p className="post-details__line">
+                  <strong>End Date:</strong> {selected.end_date ? formatDate(selected.end_date) : "N/A"}
+                </p>
+              </div>
+            ) : null}
+
+            {detailTab === "students" ? (
+              <div className="cohort-roster">
+                {loadingEnrollments ? (
+                  <PulseDots padding={32} label="Loading enrolled students" />
+                ) : enrolledStudents.length === 0 ? (
+                  <div className="empty-state">
+                    <p className="empty-state__title">No enrolled students</p>
+                    <p className="empty-state__description">
+                      Students are enrolled when their application is accepted and a user account is created.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="cohort-roster__list">
+                    <div className="cohort-roster__header">
+                      <span>#</span>
+                      <span>Name</span>
+                      <span>Email</span>
+                      <span>Phone</span>
+                      <span>Status</span>
+                    </div>
+                    {enrolledStudents.map((student, index) => (
+                      <div key={student.student_user_id} className="cohort-roster__row">
+                        <span className="cohort-roster__num">{index + 1}</span>
+                        <span className="cohort-roster__name">{student.full_name}</span>
+                        <span className="cohort-roster__email">{student.email ?? "—"}</span>
+                        <span className="cohort-roster__phone">{student.phone ?? "—"}</span>
+                        <span className={`cohort-roster__status cohort-roster__status--${student.enrollment_status}`}>
+                          {student.enrollment_status}
+                        </span>
+                      </div>
+                    ))}
+                    <p className="cohort-roster__total">
+                      {enrolledStudents.length} enrolled student{enrolledStudents.length !== 1 ? "s" : ""}
+                      {selected.capacity ? ` · ${selected.capacity - enrolledStudents.length} seat${selected.capacity - enrolledStudents.length !== 1 ? "s" : ""} remaining` : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <div className="modal-actions">
               <button
                 className="btn btn--secondary"
                 type="button"
                 onClick={() => {
                   navigate(`/admin/forms?cohort_id=${selected.id}`);
-                  setSelected(null);
+                  closeDetailModal();
                 }}
               >
                 Application Form
@@ -1457,7 +1530,7 @@ export function CohortsPage() {
                 type="button"
                 onClick={() => {
                   openEdit(selected);
-                  setSelected(null);
+                  closeDetailModal();
                 }}
               >
                 Edit
@@ -1467,7 +1540,7 @@ export function CohortsPage() {
                 type="button"
                 onClick={() => {
                   setDeleteTarget(selected);
-                  setSelected(null);
+                  closeDetailModal();
                 }}
               >
                 Delete
@@ -1700,7 +1773,7 @@ export function CohortsPage() {
                 <label className="field cohort-attendance-days">
                   <span className="field__label">Assigned Instructors</span>
                   {loadingAssignedInstructors ? (
-                    <p className="info-text info-text--small">Loading instructors...</p>
+                    <PulseDots layout="inline" label="Loading instructors" />
                   ) : null}
                   {!loadingAssignedInstructors && !instructorOptions.length ? (
                     <p className="info-text info-text--small">No active instructors found.</p>
@@ -1736,8 +1809,6 @@ export function CohortsPage() {
                 Status is calculated automatically from dates by default. You can update status directly from the list.
               </p>
             </div>
-
-            {formError ? <p className="alert alert--error">{formError}</p> : null}
 
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting}>
