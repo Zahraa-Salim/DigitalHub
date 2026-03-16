@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for program applications.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 
 export const stageSchema = z.enum([
@@ -11,6 +9,7 @@ export const stageSchema = z.enum([
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
   "participation_confirmed",
@@ -53,6 +52,7 @@ export const programApplicationStagePatchSchema = z
     stage: stageSchema.optional(),
     status: stageSchema.optional(),
     review_message: z.string().trim().max(4000).optional(),
+    force_transition: z.boolean().optional(),
   })
   .refine((payload) => Boolean(payload.stage || payload.status), {
     message: "stage or status is required",

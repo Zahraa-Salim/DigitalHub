@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for profiles.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 export const userIdParamsSchema = z.object({
     userId: z.coerce.number().int().positive(),

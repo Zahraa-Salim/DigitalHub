@@ -24,13 +24,16 @@ export function rateLimit({ keyPrefix, windowSec, max, keyFn }: RateLimitOptions
 
     const identity = String((keyFn ? keyFn(req) : req.ip) ?? "unknown");
     const redisKey = `${keyPrefix}:${identity}`;
+    const luaScript = `
+  local count = redis.call('INCR', KEYS[1])
+  if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+  end
+  return count
+`;
 
     try {
-      const count = await redis.incr(redisKey);
-
-      if (count === 1) {
-        await redis.expire(redisKey, windowSec);
-      }
+      const count = await redis.eval(luaScript, 1, redisKey, String(windowSec)) as number;
 
       if (count > max) {
         throw new AppError(429, "RATE_LIMITED", "Too many requests. Please try again later.", undefined);

@@ -2,9 +2,25 @@
 // Purpose: Runs the database queries used for profiles.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type StudentProfileUpdates = {
+  full_name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+  is_public?: boolean;
+  featured?: boolean;
+  featured_rank?: number | null;
+  public_slug?: string | null;
+  is_graduated?: boolean;
+  is_working?: boolean;
+  open_to_work?: boolean;
+  company_work_for?: string | null;
+};
 
 /**
  * Fetch student user data with profile
@@ -13,7 +29,7 @@ import { pool } from "../db/index.js";
  * JOIN student_profiles sp ON sp.user_id = u.id
  * WHERE u.id = $1
  */
-export async function getStudentProfileWithUser(userId, db = pool) {
+export async function getStudentProfileWithUser(userId: number, db: DbClient = pool) {
   return db.query(
     `
     SELECT
@@ -59,7 +75,7 @@ export async function getStudentProfileWithUser(userId, db = pool) {
  * WHERE student_user_id = $1 AND deleted_at IS NULL
  * ORDER BY sort_order, created_at DESC
  */
-export async function getStudentProjects(userId, db = pool) {
+export async function getStudentProjects(userId: number, db: DbClient = pool) {
   return db.query(
     `
     SELECT
@@ -89,7 +105,7 @@ export async function getStudentProjects(userId, db = pool) {
  * FROM student_profiles
  * WHERE public_slug = $1 AND is_public = true
  */
-export async function getPublicStudentProfileBySlug(publicSlug, db = pool) {
+export async function getPublicStudentProfileBySlug(publicSlug: string, db: DbClient = pool) {
   return db.query(
     `
     SELECT
@@ -122,7 +138,7 @@ export async function getPublicStudentProfileBySlug(publicSlug, db = pool) {
  * FROM projects
  * WHERE student_user_id = $1 AND is_public = true AND deleted_at IS NULL
  */
-export async function getPublicStudentProjects(userId, db = pool) {
+export async function getPublicStudentProjects(userId: number, db: DbClient = pool) {
   return db.query(
     `
     SELECT
@@ -149,13 +165,17 @@ export async function getPublicStudentProjects(userId, db = pool) {
 /**
  * Check if public_slug is unique
  */
-export async function isPublicSlugUnique(publicSlug, excludeUserId = null, db = pool) {
+export async function isPublicSlugUnique(
+  publicSlug: string,
+  excludeUserId: number | null = null,
+  db: DbClient = pool,
+) {
   let query = `
     SELECT COUNT(*) as count
     FROM student_profiles
     WHERE public_slug = $1
   `;
-  const params = [publicSlug];
+  const params: Array<string | number> = [publicSlug];
 
   if (excludeUserId !== null) {
     query += ` AND user_id != $${params.length + 1}`;
@@ -168,9 +188,9 @@ export async function isPublicSlugUnique(publicSlug, excludeUserId = null, db = 
 /**
  * Update student profile - returns updated profile
  */
-export async function updateStudentProfile(userId, updates, db = pool) {
-  const fields = [];
-  const values = [];
+export async function updateStudentProfile(userId: number, updates: StudentProfileUpdates, db: DbClient = pool) {
+  const fields: string[] = [];
+  const values: unknown[] = [];
   let paramIndex = 1;
 
   // Build dynamic update query
@@ -280,7 +300,7 @@ export async function updateStudentProfile(userId, updates, db = pool) {
 /**
  * Check if user exists
  */
-export async function getUserById(userId, db = pool) {
+export async function getUserById(userId: number, db: DbClient = pool) {
   return db.query(
     `
     SELECT id, email, phone
@@ -292,7 +312,7 @@ export async function getUserById(userId, db = pool) {
 }
 
 // Handles 'getStudentEnrollments' workflow for this module.
-export async function getStudentEnrollments(userId, db = pool) {
+export async function getStudentEnrollments(userId: number, db: DbClient = pool) {
   return db.query(
     `
     SELECT
@@ -317,7 +337,7 @@ export async function getStudentEnrollments(userId, db = pool) {
 }
 
 // Handles 'countStudentProfilesForAdmin' workflow for this module.
-export async function countStudentProfilesForAdmin(whereClause, params, db = pool) {
+export async function countStudentProfilesForAdmin(whereClause: string, params: unknown[], db: DbClient = pool) {
   return db.query(
     `
       SELECT COUNT(*)::int AS total
@@ -330,7 +350,15 @@ export async function countStudentProfilesForAdmin(whereClause, params, db = poo
 }
 
 // Handles 'listStudentProfilesForAdmin' workflow for this module.
-export async function listStudentProfilesForAdmin(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listStudentProfilesForAdmin(
+  whereClause: string,
+  sortBy: string,
+  order: string,
+  params: unknown[],
+  limit: number,
+  offset: number,
+  db: DbClient = pool,
+) {
   return db.query(
     `
       SELECT
@@ -412,12 +440,12 @@ export async function listStudentProfilesForAdmin(whereClause, sortBy, order, pa
 
 // Handles 'updateStudentAdminStatus' workflow for this module.
 export async function updateStudentAdminStatus(
-  userId,
-  status,
-  reason,
-  actorUserId,
-  isActive,
-  db = pool,
+  userId: number,
+  status: string,
+  reason: string | null,
+  actorUserId: number,
+  isActive: boolean,
+  db: DbClient = pool,
 ) {
   await db.query(
     `

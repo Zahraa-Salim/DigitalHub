@@ -24,6 +24,27 @@ function buildZodFieldErrors(error: ZodError<unknown>) {
     return { fieldErrors };
 }
 
+// Detects malformed JSON bodies rejected by express.json/body-parser.
+function isJsonBodyParseError(error: unknown): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const maybeError = error as {
+        type?: unknown;
+        status?: unknown;
+        statusCode?: unknown;
+        expose?: unknown;
+        body?: unknown;
+    };
+
+    return (
+        maybeError.type === "entity.parse.failed" ||
+        maybeError.status === 400 ||
+        maybeError.statusCode === 400
+    ) && typeof maybeError.body === "string";
+}
+
 // Central error middleware that normalizes known errors and sends consistent HTTP error payloads.
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
     const rawCode = typeof error === "object" && error !== null && "code" in error
@@ -35,6 +56,10 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
 
     if (error instanceof ZodError) {
         sendError(res, 400, "VALIDATION_ERROR", "Invalid request data", buildZodFieldErrors(error));
+        return;
+    }
+    if (isJsonBodyParseError(error)) {
+        sendError(res, 400, "INVALID_JSON", "Malformed JSON request body.", undefined);
         return;
     }
     if (error instanceof AppError) {

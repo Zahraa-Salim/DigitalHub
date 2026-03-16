@@ -23,8 +23,11 @@ import {
   patchProgramApplicationFormService,
   reorderFormFieldsService,
   listFormCohortsService,
+  listProgramFormOptionsService,
+  getProgramFormService,
   saveCohortFormService,
   saveGeneralFormService,
+  saveProgramFormService,
 } from "../services/forms.service.js";
 
 // Handles 'getGeneralForm' workflow for this module.
@@ -66,6 +69,24 @@ export async function getCohortForm(req: Request, res: Response) {
 export async function putCohortForm(req: Request, res: Response) {
   const data = await saveCohortFormService(Number(req.params.id), req.user!.id, req.body);
   sendSuccess(res, data, "Cohort form saved successfully.");
+}
+
+// Handles 'getProgramFormOptions' workflow for this module.
+export async function getProgramFormOptions(_req: Request, res: Response) {
+  const data = await listProgramFormOptionsService();
+  sendSuccess(res, data);
+}
+
+// Handles 'getProgramForm' workflow for this module.
+export async function getProgramForm(req: Request, res: Response) {
+  const data = await getProgramFormService(Number(req.params.id));
+  sendSuccess(res, data);
+}
+
+// Handles 'putProgramForm' workflow for this module.
+export async function putProgramForm(req: Request, res: Response) {
+  const data = await saveProgramFormService(Number(req.params.id), req.user!.id, req.body);
+  sendSuccess(res, data);
 }
 
 // Handles 'assignCohortForm' workflow for this module.

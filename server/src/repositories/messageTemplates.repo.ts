@@ -2,10 +2,20 @@
 // Purpose: Runs the database queries used for message templates.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
+
+type MessageTemplateInput = {
+  key: string;
+  label: string;
+  description?: string | null;
+  channel?: string;
+  subject?: string | null;
+  body: string;
+  is_active?: boolean;
+  sort_order?: number;
+  created_by?: number | null;
+};
 
 // Handles 'ensureMessageTemplatesTable' workflow for this module.
 export async function ensureMessageTemplatesTable(db: DbClient = pool) {
@@ -33,7 +43,7 @@ export async function ensureMessageTemplatesTable(db: DbClient = pool) {
 }
 
 // Handles 'insertDefaultMessageTemplate' workflow for this module.
-export async function insertDefaultMessageTemplate(input, db: DbClient = pool) {
+export async function insertDefaultMessageTemplate(input: MessageTemplateInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO message_templates (
@@ -114,7 +124,7 @@ export async function listMessageTemplates(includeInactive = false, sortBy = "so
 }
 
 // Handles 'createMessageTemplate' workflow for this module.
-export async function createMessageTemplate(input, db: DbClient = pool) {
+export async function createMessageTemplate(input: MessageTemplateInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO message_templates (
@@ -160,7 +170,7 @@ export async function createMessageTemplate(input, db: DbClient = pool) {
 }
 
 // Handles 'getMessageTemplateByKey' workflow for this module.
-export async function getMessageTemplateByKey(key, db: DbClient = pool) {
+export async function getMessageTemplateByKey(key: string, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -186,7 +196,13 @@ export async function getMessageTemplateByKey(key, db: DbClient = pool) {
 }
 
 // Handles 'updateMessageTemplateByKey' workflow for this module.
-export async function updateMessageTemplateByKey(key, setClause, values, updatedBy, db: DbClient = pool) {
+export async function updateMessageTemplateByKey(
+  key: string,
+  setClause: string,
+  values: unknown[],
+  updatedBy: number | null | undefined,
+  db: DbClient = pool,
+) {
   return db.query(
     `
       UPDATE message_templates
@@ -214,7 +230,7 @@ export async function updateMessageTemplateByKey(key, setClause, values, updated
 }
 
 // Handles 'setMessageTemplateActiveByKey' workflow for this module.
-export async function setMessageTemplateActiveByKey(key, isActive, db: DbClient = pool) {
+export async function setMessageTemplateActiveByKey(key: string, isActive: boolean, db: DbClient = pool) {
   return db.query(
     `
       UPDATE message_templates

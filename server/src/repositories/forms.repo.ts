@@ -2,12 +2,32 @@
 // Purpose: Runs the database queries used for forms.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type FormInput = {
+  key?: string;
+  title?: string | null;
+  description?: string | null;
+  is_active?: boolean;
+  created_by?: number | null;
+};
+
+type FormFieldInput = {
+  name?: string;
+  label?: string;
+  type?: string;
+  required?: boolean;
+  options?: unknown;
+  placeholder?: string | null;
+  min_length?: number | null;
+  max_length?: number | null;
+  sort_order?: number | null;
+  is_enabled?: boolean;
+};
 
 // Handles 'toJsonbParam' workflow for this module.
-function toJsonbParam(value) {
+function toJsonbParam(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null;
   }
@@ -31,7 +51,7 @@ function toJsonbParam(value) {
 }
 
 // Handles 'findFormByKey' workflow for this module.
-export async function findFormByKey(key, db = pool) {
+export async function findFormByKey(key: string | undefined, db: DbClient = pool) {
   return db.query(
     `
       SELECT id, key, title, description, is_active, created_by, updated_at
@@ -44,9 +64,9 @@ export async function findFormByKey(key, db = pool) {
 }
 
 // Handles 'listForms' workflow for this module.
-export async function listForms(scope = "all", db = pool) {
+export async function listForms(scope: string = "all", db: DbClient = pool) {
   let whereClause = "";
-  const params = [];
+  const params: unknown[] = [];
   if (scope === "general") {
     whereClause = "WHERE f.key NOT LIKE 'cohort_application_cohort_%'";
   } else if (scope === "cohort") {
@@ -73,7 +93,7 @@ export async function listForms(scope = "all", db = pool) {
 }
 
 // Handles 'getFormById' workflow for this module.
-export async function getFormById(id, db = pool) {
+export async function getFormById(id: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT id, key, title, description, is_active, created_by, updated_at
@@ -86,7 +106,7 @@ export async function getFormById(id, db = pool) {
 }
 
 // Handles 'renameFormKey' workflow for this module.
-export async function renameFormKey(formId, nextKey, db = pool) {
+export async function renameFormKey(formId: number, nextKey: string | undefined, db: DbClient = pool) {
   return db.query(
     `
       UPDATE forms
@@ -99,7 +119,7 @@ export async function renameFormKey(formId, nextKey, db = pool) {
 }
 
 // Handles 'listFormFields' workflow for this module.
-export async function listFormFields(formId, db = pool) {
+export async function listFormFields(formId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -124,7 +144,7 @@ export async function listFormFields(formId, db = pool) {
 }
 
 // Handles 'getFormFieldById' workflow for this module.
-export async function getFormFieldById(fieldId, db = pool) {
+export async function getFormFieldById(fieldId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -149,7 +169,7 @@ export async function getFormFieldById(fieldId, db = pool) {
 }
 
 // Handles 'createForm' workflow for this module.
-export async function createForm(input, db = pool) {
+export async function createForm(input: FormInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO forms (key, title, description, is_active, created_by, updated_at)
@@ -167,7 +187,7 @@ export async function createForm(input, db = pool) {
 }
 
 // Handles 'updateForm' workflow for this module.
-export async function updateForm(formId, setClause, values, db = pool) {
+export async function updateForm(formId: number, setClause: string, values: unknown[], db: DbClient = pool) {
   return db.query(
     `
       UPDATE forms
@@ -180,7 +200,7 @@ export async function updateForm(formId, setClause, values, db = pool) {
 }
 
 // Handles 'replaceFormFields' workflow for this module.
-export async function replaceFormFields(formId, fields, db = pool) {
+export async function replaceFormFields(formId: number, fields: FormFieldInput[], db: DbClient = pool) {
   await db.query(`DELETE FROM form_fields WHERE form_id = $1`, [formId]);
 
   for (const field of fields) {
@@ -211,7 +231,7 @@ export async function replaceFormFields(formId, fields, db = pool) {
 }
 
 // Handles 'createFormField' workflow for this module.
-export async function createFormField(formId, field, db = pool) {
+export async function createFormField(formId: number, field: FormFieldInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO form_fields
@@ -257,7 +277,12 @@ export async function createFormField(formId, field, db = pool) {
 }
 
 // Handles 'updateFormField' workflow for this module.
-export async function updateFormField(fieldId, setClause, values, db = pool) {
+export async function updateFormField(
+  fieldId: number,
+  setClause: string,
+  values: unknown[],
+  db: DbClient = pool,
+) {
   return db.query(
     `
       UPDATE form_fields
@@ -271,7 +296,7 @@ export async function updateFormField(fieldId, setClause, values, db = pool) {
 }
 
 // Handles 'deleteFormField' workflow for this module.
-export async function deleteFormField(fieldId, db = pool) {
+export async function deleteFormField(fieldId: number, db: DbClient = pool) {
   return db.query(
     `
       DELETE FROM form_fields
@@ -283,7 +308,7 @@ export async function deleteFormField(fieldId, db = pool) {
 }
 
 // Handles 'reorderFormFields' workflow for this module.
-export async function reorderFormFields(formId, orderedFieldIds, db = pool) {
+export async function reorderFormFields(formId: number, orderedFieldIds: number[], db: DbClient = pool) {
   return db.query(
     `
       UPDATE form_fields ff
@@ -303,7 +328,7 @@ export async function reorderFormFields(formId, orderedFieldIds, db = pool) {
 }
 
 // Handles 'getCohortFormConfigById' workflow for this module.
-export async function getCohortFormConfigById(cohortId, db = pool) {
+export async function getCohortFormConfigById(cohortId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -330,7 +355,7 @@ export async function getCohortFormConfigById(cohortId, db = pool) {
 }
 
 // Handles 'listCohortFormOptions' workflow for this module.
-export async function listCohortFormOptions(db = pool) {
+export async function listCohortFormOptions(db: DbClient = pool) {
   return db.query(`
       SELECT
         c.id,
@@ -349,7 +374,12 @@ export async function listCohortFormOptions(db = pool) {
 }
 
 // Handles 'updateCohortFormConfig' workflow for this module.
-export async function updateCohortFormConfig(cohortId, useGeneralForm, applicationFormId, db = pool) {
+export async function updateCohortFormConfig(
+  cohortId: number,
+  useGeneralForm: boolean,
+  applicationFormId: number | null,
+  db: DbClient = pool,
+) {
   return db.query(
     `
       UPDATE cohorts
@@ -364,8 +394,67 @@ export async function updateCohortFormConfig(cohortId, useGeneralForm, applicati
   );
 }
 
+// Handles 'listProgramFormOptions' workflow for this module.
+export async function listProgramFormOptions(db: DbClient = pool) {
+  return db.query(
+    `
+      SELECT
+        p.id,
+        p.title,
+        p.slug,
+        p.is_published,
+        p.use_general_form,
+        p.application_form_id
+      FROM programs p
+      WHERE p.deleted_at IS NULL
+      ORDER BY p.title ASC, p.id ASC
+    `,
+  );
+}
+
+// Handles 'getProgramFormConfigById' workflow for this module.
+export async function getProgramFormConfigById(programId: number, db: DbClient = pool) {
+  return db.query(
+    `
+      SELECT
+        p.id,
+        p.title,
+        p.slug,
+        p.is_published,
+        p.use_general_form,
+        p.application_form_id
+      FROM programs p
+      WHERE p.id = $1
+        AND p.deleted_at IS NULL
+      LIMIT 1
+    `,
+    [programId],
+  );
+}
+
+// Handles 'updateProgramFormConfig' workflow for this module.
+export async function updateProgramFormConfig(
+  programId: number,
+  useGeneralForm: boolean,
+  applicationFormId: number | null,
+  db: DbClient = pool,
+) {
+  return db.query(
+    `
+      UPDATE programs
+      SET use_general_form = $1,
+          application_form_id = $2,
+          updated_at = NOW()
+      WHERE id = $3
+        AND deleted_at IS NULL
+      RETURNING id, use_general_form, application_form_id, updated_at
+    `,
+    [useGeneralForm, applicationFormId, programId],
+  );
+}
+
 // Handles 'normalizeLegacyPlannedStatuses' workflow for this module.
-export async function normalizeLegacyPlannedStatuses(db = pool) {
+export async function normalizeLegacyPlannedStatuses(db: DbClient = pool) {
   return db.query(`
       UPDATE cohorts
       SET status = 'coming_soon', updated_at = NOW()
@@ -375,7 +464,7 @@ export async function normalizeLegacyPlannedStatuses(db = pool) {
 }
 
 // Handles 'listPublishedProgramOptions' workflow for this module.
-export async function listPublishedProgramOptions(db = pool) {
+export async function listPublishedProgramOptions(db: DbClient = pool) {
   return db.query(
     `
       SELECT id, title

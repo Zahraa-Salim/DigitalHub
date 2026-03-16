@@ -13,9 +13,9 @@ import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../util
 import { getUser, isSuperAdminUser } from "../../utils/auth";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
-import { Filters } from "./profiles-shared/Filters";
-import { SearchBar } from "./profiles-shared/SearchBar";
-import { StatusPanel } from "./profiles-shared/StatusPanel";
+import { Filters } from "./profiles/shared/Filters";
+import { SearchBar } from "./profiles/shared/SearchBar";
+import { StatusPanel } from "./profiles/shared/StatusPanel";
 
 type ManagerRow = {
   user_id: number;

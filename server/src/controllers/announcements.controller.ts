@@ -5,7 +5,7 @@
 
 import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { createAnnouncementService, deleteAnnouncementService, listAnnouncementsService, patchAnnouncementService, } from "../services/announcements.service.js";
+import { broadcastAnnouncementService, broadcastPreviewService, createAnnouncementService, deleteAnnouncementService, listAnnouncementsService, patchAnnouncementService, } from "../services/announcements.service.js";
 // Handles 'createAnnouncement' workflow for this module.
 export async function createAnnouncement(req: Request, res: Response) {
     const data = await createAnnouncementService(req.user!.id, req.body);
@@ -27,7 +27,14 @@ export async function deleteAnnouncement(req: Request, res: Response) {
     sendSuccess(res, data, "Announcement deleted successfully.");
 }
 
+// Handles 'broadcastAnnouncement' workflow for this module.
+export async function broadcastAnnouncement(req: Request, res: Response) {
+    const data = await broadcastAnnouncementService(Number(req.params.id), req.user!.id, req.body);
+    sendSuccess(res, data, "Announcement broadcast sent successfully.");
+}
 
-
-
-
+// Handles 'broadcastPreview' workflow for this module.
+export async function broadcastPreview(req: Request, res: Response) {
+    const data = await broadcastPreviewService(Number(req.params.id));
+    sendSuccess(res, data);
+}

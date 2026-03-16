@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for admin forms.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import {
   patchFormField,

@@ -11,11 +11,11 @@ import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
-import { Filters } from "./profiles-shared/Filters";
-import { SearchBar } from "./profiles-shared/SearchBar";
-import { StatusPanel } from "./profiles-shared/StatusPanel";
-import { StudentsTable } from "./profiles-students/StudentsTable";
-import { type CohortOption, type StudentRow, type StudentStatus, getStudentStatus, summarizeCohorts } from "./profiles-students/types";
+import { Filters } from "./profiles/shared/Filters";
+import { SearchBar } from "./profiles/shared/SearchBar";
+import { StatusPanel } from "./profiles/shared/StatusPanel";
+import { StudentsTable } from "./profiles/students/StudentsTable";
+import { type CohortOption, type StudentRow, type StudentStatus, getStudentStatus, summarizeCohorts } from "./profiles/students/types";
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
 

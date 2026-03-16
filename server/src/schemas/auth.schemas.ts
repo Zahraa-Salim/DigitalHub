@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for auth.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 export const loginBodySchema = z.object({
     email: z.string().trim().email(),

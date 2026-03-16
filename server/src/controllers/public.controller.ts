@@ -10,8 +10,10 @@ import {
     getPublicCohortDetailService,
     getPublicEventBySlugService,
     getPublicApplyFormService,
+    getPublicGeneralFormService,
     getPublicHomeService,
     getPublicPageByKeyService,
+    getPublicProgramApplicationFormService,
     getPublicStudentDetailService,
     getPublicThemeService,
     listPublicAnnouncementsService,
@@ -22,6 +24,7 @@ import {
     listPublicProgramsService,
     listPublicStudentsService,
     submitPublicApplyService,
+    submitPublicCohortApplyService,
 } from "../services/public.service.js";
 
 function getParamValue(value: string | string[] | undefined): string {
@@ -50,6 +53,16 @@ export async function getPublicCohortById(req: Request, res: Response) {
 // Handles 'getPublicApplyForm' workflow for this module.
 export async function getPublicApplyForm(req: Request, res: Response) {
     const data = await getPublicApplyFormService();
+    sendSuccess(res, data);
+}
+// Handles 'getPublicGeneralForm' workflow for this module.
+export async function getPublicGeneralForm(_req: Request, res: Response) {
+    const data = await getPublicGeneralFormService();
+    sendSuccess(res, data);
+}
+// Handles 'getPublicProgramApplicationForm' workflow for this module.
+export async function getPublicProgramApplicationForm(req: Request, res: Response) {
+    const data = await getPublicProgramApplicationFormService(Number(req.params.id));
     sendSuccess(res, data);
 }
 // Handles 'getPublicEvents' workflow for this module.
@@ -108,6 +121,11 @@ export async function getPublicPageByKey(req: Request, res: Response) {
 // Handles 'submitPublicApply' workflow for this module.
 export async function submitPublicApply(req: Request, res: Response) {
     const data = await submitPublicApplyService(req.body);
+    sendSuccess(res, data, "Application submitted successfully.", 201);
+}
+// Handles 'submitPublicCohortApply' workflow for this module.
+export async function submitPublicCohortApply(req: Request, res: Response) {
+    const data = await submitPublicCohortApplyService(Number(req.params.id), req.body);
     sendSuccess(res, data, "Application submitted successfully.", 201);
 }
 

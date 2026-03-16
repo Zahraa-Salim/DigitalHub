@@ -139,6 +139,36 @@ const DEFAULT_MESSAGE_TEMPLATES = [
     is_active: true,
     sort_order: 80,
   },
+  {
+    key: "account_existing_reminder",
+    label: "Account Access Reminder",
+    description: "Sent when resending login details to an applicant who already has an account.",
+    channel: "all",
+    subject: "Your Digital Hub Account",
+    body:
+      "Dear {name},\n\n" +
+      "Your student account is already active.\n" +
+      "Email: {email}\n" +
+      "Sign in here: {sign_in_url}\n\n" +
+      "If you forgot your password, use the Forgot Password option on the sign-in page.\n\n" +
+      "Best regards,\nDigital Hub Team",
+    is_active: true,
+    sort_order: 85,
+  },
+  {
+    key: "announcement_broadcast",
+    label: "Announcement Broadcast",
+    description: "Used when broadcasting an announcement as email or WhatsApp message.",
+    channel: "all",
+    subject: "{announcement_title}",
+    body:
+      "Hello {name},\n\n" +
+      "{announcement_body}\n\n" +
+      "{cta_label_line}" +
+      "Best regards,\nDigital Hub Team",
+    is_active: true,
+    sort_order: 90,
+  },
 ];
 
 const MESSAGE_TEMPLATES_ENSURE_LOCK_KEY = 42100421;

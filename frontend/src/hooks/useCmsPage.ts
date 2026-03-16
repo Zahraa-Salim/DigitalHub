@@ -1,10 +1,8 @@
-﻿// File: frontend/src/hooks/useCmsPage.ts
-// Purpose: Provides the use CMS page hook or helper component.
-// It packages reusable view or state behavior for other frontend modules.
+// File: frontend/src/hooks/useCmsPage.ts
+// Purpose: Provides the useCmsPage hook and useCmsBreadcrumb helper.
+// Uses TanStack Query for caching - replaces the manual useEffect + useState pattern.
 
-"use client";
-
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getPublicPageByKey, type PublicPage } from "@/lib/publicApi";
 import { getCmsString } from "@/lib/cmsContent";
 
@@ -14,49 +12,35 @@ type BreadcrumbConfig = {
 };
 
 type UseCmsBreadcrumbOptions = {
-  /**
-   * Fallback values used when the CMS page is missing or incomplete.
-   */
   defaultsTitle: string;
   defaultsSubTitle: string;
 };
 
-export const useCmsPage = (pageKey: string) => {
-  const [page, setPage] = useState<PublicPage | null>(null);
+export const useCmsPage = (pageKey: string): PublicPage | null => {
+  const normalizedKey = String(pageKey || "").trim();
 
-  useEffect(() => {
-    let active = true;
+  const { data } = useQuery({
+    queryKey: ["public", "page", normalizedKey],
+    queryFn: () => getPublicPageByKey(normalizedKey),
+    staleTime: 60_000,
+    enabled: Boolean(normalizedKey),
+  });
 
-    const load = async () => {
-      const normalizedKey = String(pageKey || "").trim();
-      if (!normalizedKey) return;
-
-      try {
-        const data = await getPublicPageByKey(normalizedKey);
-        if (!active) return;
-        setPage(data);
-      } catch {
-        // Keep null page on error to preserve hardcoded fallbacks.
-        if (!active) return;
-        setPage(null);
-      }
-    };
-
-    void load();
-
-    return () => {
-      active = false;
-    };
-  }, [pageKey]);
-
-  return page;
+  return data ?? null;
 };
 
-export const useCmsBreadcrumb = (pageKey: string, options: UseCmsBreadcrumbOptions): BreadcrumbConfig => {
+export const useCmsBreadcrumb = (
+  pageKey: string,
+  options: UseCmsBreadcrumbOptions,
+): BreadcrumbConfig => {
   const page = useCmsPage(pageKey);
   const content = page?.content ?? null;
 
-  const title = getCmsString(content, ["hero_title", "heroTitle", "title", "heading"], options.defaultsTitle);
+  const title = getCmsString(
+    content,
+    ["hero_title", "heroTitle", "title", "heading"],
+    options.defaultsTitle,
+  );
   const subTitle = getCmsString(
     content,
     ["hero_subtitle", "heroSubtitle", "subtitle", "sub_title", "label"],
@@ -65,4 +49,3 @@ export const useCmsBreadcrumb = (pageKey: string, options: UseCmsBreadcrumbOptio
 
   return { title, subTitle };
 };
-

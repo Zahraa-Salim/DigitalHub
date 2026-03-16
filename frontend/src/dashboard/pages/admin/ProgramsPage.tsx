@@ -9,12 +9,14 @@ import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
+import { ToastStack } from "../../components/ToastStack";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { ImageUpload } from "../../components/ImageUpload";
 import { ValidationMessage } from "../../components/ValidationMessage";
 import { BulkActionsToolbar } from "../../components/BulkActionsToolbar";
 import { QuickPreviewPanel, type PreviewField } from "../../components/QuickPreviewPanel";
 import { AdvancedFilterPanel, type FilterCondition } from "../../components/AdvancedFilterPanel";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api, apiList } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -151,6 +153,7 @@ function toFormState(program: ProgramRow | null): ProgramFormState {
 }
 
 export function ProgramsPage() {
+  const { toasts, pushToast, dismissToast } = useDashboardToasts();
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -249,6 +252,30 @@ export function ProgramsPage() {
   const rows = useMemo(() => programs, [programs]);
 
   useEffect(() => { setImagePreviewFailed(false); }, [formImageSrc]);
+
+  useEffect(() => {
+    if (success) {
+      pushToast("success", success);
+    }
+  }, [pushToast, success]);
+
+  useEffect(() => {
+    if (error) {
+      pushToast("error", error);
+    }
+  }, [error, pushToast]);
+
+  useEffect(() => {
+    if (programStyleNotice) {
+      pushToast("success", programStyleNotice);
+    }
+  }, [programStyleNotice, pushToast]);
+
+  useEffect(() => {
+    if (programStyleError) {
+      pushToast("error", programStyleError);
+    }
+  }, [programStyleError, pushToast]);
 
   const openCreate = () => {
     setFormMode("create");
@@ -521,32 +548,29 @@ export function ProgramsPage() {
     <PageShell title="Programs" subtitle="Manage program templates used by cohorts."
       actions={<button className="btn btn--primary dh-btn dh-btn--add" type="button" onClick={openCreate}>Add Program</button>}>
       <div className="dh-page">
-        <div className="stats-grid stats-grid--compact dh-stats">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <div className="stats-grid stats-grid--compact dh-stats dh-programs-top-grid">
           <StatsCard label="Total Programs" value={String(totalPrograms)} hint="Templates in database" />
           <StatsCard label="Last Updated" value={lastUpdated ? formatDateTime(lastUpdated) : "No records"} hint="Most recently changed" />
-        </div>
-
-        <Card className="card--compact-row">
-          <div>
+          <Card className="dh-program-style-card">
+            <div>
             <h3 className="section-title">Website Program Card Style</h3>
-            <p className="info-text">Choose the card design used on the public home and programs pages.</p>
-          </div>
-          <div className="dh-program-style-controls">
-            <label className="field">
-              <span className="field__label">Card Style</span>
-              <select className="field__control" value={programCardStyle} onChange={(e) => setProgramCardStyle(e.target.value as ProgramCardStyle)} disabled={isSavingProgramStyle}>
-                <option value="modern">Modern Gradient</option>
-                <option value="classic">Classic Minimal</option>
-              </select>
-            </label>
-            <button className="btn btn--primary dh-btn" type="button" onClick={saveProgramCardStyle} disabled={isSavingProgramStyle}>
-              {isSavingProgramStyle ? "Saving..." : "Save Style"}
-            </button>
-          </div>
-        </Card>
-
-        {programStyleNotice && <Card><p className="alert alert--success dh-alert">{programStyleNotice}</p></Card>}
-        {programStyleError && <Card><p className="alert alert--error dh-alert">{programStyleError}</p></Card>}
+            <p className="info-text info-text--small">Choose style used on public program cards.</p>
+            </div>
+            <div className="dh-program-style-controls">
+              <label className="field">
+                <span className="field__label">Card Style</span>
+                <select className="field__control" value={programCardStyle} onChange={(e) => setProgramCardStyle(e.target.value as ProgramCardStyle)} disabled={isSavingProgramStyle}>
+                  <option value="modern">Modern Gradient</option>
+                  <option value="classic">Classic Minimal</option>
+                </select>
+              </label>
+              <button className="btn btn--primary dh-btn" type="button" onClick={saveProgramCardStyle} disabled={isSavingProgramStyle}>
+                {isSavingProgramStyle ? "Saving..." : "Save Style"}
+              </button>
+            </div>
+          </Card>
+        </div>
 
         <div className="dh-filters">
           <div className="dh-filters-desktop-panel">
@@ -564,9 +588,6 @@ export function ProgramsPage() {
             </button>
           </div>
         </div>
-
-        {success && <Card><p className="alert alert--success dh-alert">{success}</p></Card>}
-        {error && <Card><p className="alert alert--error dh-alert">{error}</p></Card>}
 
         <BulkActionsToolbar selectedCount={selectedPrograms.size} onDelete={handleBulkDelete} onExport={() => handleBulkExport('csv')} onDeselectAll={() => setSelectedPrograms(new Set())} isLoading={isProcessingBulk} />
 

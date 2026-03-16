@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for programs.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { assignCohortForm } from "../controllers/forms.controller.js";
 import { assignCohortInstructor, closeCohort, createCohort, createProgram, deleteCohort, deleteProgram, getCohortInstructors, getCohorts, getPrograms, openCohort, patchCohort, patchProgram, postProgramImage, unassignCohortInstructor, } from "../controllers/programs.controller.js";

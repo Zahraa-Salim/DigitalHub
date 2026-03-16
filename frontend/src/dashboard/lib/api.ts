@@ -254,7 +254,7 @@ export async function getProgramApplicationDetail(id: number): Promise<ProgramAp
 
 export async function updateProgramApplicationStage(
   id: number,
-  payload: { stage: ProgramApplicationStage; review_message?: string },
+  payload: { stage: ProgramApplicationStage; review_message?: string; force_transition?: boolean },
 ): Promise<Record<string, unknown>> {
   return api(`/program-applications/${id}/stage`, {
     method: "PATCH",
@@ -531,6 +531,13 @@ export async function listOverviewMessages(params: {
 
 export async function resendOverviewMessage(messageId: number): Promise<OverviewMessageRow> {
   return api(`/admin/overview/messages/${messageId}/resend`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function resendAcceptanceMessage(id: number): Promise<Record<string, unknown>> {
+  return api(`/applications/${id}/resend-acceptance`, {
     method: "POST",
     body: JSON.stringify({}),
   });

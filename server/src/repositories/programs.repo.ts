@@ -2,12 +2,40 @@
 // Purpose: Runs the database queries used for programs.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
+
+type ProgramInput = {
+    slug?: string;
+    title?: string;
+    summary?: string | null;
+    description?: string | null;
+    requirements?: string | null;
+    image_url?: string | null;
+    default_capacity?: number | null;
+    is_published?: boolean;
+    created_by?: number | null;
+    [key: string]: unknown;
+};
+
+type CohortInput = {
+    program_id: number;
+    name: string;
+    status?: string;
+    allow_applications?: boolean;
+    capacity?: number | null;
+    enrollment_open_at?: string | null;
+    enrollment_close_at?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    auto_announce?: boolean;
+    attendance_days?: string[] | string | null;
+    attendance_start_time?: string | null;
+    attendance_end_time?: string | null;
+    [key: string]: unknown;
+};
 // Handles 'createProgram' workflow for this module.
-export async function createProgram(input, db: DbClient = pool) {
+export async function createProgram(input: ProgramInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO programs
         (slug, title, summary, description, requirements, image_url, default_capacity, is_published, created_by, created_at, updated_at)
@@ -27,12 +55,20 @@ export async function createProgram(input, db: DbClient = pool) {
     ]);
 }
 // Handles 'countPrograms' workflow for this module.
-export async function countPrograms(whereClause, params, db: DbClient = pool) {
+export async function countPrograms(whereClause: string, params: unknown[], db: DbClient = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`SELECT COUNT(*)::int AS total FROM programs ${scopedWhere}`, params);
 }
 // Handles 'listPrograms' workflow for this module.
-export async function listPrograms(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
+export async function listPrograms(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     const scopedWhere = whereClause ? `${whereClause} AND deleted_at IS NULL` : "WHERE deleted_at IS NULL";
     return db.query(`
       SELECT id, slug, title, summary, description, requirements, image_url, default_capacity, is_published, created_by, created_at, updated_at
@@ -44,7 +80,7 @@ export async function listPrograms(whereClause, sortBy, order, params, limit, of
     `, [...params, limit, offset]);
 }
 // Handles 'updateProgram' workflow for this module.
-export async function updateProgram(id, setClause, values, db: DbClient = pool) {
+export async function updateProgram(id: number, setClause: string, values: unknown[], db: DbClient = pool) {
     return db.query(`
       UPDATE programs
       SET ${setClause}, updated_at = NOW()
@@ -54,7 +90,7 @@ export async function updateProgram(id, setClause, values, db: DbClient = pool) 
     `, [...values, id]);
 }
 // Handles 'deleteProgram' workflow for this module.
-export async function deleteProgram(id, db: DbClient = pool) {
+export async function deleteProgram(id: number, db: DbClient = pool) {
     return db.query(`
       UPDATE programs
       SET deleted_at = NOW(), updated_at = NOW(), is_published = FALSE
@@ -64,7 +100,7 @@ export async function deleteProgram(id, db: DbClient = pool) {
     `, [id]);
 }
 // Handles 'softDeleteCohortsByProgramId' workflow for this module.
-export async function softDeleteCohortsByProgramId(programId, db: DbClient = pool) {
+export async function softDeleteCohortsByProgramId(programId: number, db: DbClient = pool) {
     return db.query(`
       UPDATE cohorts
       SET deleted_at = NOW(), updated_at = NOW(), allow_applications = FALSE
@@ -73,7 +109,7 @@ export async function softDeleteCohortsByProgramId(programId, db: DbClient = poo
     `, [programId]);
 }
 // Handles 'findActiveProgramById' workflow for this module.
-export async function findActiveProgramById(programId, db: DbClient = pool) {
+export async function findActiveProgramById(programId: number, db: DbClient = pool) {
     return db.query(`
       SELECT id
       FROM programs
@@ -83,7 +119,7 @@ export async function findActiveProgramById(programId, db: DbClient = pool) {
     `, [programId]);
 }
 // Handles 'createCohort' workflow for this module.
-export async function createCohort(input, db: DbClient = pool) {
+export async function createCohort(input: CohortInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO cohorts
         (
@@ -123,7 +159,7 @@ export async function createCohort(input, db: DbClient = pool) {
     ]);
 }
 // Handles 'countCohorts' workflow for this module.
-export async function countCohorts(whereClause, params, db: DbClient = pool) {
+export async function countCohorts(whereClause: string, params: unknown[], db: DbClient = pool) {
     const scopedWhere = whereClause
         ? `${whereClause} AND c.deleted_at IS NULL AND p.deleted_at IS NULL`
         : "WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL";
@@ -135,7 +171,15 @@ export async function countCohorts(whereClause, params, db: DbClient = pool) {
     `, params);
 }
 // Handles 'listCohorts' workflow for this module.
-export async function listCohorts(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
+export async function listCohorts(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     const scopedWhere = whereClause
         ? `${whereClause} AND c.deleted_at IS NULL AND p.deleted_at IS NULL`
         : "WHERE c.deleted_at IS NULL AND p.deleted_at IS NULL";
@@ -167,7 +211,7 @@ export async function listCohorts(whereClause, sortBy, order, params, limit, off
     `, [...params, limit, offset]);
 }
 // Handles 'getCohortStatusById' workflow for this module.
-export async function getCohortStatusById(id, db: DbClient = pool) {
+export async function getCohortStatusById(id: number, db: DbClient = pool) {
     return db.query(`
       SELECT
         c.id,
@@ -191,7 +235,7 @@ export async function getCohortStatusById(id, db: DbClient = pool) {
     `, [id]);
 }
 // Handles 'updateCohort' workflow for this module.
-export async function updateCohort(id, setClause, values, db: DbClient = pool) {
+export async function updateCohort(id: number, setClause: string, values: unknown[], db: DbClient = pool) {
     return db.query(`
       UPDATE cohorts
       SET ${setClause}, updated_at = NOW()
@@ -201,7 +245,7 @@ export async function updateCohort(id, setClause, values, db: DbClient = pool) {
     `, [...values, id]);
 }
 // Handles 'deleteCohort' workflow for this module.
-export async function deleteCohort(id, db: DbClient = pool) {
+export async function deleteCohort(id: number, db: DbClient = pool) {
     return db.query(`
       UPDATE cohorts
       SET deleted_at = NOW(), updated_at = NOW(), allow_applications = FALSE
@@ -211,7 +255,7 @@ export async function deleteCohort(id, db: DbClient = pool) {
     `, [id]);
 }
 // Handles 'openCohort' workflow for this module.
-export async function openCohort(id, db: DbClient = pool) {
+export async function openCohort(id: number, db: DbClient = pool) {
     return db.query(`
       UPDATE cohorts
       SET status = 'open', allow_applications = TRUE, enrollment_open_at = COALESCE(enrollment_open_at, NOW()), updated_at = NOW()
@@ -221,7 +265,7 @@ export async function openCohort(id, db: DbClient = pool) {
     `, [id]);
 }
 // Handles 'closeCohort' workflow for this module.
-export async function closeCohort(id, db: DbClient = pool) {
+export async function closeCohort(id: number, db: DbClient = pool) {
     return db.query(`
       UPDATE cohorts
       SET
@@ -235,7 +279,7 @@ export async function closeCohort(id, db: DbClient = pool) {
     `, [id]);
 }
 // Handles 'countCohortInstructors' workflow for this module.
-export async function countCohortInstructors(whereClause, params, db: DbClient = pool) {
+export async function countCohortInstructors(whereClause: string, params: unknown[], db: DbClient = pool) {
     const scopedWhere = whereClause ? `${whereClause} AND c.deleted_at IS NULL` : "WHERE c.deleted_at IS NULL";
     return db.query(`
       SELECT COUNT(*)::int AS total
@@ -246,7 +290,15 @@ export async function countCohortInstructors(whereClause, params, db: DbClient =
     `, params);
 }
 // Handles 'listCohortInstructors' workflow for this module.
-export async function listCohortInstructors(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
+export async function listCohortInstructors(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     const scopedWhere = whereClause ? `${whereClause} AND c.deleted_at IS NULL` : "WHERE c.deleted_at IS NULL";
     return db.query(`
       SELECT
@@ -266,7 +318,7 @@ export async function listCohortInstructors(whereClause, sortBy, order, params, 
     `, [...params, limit, offset]);
 }
 // Handles 'findActiveInstructor' workflow for this module.
-export async function findActiveInstructor(instructorUserId, db: DbClient = pool) {
+export async function findActiveInstructor(instructorUserId: number, db: DbClient = pool) {
     return db.query(`
       SELECT id
       FROM users
@@ -276,7 +328,7 @@ export async function findActiveInstructor(instructorUserId, db: DbClient = pool
     `, [instructorUserId]);
 }
 // Handles 'upsertCohortInstructor' workflow for this module.
-export async function upsertCohortInstructor(cohortId, instructorUserId, cohortRole, db: DbClient = pool) {
+export async function upsertCohortInstructor(cohortId: number, instructorUserId: number, cohortRole: string, db: DbClient = pool) {
     return db.query(`
       INSERT INTO cohort_instructors (cohort_id, instructor_user_id, cohort_role)
       SELECT $1, $2, $3
@@ -293,7 +345,7 @@ export async function upsertCohortInstructor(cohortId, instructorUserId, cohortR
 }
 
 // Handles 'deleteCohortInstructor' workflow for this module.
-export async function deleteCohortInstructor(cohortId, instructorUserId, db: DbClient = pool) {
+export async function deleteCohortInstructor(cohortId: number, instructorUserId: number, db: DbClient = pool) {
     return db.query(`
       DELETE FROM cohort_instructors
       WHERE cohort_id = $1

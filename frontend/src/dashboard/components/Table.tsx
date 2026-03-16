@@ -16,9 +16,16 @@ type TableProps<T> = {
   rows: T[];
   rowKey: (row: T) => string | number;
   emptyMessage?: string;
+  onRowClick?: (row: T) => void;
 };
 
-export function Table<T>({ columns, rows, rowKey, emptyMessage = "No records found." }: TableProps<T>) {
+export function Table<T>({
+  columns,
+  rows,
+  rowKey,
+  emptyMessage = "No records found.",
+  onRowClick,
+}: TableProps<T>) {
   return (
     <div className="table-wrap">
       <table className="table">
@@ -32,7 +39,11 @@ export function Table<T>({ columns, rows, rowKey, emptyMessage = "No records fou
         <tbody>
           {rows.length ? (
             rows.map((row) => (
-              <tr key={rowKey(row)}>
+              <tr
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                style={onRowClick ? { cursor: "pointer" } : undefined}
+              >
                 {columns.map((column) => (
                   <td key={column.key} className={column.className}>
                     {column.render(row)}

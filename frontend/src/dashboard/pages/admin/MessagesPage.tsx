@@ -8,6 +8,8 @@ import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
 import { Table } from "../../components/Table";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import {
   deleteOverviewMessage,
   listOverviewMessages,
@@ -41,6 +43,7 @@ function toChannel(value: string | null): MessageChannel {
 }
 
 export function MessagesPage() {
+  const { toasts, pushToast, dismissToast } = useDashboardToasts();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [status, setStatus] = useState<MessageStatus>(toStatus(searchParams.get("status")));
@@ -159,9 +162,28 @@ export function MessagesPage() {
     [channelLabel, statusLabel],
   );
 
+  useEffect(() => {
+    if (error) {
+      pushToast("error", error);
+    }
+  }, [error, pushToast]);
+
+  useEffect(() => {
+    if (actionError) {
+      pushToast("error", actionError);
+    }
+  }, [actionError, pushToast]);
+
+  useEffect(() => {
+    if (actionSuccess) {
+      pushToast("success", actionSuccess);
+    }
+  }, [actionSuccess, pushToast]);
+
   return (
     <PageShell title="Message Delivery Details" subtitle="Inspect draft, sent, and failed outbound messages.">
       <div className="dh-page">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <div className="dh-filters">
           <div className="dh-filters-desktop-panel">
             <FilterBar
@@ -194,22 +216,6 @@ export function MessagesPage() {
             />
           </div>
         </div>
-
-        {error ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{error}</p>
-          </Card>
-        ) : null}
-        {actionError ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{actionError}</p>
-          </Card>
-        ) : null}
-        {actionSuccess ? (
-          <Card>
-            <p className="alert alert--success dh-alert">{actionSuccess}</p>
-          </Card>
-        ) : null}
 
         {loading ? (
           <Card className="card--table desktop-only dh-table-wrap">

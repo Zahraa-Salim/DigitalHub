@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import type { AdminRole } from "../utils/auth";
-import { getUser } from "../utils/auth";
+import { useAuthStore } from "../stores/useAuthStore";
 
 type RequireRoleProps = {
   allowedRoles: AdminRole[];
@@ -14,9 +14,10 @@ type RequireRoleProps = {
 
 export function RequireRole({ allowedRoles, children }: RequireRoleProps) {
   const location = useLocation();
-  const user = getUser();
+  const user = useAuthStore((state) => state.user);
+  const adminRole = user?.admin_role ?? "admin";
 
-  if (!allowedRoles.includes(user.admin_role)) {
+  if (!allowedRoles.includes(adminRole)) {
     return <Navigate to="/admin/profile" replace state={{ from: location.pathname }} />;
   }
 

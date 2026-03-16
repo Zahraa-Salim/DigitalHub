@@ -2,12 +2,23 @@
 // Purpose: Runs the database queries used for auth.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
+
+type AdminProfileInput = {
+  full_name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  job_title?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+  admin_role?: string | null;
+  is_public?: boolean;
+  sort_order?: number | null;
+};
 // Handles 'findActiveAdminByEmail' workflow for this module.
-export async function findActiveAdminByEmail(email, db: DbClient = pool) {
+export async function findActiveAdminByEmail(email: string, db: DbClient = pool) {
     return db.query(`
       SELECT
         u.id,
@@ -25,7 +36,7 @@ export async function findActiveAdminByEmail(email, db: DbClient = pool) {
 }
 
 // Handles 'findUserByEmailForPasswordReset' workflow for this module.
-export async function findUserByEmailForPasswordReset(email, db: DbClient = pool) {
+export async function findUserByEmailForPasswordReset(email: string, db: DbClient = pool) {
     return db.query(`
       SELECT id, email, is_active
       FROM users
@@ -35,7 +46,12 @@ export async function findUserByEmailForPasswordReset(email, db: DbClient = pool
 }
 
 // Handles 'setUserPasswordResetToken' workflow for this module.
-export async function setUserPasswordResetToken(userId, tokenHash, expiresAt, db: DbClient = pool) {
+export async function setUserPasswordResetToken(
+    userId: number,
+    tokenHash: string,
+    expiresAt: string | Date,
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE users
       SET
@@ -48,7 +64,7 @@ export async function setUserPasswordResetToken(userId, tokenHash, expiresAt, db
 }
 
 // Handles 'findUserByPasswordResetToken' workflow for this module.
-export async function findUserByPasswordResetToken(tokenHash, db: DbClient = pool) {
+export async function findUserByPasswordResetToken(tokenHash: string, db: DbClient = pool) {
     return db.query(`
       SELECT id
       FROM users
@@ -59,7 +75,7 @@ export async function findUserByPasswordResetToken(tokenHash, db: DbClient = poo
 }
 
 // Handles 'clearUserPasswordResetToken' workflow for this module.
-export async function clearUserPasswordResetToken(userId, db: DbClient = pool) {
+export async function clearUserPasswordResetToken(userId: number, db: DbClient = pool) {
     return db.query(`
       UPDATE users
       SET
@@ -71,20 +87,21 @@ export async function clearUserPasswordResetToken(userId, db: DbClient = pool) {
     `, [userId]);
 }
 // Handles 'updateLastLogin' workflow for this module.
-export async function updateLastLogin(userId, db: DbClient = pool) {
+export async function updateLastLogin(userId: number, db: DbClient = pool) {
     try {
         return await db.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [userId]);
     }
-    catch (error) {
+    catch (error: unknown) {
         // Keep login functional on environments that haven't added this column yet.
-        if (String(error?.code || "") === "42703") {
+        const maybeError = error as { code?: unknown };
+        if (String(maybeError.code || "") === "42703") {
             return { rows: [], rowCount: 0 };
         }
         throw error;
     }
 }
 // Handles 'findAdminProfileByUserId' workflow for this module.
-export async function findAdminProfileByUserId(userId, db: DbClient = pool) {
+export async function findAdminProfileByUserId(userId: number, db: DbClient = pool) {
     return db.query(`
       SELECT
         u.id,
@@ -142,7 +159,7 @@ export async function listAdminProfiles(db: DbClient = pool) {
 }
 
 // Handles 'countUsersForMessaging' workflow for this module.
-export async function countUsersForMessaging(whereClause, params, db: DbClient = pool) {
+export async function countUsersForMessaging(whereClause: string, params: unknown[], db: DbClient = pool) {
     return db.query(`
       SELECT COUNT(*)::int AS total
       FROM users u
@@ -154,7 +171,15 @@ export async function countUsersForMessaging(whereClause, params, db: DbClient =
 }
 
 // Handles 'listUsersForMessaging' workflow for this module.
-export async function listUsersForMessaging(whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
+export async function listUsersForMessaging(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT
         u.id,
@@ -184,7 +209,7 @@ export async function listUsersForMessaging(whereClause, sortBy, order, params, 
 }
 
 // Handles 'findUsersForMessagingByIds' workflow for this module.
-export async function findUsersForMessagingByIds(userIds, db: DbClient = pool) {
+export async function findUsersForMessagingByIds(userIds: number[], db: DbClient = pool) {
     return db.query(`
       SELECT
         u.id,
@@ -206,7 +231,7 @@ export async function findUsersForMessagingByIds(userIds, db: DbClient = pool) {
     `, [userIds]);
 }
 // Handles 'getUserPasswordHash' workflow for this module.
-export async function getUserPasswordHash(userId, db: DbClient = pool) {
+export async function getUserPasswordHash(userId: number, db: DbClient = pool) {
     return db.query(`
       SELECT password_hash
       FROM users
@@ -215,7 +240,12 @@ export async function getUserPasswordHash(userId, db: DbClient = pool) {
     `, [userId]);
 }
 // Handles 'updateUserAccount' workflow for this module.
-export async function updateUserAccount(userId, setClause, values, db: DbClient = pool) {
+export async function updateUserAccount(
+    userId: number,
+    setClause: string,
+    values: unknown[],
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE users
       SET ${setClause}, updated_at = NOW()
@@ -224,7 +254,7 @@ export async function updateUserAccount(userId, setClause, values, db: DbClient 
     `, [...values, userId]);
 }
 // Handles 'updateUserPasswordHash' workflow for this module.
-export async function updateUserPasswordHash(userId, passwordHash, db: DbClient = pool) {
+export async function updateUserPasswordHash(userId: number, passwordHash: string, db: DbClient = pool) {
     return db.query(`
       UPDATE users
       SET password_hash = $1, updated_at = NOW()
@@ -233,7 +263,7 @@ export async function updateUserPasswordHash(userId, passwordHash, db: DbClient 
     `, [passwordHash, userId]);
 }
 // Handles 'upsertAdminProfile' workflow for this module.
-export async function upsertAdminProfile(userId, input, db: DbClient = pool) {
+export async function upsertAdminProfile(userId: number, input: AdminProfileInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO admin_profiles (
         user_id,

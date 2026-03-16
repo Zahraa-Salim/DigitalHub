@@ -1,10 +1,8 @@
 ﻿// File: frontend/src/dashboard/pages/admin/AttendancePage.tsx
-// Purpose: Renders the admin attendance page page in the dashboard.
-// It combines dashboard data loading, actions, and page-level UI for this screen.
+// Purpose: Renders the admin attendance page in the dashboard.
+// Redesigned: list layout, present/absent toggle, late checkbox.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "../../components/Badge";
-import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { ApiError, api } from "../../utils/api";
@@ -56,11 +54,7 @@ type SaveAttendanceResponse = {
     submitted_at: string | null;
     submitted_by: number | null;
   };
-  totals: {
-    present: number;
-    absent: number;
-    late: number;
-  };
+  totals: { present: number; absent: number; late: number };
   records_count: number;
 };
 
@@ -75,16 +69,115 @@ function toTitleCase(value: string): string {
 }
 
 function formatAttendanceDays(days: string[] | null | undefined): string {
-  if (!Array.isArray(days) || !days.length) return "Mon, Tue, Wed, Thu";
-  return days.map((day) => toTitleCase(day.slice(0, 3))).join(", ");
+  if (!Array.isArray(days) || !days.length) return "Mon – Thu";
+  return days.map((d) => toTitleCase(d.slice(0, 3))).join(", ");
 }
 
-function formatHours(startTime: string | null, endTime: string | null): string {
-  if (!startTime && !endTime) return "Not set";
-  if (startTime && endTime) return `${startTime} - ${endTime}`;
-  return startTime || endTime || "Not set";
+function formatHours(start: string | null, end: string | null): string {
+  if (!start && !end) return "—";
+  if (start && end) return `${start} – ${end}`;
+  return start || end || "—";
 }
 
+function formatSubmitted(iso: string | null): string {
+  if (!iso) return "Not submitted yet";
+  const d = new Date(iso);
+  return (
+    d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
+    " at " +
+    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+function escapeAttCsv(value: string): string {
+  const str = String(value ?? "");
+  if (/[",\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function buildAttendanceCsv(
+  cohortName: string,
+  date: string,
+  locationType: string,
+  students: AttendanceStudent[],
+): string {
+  const header = ["#", "Name", "Email", "Phone", "Status", "Note"].map(escapeAttCsv).join(",");
+  const lines = students.map((s, i) =>
+    [
+      String(i + 1),
+      s.full_name,
+      s.email ?? "",
+      s.phone ?? "",
+      s.attendance_status,
+      s.note ?? "",
+    ]
+      .map(escapeAttCsv)
+      .join(","),
+  );
+  const meta = `# Attendance — ${cohortName} — ${date} — ${locationType === "on_site" ? "On-site" : "Remote"}`;
+  return [meta, header, ...lines].join("\r\n");
+}
+
+function downloadAttCsv(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Present/Absent toggle switch ─────────────────────────────────────────────
+function AttToggle({ isPresent, onChange }: { isPresent: boolean; onChange: (present: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isPresent}
+      className={`att-toggle${isPresent ? " att-toggle--on" : " att-toggle--off"}`}
+      onClick={() => onChange(!isPresent)}
+      title={isPresent ? "Mark Absent" : "Mark Present"}
+    >
+      <span className="att-toggle__thumb" />
+    </button>
+  );
+}
+
+// ── Icons (grey, no color) ───────────────────────────────────────────────────
+function CalIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+function ClockIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+function XIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 export function AttendancePage() {
   const [cohorts, setCohorts] = useState<AttendanceCohort[]>([]);
   const [selectedCohortId, setSelectedCohortId] = useState<string>("");
@@ -96,148 +189,154 @@ export function AttendancePage() {
 
   const [loadingCohorts, setLoadingCohorts] = useState(true);
   const [loadingSheet, setLoadingSheet] = useState(false);
+  const [hasLoadedSheetOnce, setHasLoadedSheetOnce] = useState(false);
   const [savingSheet, setSavingSheet] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastIdRef = useRef(1);
 
   const pushToast = useCallback((tone: "success" | "error", message: string) => {
     const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((entry) => entry.id !== id));
-    }, 5000);
+    setToasts((c) => [...c, { id, tone, message }]);
+    window.setTimeout(() => setToasts((c) => c.filter((t) => t.id !== id)), 5000);
   }, []);
 
   const selectedCohort = useMemo(
-    () => cohorts.find((entry) => String(entry.id) === selectedCohortId) ?? null,
+    () => cohorts.find((c) => String(c.id) === selectedCohortId) ?? null,
     [cohorts, selectedCohortId],
   );
 
   const statusCounts = useMemo(
     () =>
       students.reduce(
-        (acc, student) => {
-          if (student.attendance_status === "absent") acc.absent += 1;
-          else if (student.attendance_status === "late") acc.late += 1;
-          else acc.present += 1;
-          return acc;
-        },
-        { present: 0, absent: 0, late: 0 },
+        (acc, s) => { acc[s.attendance_status] += 1; return acc; },
+        { present: 0, absent: 0, late: 0 } as Record<AttendanceStatus, number>,
       ),
     [students],
   );
-  const hasSubmittedSession = Boolean(submittedAt);
+
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) => s.full_name.toLowerCase().includes(q) || (s.email ?? "").toLowerCase().includes(q),
+    );
+  }, [students, search]);
+
+  const hasSubmitted = Boolean(submittedAt);
+  const presentPct = students.length
+    ? Math.round(((statusCounts.present + statusCounts.late) / students.length) * 100)
+    : 0;
 
   useEffect(() => {
     let active = true;
-
-    const loadRunningCohorts = async () => {
-      setLoadingCohorts(true);
-      setError("");
-      try {
-        const result = await api<{ cohorts: AttendanceCohort[] }>("/attendance/cohorts/running");
+    setLoadingCohorts(true);
+    setError("");
+    api<{ cohorts: AttendanceCohort[] }>("/attendance/cohorts/running")
+      .then((res) => {
         if (!active) return;
-        const next = result.cohorts || [];
-        setCohorts(next);
-        if (next.length) {
-          setSelectedCohortId((current) => current || String(next[0].id));
-        }
-      } catch (err) {
+        const list = (res.cohorts || []).filter((cohort) => cohort.status === "running");
+        setCohorts(list);
+        setSelectedCohortId((current) => {
+          if (!list.length) return "";
+          return list.some((cohort) => String(cohort.id) === current) ? current : String(list[0].id);
+        });
+      })
+      .catch((err) => {
         if (!active) return;
-        const message = err instanceof ApiError ? err.message : "Failed to load running cohorts.";
-        setError(message);
-        pushToast("error", message);
-      } finally {
-        if (active) setLoadingCohorts(false);
-      }
-    };
-
-    void loadRunningCohorts();
-    return () => {
-      active = false;
-    };
+        const msg = err instanceof ApiError ? err.message : "Failed to load cohorts.";
+        setError(msg);
+        pushToast("error", msg);
+      })
+      .finally(() => { if (active) setLoadingCohorts(false); });
+    return () => { active = false; };
   }, [pushToast]);
 
   useEffect(() => {
-    if (!selectedCohortId) {
-      setStudents([]);
-      setSubmittedAt(null);
-      return;
-    }
-
+    if (!selectedCohortId) { setStudents([]); setSubmittedAt(null); return; }
     let active = true;
-    const loadSheet = async () => {
-      setLoadingSheet(true);
-      setError("");
-      try {
-        const query = `/attendance/sheet?cohort_id=${encodeURIComponent(selectedCohortId)}&date=${encodeURIComponent(attendanceDate)}`;
-        const result = await api<AttendanceSheetResponse>(query);
+    setLoadingSheet(true);
+    setHasLoadedSheetOnce(false);
+    setError("");
+    const query = `/attendance/sheet?cohort_id=${encodeURIComponent(selectedCohortId)}&date=${encodeURIComponent(attendanceDate)}`;
+    api<AttendanceSheetResponse>(query)
+      .then((res) => {
         if (!active) return;
-        setLocationType(result.session.location_type || "on_site");
+        setLocationType(res.session.location_type || "on_site");
         setStudents(
-          (result.students || []).map((entry) => ({
-            ...entry,
-            attendance_status: entry.attendance_status || "present",
-            note: String(entry.note || ""),
+          (res.students || []).map((s) => ({
+            ...s,
+            attendance_status: s.attendance_status || "present",
+            note: String(s.note || ""),
           })),
         );
-        setSubmittedAt(result.session.submitted_at);
-      } catch (err) {
+        setSubmittedAt(res.session.submitted_at);
+      })
+      .catch((err) => {
         if (!active) return;
-        const message = err instanceof ApiError ? err.message : "Failed to load attendance sheet.";
-        setError(message);
+        const msg = err instanceof ApiError ? err.message : "Failed to load attendance sheet.";
+        setError(msg);
         setStudents([]);
-      } finally {
-        if (active) setLoadingSheet(false);
-      }
-    };
-
-    void loadSheet();
-    return () => {
-      active = false;
-    };
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingSheet(false);
+          setHasLoadedSheetOnce(true);
+        }
+      });
+    return () => { active = false; };
   }, [selectedCohortId, attendanceDate]);
 
-  const setStudentStatus = useCallback((studentUserId: number, status: AttendanceStatus) => {
-    setStudents((current) =>
-      current.map((entry) =>
-        entry.student_user_id === studentUserId
-          ? { ...entry, attendance_status: status, note: status === "late" ? entry.note : "" }
-          : entry,
-      ),
+  const showInitialSheetLoading =
+    loadingCohorts ||
+    loadingSheet ||
+    (!selectedCohortId && cohorts.length > 0 && !hasLoadedSheetOnce);
+
+  // Toggle present ↔ absent (never affects late directly — that's the checkbox)
+  const togglePresence = useCallback((id: number, goPresent: boolean) => {
+    setStudents((c) =>
+      c.map((s) => {
+        if (s.student_user_id !== id) return s;
+        if (goPresent) {
+          // going present: keep late if already late
+          return { ...s, attendance_status: s.attendance_status === "late" ? "late" : "present" };
+        } else {
+          // going absent: must clear late too
+          return { ...s, attendance_status: "absent", note: "" };
+        }
+      }),
     );
   }, []);
 
-  const setStudentNote = useCallback((studentUserId: number, note: string) => {
-    setStudents((current) =>
-      current.map((entry) =>
-        entry.student_user_id === studentUserId ? { ...entry, note } : entry,
-      ),
+  // Late checkbox:
+  //   check  → forces "late" (which counts as present)
+  //   uncheck → back to "present"
+  //   disabled when absent
+  const toggleLate = useCallback((id: number, checked: boolean) => {
+    setStudents((c) =>
+      c.map((s) => {
+        if (s.student_user_id !== id) return s;
+        if (checked) return { ...s, attendance_status: "late" };
+        return { ...s, attendance_status: "present", note: "" };
+      }),
     );
+  }, []);
+
+  const setStudentNote = useCallback((id: number, note: string) => {
+    setStudents((c) => c.map((s) => (s.student_user_id === id ? { ...s, note } : s)));
   }, []);
 
   const setAllStatus = useCallback((status: AttendanceStatus) => {
-    setStudents((current) =>
-      current.map((entry) => ({
-        ...entry,
-        attendance_status: status,
-        note: status === "late" ? entry.note : "",
-      })),
+    setStudents((c) =>
+      c.map((s) => ({ ...s, attendance_status: status, note: status !== "late" ? "" : s.note })),
     );
   }, []);
 
   const saveSheet = useCallback(async () => {
-    if (!selectedCohortId) {
-      pushToast("error", "Select a running cohort first.");
-      return;
-    }
-    if (!students.length) {
-      pushToast("error", "No students found for this cohort.");
-      return;
-    }
-
+    if (!selectedCohortId) { pushToast("error", "Select a cohort first."); return; }
+    if (!students.length) { pushToast("error", "No students found."); return; }
     setSavingSheet(true);
     setError("");
     try {
@@ -245,10 +344,10 @@ export function AttendancePage() {
         cohort_id: Number(selectedCohortId),
         attendance_date: attendanceDate,
         location_type: locationType,
-        records: students.map((entry) => ({
-          student_user_id: entry.student_user_id,
-          status: entry.attendance_status,
-          note: entry.attendance_status === "late" ? entry.note.trim() || undefined : undefined,
+        records: students.map((s) => ({
+          student_user_id: s.student_user_id,
+          status: s.attendance_status,
+          note: s.attendance_status === "late" ? s.note.trim() || undefined : undefined,
         })),
       };
       const result = await api<SaveAttendanceResponse>("/attendance/sheet", {
@@ -258,183 +357,301 @@ export function AttendancePage() {
       setSubmittedAt(result.session.submitted_at || new Date().toISOString());
       pushToast(
         "success",
-        `Attendance saved. Present: ${result.totals.present}, Absent: ${result.totals.absent}, Late: ${result.totals.late}.`,
+        `Saved — ${result.totals.present} present · ${result.totals.absent} absent · ${result.totals.late} late`,
       );
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Failed to save attendance.";
-      setError(message);
-      pushToast("error", message);
+      const msg = err instanceof ApiError ? err.message : "Failed to save attendance.";
+      setError(msg);
+      pushToast("error", msg);
     } finally {
       setSavingSheet(false);
     }
   }, [attendanceDate, locationType, pushToast, selectedCohortId, students]);
 
-  return (
-    <PageShell
-      title="Attendance"
-      subtitle="Take daily attendance per cohort, choose remote/on-site, and update late arrivals anytime."
-    >
-      <Card className="attendance-page__overview">
-        <div>
-          <h3 className="section-title">Daily Attendance Sheet</h3>
-          <p className="info-text">
-            Select the running cohort and date. Students are marked present by default.
-          </p>
-        </div>
-        <div className="profile-badges">
-          <Badge tone="resolved">{`${statusCounts.present} present`}</Badge>
-          <Badge tone="rejected">{`${statusCounts.absent} absent`}</Badge>
-          <Badge tone="pending">{`${statusCounts.late} late`}</Badge>
-          <Badge tone="default">{`${students.length} total`}</Badge>
-        </div>
-      </Card>
+  const exportCurrentSheet = useCallback(() => {
+    if (!students.length || !selectedCohort) return;
+    const cohortLabel = selectedCohort.program_title
+      ? `${selectedCohort.program_title} - ${selectedCohort.name}`
+      : selectedCohort.name;
+    const csv = buildAttendanceCsv(cohortLabel, attendanceDate, locationType, students);
+    const safeName = cohortLabel.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    downloadAttCsv(csv, `attendance_${safeName}_${attendanceDate}`);
+  }, [students, selectedCohort, attendanceDate, locationType]);
 
-      <Card className="attendance-controls">
-        <label className="field">
-          <span className="field__label">Running Cohort</span>
+  return (
+    <PageShell title="Attendance" subtitle="Take daily attendance per cohort.">
+
+      {/* ── Controls bar ─────────────────────────────────────── */}
+      <div className="att-controls-bar">
+        <div className="att-controls-bar__field">
+          <label className="att-label" htmlFor="att-cohort">Cohort</label>
           <select
-            className="field__control"
+            id="att-cohort"
+            className="att-select"
             value={selectedCohortId}
-            onChange={(event) => setSelectedCohortId(event.target.value)}
+            onChange={(e) => setSelectedCohortId(e.target.value)}
             disabled={loadingCohorts || !cohorts.length}
           >
-            {!cohorts.length ? <option value="">No running cohorts</option> : null}
-            {cohorts.map((cohort) => (
-              <option key={cohort.id} value={String(cohort.id)}>
-                {cohort.program_title ? `${cohort.program_title} - ${cohort.name}` : cohort.name}
-              </option>
-            ))}
+            {!cohorts.length
+              ? <option value="">No running cohorts</option>
+              : cohorts.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.program_title ? `${c.program_title} – ${c.name}` : c.name}
+                  </option>
+                ))
+            }
           </select>
-        </label>
+        </div>
 
-        <label className="field">
-          <span className="field__label">Attendance Date</span>
+        <div className="att-controls-bar__field">
+          <label className="att-label" htmlFor="att-date">Date</label>
           <input
-            className="field__control"
+            id="att-date"
+            className="att-input"
             type="date"
             value={attendanceDate}
-            onChange={(event) => setAttendanceDate(event.target.value)}
+            onChange={(e) => setAttendanceDate(e.target.value)}
           />
-        </label>
-
-        <label className="field">
-          <span className="field__label">Class Type</span>
-          <select
-            className="field__control"
-            value={locationType}
-            onChange={(event) => setLocationType(event.target.value as LocationType)}
-          >
-            <option value="on_site">On Site</option>
-            <option value="remote">Remote</option>
-          </select>
-        </label>
-
-        <div className="attendance-controls__meta">
-          <p className="attendance-meta__line">
-            <strong>Days:</strong> {formatAttendanceDays(selectedCohort?.attendance_days)}
-          </p>
-          <p className="attendance-meta__line">
-            <strong>Hours:</strong>{" "}
-            {formatHours(selectedCohort?.attendance_start_time || null, selectedCohort?.attendance_end_time || null)}
-          </p>
-          <p className="attendance-meta__line">
-            <strong>Last Submitted:</strong> {submittedAt ? new Date(submittedAt).toLocaleString() : "Not submitted yet"}
-          </p>
         </div>
-      </Card>
 
-      {error ? (
-        <Card>
-          <p className="alert alert--error">{error}</p>
-        </Card>
-      ) : null}
-
-      <Card className="attendance-actions">
-        <div className="attendance-actions__bulk">
-          <button className="btn btn--secondary btn--sm" type="button" onClick={() => setAllStatus("present")} disabled={!students.length}>
-            Mark All Present
-          </button>
-          <button className="btn btn--danger btn--sm" type="button" onClick={() => setAllStatus("absent")} disabled={!students.length}>
-            Mark All Absent
-          </button>
-        </div>
-        <button className="btn btn--primary" type="button" onClick={() => void saveSheet()} disabled={savingSheet || loadingSheet || !students.length}>
-          {savingSheet ? "Saving..." : hasSubmittedSession ? "Update Attendance" : "Submit Attendance"}
-        </button>
-      </Card>
-
-      <Card className="card--table">
-        {loadingSheet ? (
-          <div className="spinner">Loading attendance sheet...</div>
-        ) : !students.length ? (
-          <div className="empty-state">
-            <p className="empty-state__title">No students</p>
-            <p className="empty-state__description">No enrolled students were found for this cohort on the selected date.</p>
+        <div className="att-controls-bar__field">
+          <label className="att-label">Class Type</label>
+          <div className="att-location-toggle">
+            <button
+              type="button"
+              className={`att-location-toggle__btn${locationType === "on_site" ? " is-active" : ""}`}
+              onClick={() => setLocationType("on_site")}
+            >
+              On-site
+            </button>
+            <button
+              type="button"
+              className={`att-location-toggle__btn${locationType === "remote" ? " is-active" : ""}`}
+              onClick={() => setLocationType("remote")}
+            >
+              Remote
+            </button>
           </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table attendance-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Status</th>
-                  <th>Late Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.student_user_id}>
-                    <td>
-                      <p className="attendance-student__name">{student.full_name || "Student"}</p>
-                      <p className="attendance-student__meta">{student.email || student.phone || "No contact"}</p>
-                    </td>
-                    <td>
-                      <div className="attendance-status-toggle" role="group" aria-label={`Attendance status for ${student.full_name}`}>
-                        <button
-                          className={student.attendance_status === "present" ? "attendance-status-btn attendance-status-btn--present is-active" : "attendance-status-btn attendance-status-btn--present"}
-                          type="button"
-                          onClick={() => setStudentStatus(student.student_user_id, "present")}
-                        >
-                          Present
-                        </button>
-                        <button
-                          className={student.attendance_status === "absent" ? "attendance-status-btn attendance-status-btn--absent is-active" : "attendance-status-btn attendance-status-btn--absent"}
-                          type="button"
-                          onClick={() => setStudentStatus(student.student_user_id, "absent")}
-                        >
-                          Absent
-                        </button>
-                        <button
-                          className={student.attendance_status === "late" ? "attendance-status-btn attendance-status-btn--late is-active" : "attendance-status-btn attendance-status-btn--late"}
-                          type="button"
-                          onClick={() => setStudentStatus(student.student_user_id, "late")}
-                        >
-                          Late
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      {student.attendance_status === "late" ? (
-                        <input
-                          className="field__control"
-                          value={student.note}
-                          onChange={(event) => setStudentNote(student.student_user_id, event.target.value)}
-                          placeholder="Late reason or arrival time"
-                        />
-                      ) : (
-                        <span className="attendance-note__placeholder">Only used for late students.</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        </div>
+
+        {selectedCohort && (
+          <div className="att-controls-bar__meta">
+            <span className="att-meta-chip"><CalIcon />{formatAttendanceDays(selectedCohort.attendance_days)}</span>
+            <span className="att-meta-chip"><ClockIcon />{formatHours(selectedCohort.attendance_start_time, selectedCohort.attendance_end_time)}</span>
           </div>
         )}
-      </Card>
+      </div>
 
-      <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} />
+      {/* ── Stats row ─────────────────────────────────────────── */}
+      {students.length > 0 && (
+        <div className="att-stats-row">
+          <div className="att-stat att-stat--present">
+            <span className="att-stat__num">{statusCounts.present}</span>
+            <span className="att-stat__label">Present</span>
+          </div>
+          <div className="att-stat att-stat--absent">
+            <span className="att-stat__num">{statusCounts.absent}</span>
+            <span className="att-stat__label">Absent</span>
+          </div>
+          <div className="att-stat att-stat--late">
+            <span className="att-stat__num">{statusCounts.late}</span>
+            <span className="att-stat__label">Late</span>
+          </div>
+          <div className="att-stat att-stat--total">
+            <span className="att-stat__num">{students.length}</span>
+            <span className="att-stat__label">Total</span>
+          </div>
+
+          <div className="att-progress-wrap">
+            <div className="att-progress-bar">
+              <div
+                className="att-progress-bar__fill att-progress-bar__fill--present"
+                style={{ width: `${(statusCounts.present / students.length) * 100}%` }}
+              />
+              <div
+                className="att-progress-bar__fill att-progress-bar__fill--late"
+                style={{ width: `${(statusCounts.late / students.length) * 100}%` }}
+              />
+            </div>
+            <span className="att-progress-pct">{presentPct}% present</span>
+          </div>
+
+          <div className={`att-submitted-badge${hasSubmitted ? " att-submitted-badge--done" : ""}`}>
+            {hasSubmitted ? `Submitted ${formatSubmitted(submittedAt)}` : "Not submitted yet"}
+          </div>
+        </div>
+      )}
+
+      {/* ── Error ────────────────────────────────────────────── */}
+      {error && <div className="att-error-banner">⚠ {error}</div>}
+
+      {/* ── Toolbar ──────────────────────────────────────────── */}
+      {students.length > 0 && (
+        <div className="att-toolbar">
+          <div className="att-toolbar__bulk">
+            <span className="att-toolbar__label">Mark all:</span>
+            <button type="button" className="att-bulk-btn att-bulk-btn--present" onClick={() => setAllStatus("present")}>
+              <CheckIcon /> Present
+            </button>
+            <button type="button" className="att-bulk-btn att-bulk-btn--absent" onClick={() => setAllStatus("absent")}>
+              <XIcon /> Absent
+            </button>
+            <button type="button" className="att-bulk-btn att-bulk-btn--late" onClick={() => setAllStatus("late")}>
+              Late
+            </button>
+          </div>
+
+          <div className="att-toolbar__right">
+            <input
+              className="att-search"
+              type="search"
+              placeholder="Search students…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button
+              type="button"
+              className="att-export-btn"
+              onClick={exportCurrentSheet}
+              disabled={!students.length || loadingSheet}
+              title="Export this attendance sheet as CSV"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              className="att-save-btn"
+              onClick={() => void saveSheet()}
+              disabled={savingSheet || loadingSheet}
+            >
+              {savingSheet ? "Saving…" : hasSubmitted ? "Update Attendance" : "Submit Attendance"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Student list ──────────────────────────────────────── */}
+      <div className="att-sheet">
+        {showInitialSheetLoading ? (
+          <div className="att-loading">
+            <div className="att-loading__spinner" />
+            <p>Loading attendance sheet…</p>
+          </div>
+        ) : !selectedCohortId ? (
+          <div className="att-empty">
+            <div className="att-empty__icon">📚</div>
+            <p className="att-empty__title">No running cohorts available</p>
+            <p className="att-empty__sub">Create or start a running cohort to begin taking attendance.</p>
+          </div>
+        ) : !students.length ? (
+          <div className="att-empty">
+            <div className="att-empty__icon">📋</div>
+            <p className="att-empty__title">No students found</p>
+            <p className="att-empty__sub">No enrolled students for this cohort on the selected date.</p>
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="att-empty">
+            <div className="att-empty__icon">🔍</div>
+            <p className="att-empty__title">No results for "{search}"</p>
+          </div>
+        ) : (
+          <div className="att-list">
+            <div className="att-list__header">
+              <span className="att-list__col-name">Student</span>
+              <span className="att-list__col-late">Late</span>
+              <span className="att-list__col-toggle">Absent · Present</span>
+            </div>
+
+            {filteredStudents.map((student, index) => {
+              const isPresent = student.attendance_status !== "absent";
+              const isLate = student.attendance_status === "late";
+              const isAbsent = student.attendance_status === "absent";
+
+              return (
+                <div
+                  key={student.student_user_id}
+                  className={[
+                    "att-list-row",
+                    isAbsent ? "att-list-row--absent" : "",
+                    isLate ? "att-list-row--late" : "",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {/* Index + name */}
+                  <div className="att-list-row__name">
+                    <span className="att-list-row__index">{index + 1}</span>
+                    <div className="att-list-row__info">
+                      <span className="att-list-row__fullname">{student.full_name || "Student"}</span>
+                    </div>
+                  </div>
+
+                  {/* Late checkbox + optional note */}
+                  <div className="att-list-row__late">
+                    <label
+                      className={`att-late-check${isAbsent ? " att-late-check--disabled" : ""}`}
+                      title={isAbsent ? "Cannot mark late when absent" : "Late"}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isLate}
+                        disabled={isAbsent}
+                        onChange={(e) => toggleLate(student.student_user_id, e.target.checked)}
+                      />
+                      <span className="att-late-check__box" />
+                    </label>
+                    {isLate && (
+                      <input
+                        className="att-note-input"
+                        value={student.note}
+                        onChange={(e) => setStudentNote(student.student_user_id, e.target.value)}
+                        placeholder="Note…"
+                      />
+                    )}
+                  </div>
+
+                  {/* Toggle switch */}
+                  <div className="att-list-row__toggle">
+                    <span className={`att-toggle-label${isAbsent ? " att-toggle-label--absent" : ""}`}>
+                      Absent
+                    </span>
+                    <AttToggle
+                      isPresent={isPresent}
+                      onChange={(present) => togglePresence(student.student_user_id, present)}
+                    />
+                    <span className={`att-toggle-label${isPresent ? " att-toggle-label--present" : ""}`}>
+                      Present
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Sticky bottom bar ─────────────────────────────────── */}
+      {students.length > 0 && (
+        <div className="att-bottom-bar">
+          <p className="att-bottom-bar__summary">
+            {statusCounts.present} present · {statusCounts.absent} absent · {statusCounts.late} late
+            {hasSubmitted && (
+              <span className="att-bottom-bar__submitted"> · Saved {formatSubmitted(submittedAt)}</span>
+            )}
+          </p>
+          <button
+            type="button"
+            className="att-save-btn"
+            onClick={() => void saveSheet()}
+            disabled={savingSheet || loadingSheet}
+          >
+            {savingSheet ? "Saving…" : hasSubmitted ? "Update Attendance" : "Submit Attendance"}
+          </button>
+        </div>
+      )}
+
+      <ToastStack
+        toasts={toasts}
+        onDismiss={(id) => setToasts((c) => c.filter((t) => t.id !== id))}
+      />
     </PageShell>
   );
 }
-

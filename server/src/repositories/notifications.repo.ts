@@ -2,17 +2,17 @@
 // Purpose: Runs the database queries used for notifications.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
 
 // Handles 'isTransientDatabaseError' workflow for this module.
-function isTransientDatabaseError(error) {
+function isTransientDatabaseError(error: unknown): boolean {
     if (!error || typeof error !== "object") {
         return false;
     }
-    const code = String(error.code || "").toUpperCase();
-    const message = String(error.message || "").toLowerCase();
+    const maybeError = error as { code?: unknown; message?: unknown };
+    const code = String(maybeError.code || "").toUpperCase();
+    const message = String(maybeError.message || "").toLowerCase();
     return (code === "08P01" ||
         code === "08006" ||
         code === "08001" ||
@@ -27,7 +27,7 @@ function isTransientDatabaseError(error) {
 }
 
 // Handles 'queryWithRetry' workflow for this module.
-async function queryWithRetry(runQuery) {
+async function queryWithRetry<T>(runQuery: () => Promise<T>): Promise<T> {
     const maxAttempts = 3;
     let attempt = 0;
     while (attempt < maxAttempts) {
@@ -46,11 +46,19 @@ async function queryWithRetry(runQuery) {
 }
 
 // Handles 'countNotifications' workflow for this module.
-export async function countNotifications(whereClause, params, db = pool) {
+export async function countNotifications(whereClause: string, params: unknown[], db: DbClient = pool) {
     return queryWithRetry(() => db.query(`SELECT COUNT(*)::int AS total FROM admin_notifications ${whereClause}`, params));
 }
 // Handles 'listNotifications' workflow for this module.
-export async function listNotifications(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listNotifications(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return queryWithRetry(() => db.query(`
       SELECT id, recipient_admin_user_id, log_id, title, body, is_read, read_at, created_at
       FROM admin_notifications
@@ -61,7 +69,7 @@ export async function listNotifications(whereClause, sortBy, order, params, limi
     `, [...params, limit, offset]));
 }
 // Handles 'getNotificationById' workflow for this module.
-export async function getNotificationById(id, adminId, db = pool) {
+export async function getNotificationById(id: number, adminId: number, db: DbClient = pool) {
     return queryWithRetry(() => db.query(`
       SELECT id, is_read
       FROM admin_notifications
@@ -70,7 +78,7 @@ export async function getNotificationById(id, adminId, db = pool) {
     `, [id, adminId]));
 }
 // Handles 'markNotificationRead' workflow for this module.
-export async function markNotificationRead(id, adminId, db = pool) {
+export async function markNotificationRead(id: number, adminId: number, db: DbClient = pool) {
     return queryWithRetry(() => db.query(`
       UPDATE admin_notifications
       SET is_read = TRUE, read_at = NOW()
@@ -80,7 +88,7 @@ export async function markNotificationRead(id, adminId, db = pool) {
     `, [id, adminId]));
 }
 // Handles 'markAllNotificationsRead' workflow for this module.
-export async function markAllNotificationsRead(adminId, db = pool) {
+export async function markAllNotificationsRead(adminId: number, db: DbClient = pool) {
     return queryWithRetry(() => db.query(`
       UPDATE admin_notifications
       SET is_read = TRUE, read_at = NOW()
@@ -89,7 +97,7 @@ export async function markAllNotificationsRead(adminId, db = pool) {
     `, [adminId]));
 }
 // Handles 'clearReadNotifications' workflow for this module.
-export async function clearReadNotifications(adminId, db = pool) {
+export async function clearReadNotifications(adminId: number, db: DbClient = pool) {
     return queryWithRetry(() => db.query(`
       DELETE FROM admin_notifications
       WHERE recipient_admin_user_id = $1
@@ -97,7 +105,7 @@ export async function clearReadNotifications(adminId, db = pool) {
     `, [adminId]));
 }
 // Handles 'clearReadNotificationsOlderThan' workflow for this module.
-export async function clearReadNotificationsOlderThan(adminId, days, db = pool) {
+export async function clearReadNotificationsOlderThan(adminId: number, days: number, db: DbClient = pool) {
     return queryWithRetry(() => db.query(`
       DELETE FROM admin_notifications
       WHERE recipient_admin_user_id = $1

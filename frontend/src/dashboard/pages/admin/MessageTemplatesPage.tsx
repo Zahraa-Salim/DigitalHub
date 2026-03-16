@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import {
   createMessageTemplate,
   type MessageTemplate,
@@ -14,7 +16,7 @@ import {
 } from "../../lib/api";
 import { ApiError } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
-import "./MessageTemplatesPage.css";
+import "../../styles/message-templates.css";
 
 type TemplateDraft = {
   label: string;
@@ -147,6 +149,7 @@ function insertToken(value: string, token: string, start: number, end: number): 
 }
 
 export function MessageTemplatesPage() {
+  const { toasts, pushToast, dismissToast } = useDashboardToasts();
   const navigate = useNavigate();
   const activeBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const createBodyRef = useRef<HTMLTextAreaElement | null>(null);
@@ -259,6 +262,18 @@ export function MessageTemplatesPage() {
       setActiveKey(filteredTemplates[0].key);
     }
   }, [filteredTemplates, activeKey]);
+
+  useEffect(() => {
+    if (error) {
+      pushToast("error", error);
+    }
+  }, [error, pushToast]);
+
+  useEffect(() => {
+    if (success) {
+      pushToast("success", success);
+    }
+  }, [pushToast, success]);
 
   const setDraftField = <K extends keyof TemplateDraft>(key: string, field: K, value: TemplateDraft[K]) => {
     setDraftsByKey((current) => {
@@ -409,8 +424,7 @@ export function MessageTemplatesPage() {
         </div>
       }
     >
-      {error ? <Card><p className="alert alert--danger">{error}</p></Card> : null}
-      {success ? <Card><p className="alert alert--success">{success}</p></Card> : null}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       {loading ? <Card><p className="info-text">Loading templates...</p></Card> : null}
       {showStaticLinks ? (
         <Card className="mtpl-links-card">

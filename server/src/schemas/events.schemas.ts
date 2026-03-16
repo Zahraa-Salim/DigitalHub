@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for events.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 
 const imageUrlSchema = z.string().trim().min(1).max(2048);

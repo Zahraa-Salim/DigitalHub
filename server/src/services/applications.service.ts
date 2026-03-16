@@ -75,6 +75,7 @@ const APPLICATION_STAGES = [
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
   "participation_confirmed",
@@ -83,7 +84,6 @@ const APPLICATION_STAGES = [
   "reviewed",
   "shortlisted",
   "interview_scheduled",
-  "interview_completed",
   "user_created",
 ];
 
@@ -101,6 +101,7 @@ const MODERN_ONLY_STAGES = [
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
 ];
 
 const MODERN_TO_LEGACY_STAGE: Record<string, string> = {
@@ -108,6 +109,7 @@ const MODERN_TO_LEGACY_STAGE: Record<string, string> = {
   reviewing: "reviewed",
   invited_to_interview: "interview_scheduled",
   interview_confirmed: "interview_completed",
+  interview_completed: "interview_completed",
 };
 
 const LEGACY_TO_MODERN_STAGE: Record<string, string> = {
@@ -115,7 +117,7 @@ const LEGACY_TO_MODERN_STAGE: Record<string, string> = {
   reviewed: "reviewing",
   shortlisted: "reviewing",
   interview_scheduled: "invited_to_interview",
-  interview_completed: "interview_confirmed",
+  interview_completed: "interview_completed",
   user_created: "participation_confirmed",
 };
 
@@ -124,8 +126,19 @@ const APPLICATION_STATUSES = [
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
+  "participation_confirmed",
+];
+
+const STAGE_ORDER = [
+  "applied",
+  "reviewing",
+  "invited_to_interview",
+  "interview_confirmed",
+  "interview_completed",
+  "accepted",
   "participation_confirmed",
 ];
 
@@ -205,7 +218,8 @@ function mapStageToLegacyStatus(stage: string) {
   if (
     normalizedStage === "reviewing" ||
     normalizedStage === "invited_to_interview" ||
-    normalizedStage === "interview_confirmed"
+    normalizedStage === "interview_confirmed" ||
+    normalizedStage === "interview_completed"
   ) {
     return "waitlisted";
   }
@@ -230,27 +244,76 @@ function normalizeStageForFamily(stage: unknown, currentStage: unknown) {
 
 // Handles 'buildInterviewLinks' workflow for this module.
 function buildInterviewLinks(token: string) {
-  const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
+  const base = (
+    process.env.PUBLIC_SITE_URL ||
+    process.env.PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    "http://localhost:5000"
+  ).replace(/\/$/, "");
+  const hasSiteUrl = Boolean(process.env.PUBLIC_SITE_URL);
   return {
-    confirm_url: `${baseApi}/public/interviews/${token}/confirm`,
-    reschedule_url: `${baseApi}/public/interviews/${token}/reschedule`,
+    confirm_url: hasSiteUrl
+      ? `${base}/interview/confirm?token=${token}`
+      : `${base}/public/interviews/${token}/confirm`,
+    reschedule_url: hasSiteUrl
+      ? `${base}/interview/reschedule?token=${token}`
+      : `${base}/public/interviews/${token}/reschedule`,
   };
 }
 
 // Handles 'buildLearnerSignInUrl' workflow for this module.
 function buildLearnerSignInUrl() {
-  return (
+  const url =
     process.env.LEARNER_SIGNIN_URL ||
     process.env.STUDENT_SIGNIN_URL ||
     process.env.PUBLIC_STUDENT_SIGNIN_URL ||
-    "https://example.com/sign-in"
-  );
+    "";
+
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new AppError(
+        500,
+        "CONFIGURATION_ERROR",
+        "LEARNER_SIGNIN_URL is not configured. Cannot send credential emails in production.",
+      );
+    }
+    console.warn(
+      "[applications] LEARNER_SIGNIN_URL is not set. Credential emails will not include a valid sign-in link.",
+    );
+    return "(Sign-in link not configured — contact admissions)";
+  }
+
+  return url;
 }
 
 // Handles 'buildParticipationConfirmLink' workflow for this module.
 function buildParticipationConfirmLink(token: string) {
-  const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
-  return `${baseApi}/public/participation/${token}/confirm`;
+  const base = (
+    process.env.PUBLIC_SITE_URL ||
+    process.env.PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    "http://localhost:5000"
+  ).replace(/\/$/, "");
+  const hasSiteUrl = Boolean(process.env.PUBLIC_SITE_URL);
+
+  return hasSiteUrl
+    ? `${base}/confirm-participation?token=${token}`
+    : `${base}/public/participation/${token}/confirm`;
+}
+
+async function sendAdmissionsAdminNotification(subject: string, body: string) {
+  const adminNotifyEmail = process.env.ADMIN_NOTIFY_EMAIL || process.env.DIGITAL_HUB_EMAIL || null;
+  if (!adminNotifyEmail) return;
+
+  try {
+    await sendDigitalHubEmail({
+      to: adminNotifyEmail,
+      subject,
+      body,
+    });
+  } catch {
+    // Non-blocking.
+  }
 }
 
 // Handles 'formatTemplateDate' workflow for this module.
@@ -547,7 +610,7 @@ async function sendAccountCredentialsMessageForApplication(
           to_value: emailValue,
           subject,
           body,
-          template_key: "account_credentials",
+          template_key: templateKey,
           status: "sent",
           created_by: actorUserId,
         },
@@ -567,7 +630,7 @@ async function sendAccountCredentialsMessageForApplication(
           to_value: emailValue,
           subject,
           body,
-          template_key: "account_credentials",
+          template_key: templateKey,
           status: "failed",
           created_by: actorUserId,
         },
@@ -586,7 +649,7 @@ async function sendAccountCredentialsMessageForApplication(
           to_value: phoneValue,
           subject: null,
           body,
-          template_key: "account_credentials",
+          template_key: templateKey,
           status: "sent",
           created_by: actorUserId,
         },
@@ -606,7 +669,7 @@ async function sendAccountCredentialsMessageForApplication(
           to_value: phoneValue,
           subject: null,
           body,
-          template_key: "account_credentials",
+          template_key: templateKey,
           status: "failed",
           created_by: actorUserId,
         },
@@ -814,104 +877,11 @@ export async function getApplicationPipelineService(applicationId: number) {
 
 // Handles 'approveApplicationService' workflow for this module.
 export async function approveApplicationService(applicationId: number, reviewerId: number, options: AnyRecord) {
-  const input = normalizeReviewOptions(options);
-  const reviewMessage = input.message;
-
-  return withTransaction(async (client: DbClient) => {
-    const applicationResult = await getApplicationForApproval(applicationId, client);
-    if (!applicationResult.rowCount) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
-    }
-
-    const application = applicationResult.rows[0];
-    if (!["applied", "reviewing", "invited_to_interview", "interview_confirmed"].includes(application.status)) {
-      throw new AppError(
-        409,
-        "APPLICATION_ALREADY_REVIEWED",
-        "Only active applications can be approved.",
-      );
-    }
-
-    if (input.send_phone && !application.phone) {
-      throw new AppError(400, "VALIDATION_ERROR", "Applicant phone is required when sending phone messages.");
-    }
-
-    const enrollmentMeta = await createUserAndEnrollment(
-      { ...application, id: applicationId },
-      reviewerId,
-      reviewMessage,
-      client,
-    );
-
-    await logAdminAction(
-      {
-        actorUserId: reviewerId,
-        action: "approve application",
-        entityType: "applications",
-        entityId: applicationId,
-        message: `Application ${applicationId} was approved.`,
-        metadata: {
-          cohort_id: application.cohort_id,
-          student_user_id: enrollmentMeta.studentUserId,
-          review_message: reviewMessage,
-        },
-        title: "Application Approved",
-        body: `Application #${applicationId} was approved.`,
-      },
-      client,
-    );
-
-    await logAdminAction(
-      {
-        actorUserId: reviewerId,
-        action: "create enrollment",
-        entityType: "enrollments",
-        entityId: enrollmentMeta.enrollment.id,
-        message: `Enrollment ${enrollmentMeta.enrollment.id} was created from application ${applicationId}.`,
-        metadata: {
-          cohort_id: application.cohort_id,
-          student_user_id: enrollmentMeta.studentUserId,
-        },
-        title: "Enrollment Created",
-        body: `Enrollment #${enrollmentMeta.enrollment.id} was created.`,
-      },
-      client,
-    );
-
-    if (input.send_email || input.send_phone) {
-      await logAdminAction(
-        {
-          actorUserId: reviewerId,
-          action: "send application decision message",
-          entityType: "applications",
-          entityId: applicationId,
-          message: `Decision message queued for application ${applicationId}.`,
-          metadata: {
-            decision: "accepted",
-            send_email: input.send_email,
-            send_phone: input.send_phone,
-            recipient_email: application.email ?? null,
-            recipient_phone: application.phone ?? null,
-            review_message: reviewMessage,
-          },
-          title: "Application Message Queued",
-          body: `Decision message was queued for application #${applicationId}.`,
-        },
-        client,
-      );
-    }
-
-    return {
-      application_id: applicationId,
-      status: "participation_confirmed",
-      stage: "participation_confirmed",
-      student_user_id: enrollmentMeta.studentUserId,
-      enrollment_id: enrollmentMeta.enrollment.id,
-      generated_password: enrollmentMeta.generatedPassword,
-      review_message: reviewMessage,
-      send_email: input.send_email,
-      send_phone: input.send_phone,
-    };
+  return setApplicationDecisionService(applicationId, reviewerId, {
+    decision: "accepted",
+    message: options.message ?? null,
+    send_email: options.send_email ?? false,
+    send_phone: options.send_phone ?? false,
   });
 }
 
@@ -927,7 +897,7 @@ export async function rejectApplicationService(applicationId: number, reviewerId
     }
 
     const application = applicationResult.rows[0];
-    if (!["applied", "reviewing", "invited_to_interview", "interview_confirmed", "accepted"].includes(application.status)) {
+    if (!["applied", "reviewing", "invited_to_interview", "interview_confirmed", "interview_completed", "accepted"].includes(application.status)) {
       throw new AppError(
         409,
         "APPLICATION_ALREADY_REVIEWED",
@@ -985,11 +955,35 @@ export async function rejectApplicationService(applicationId: number, reviewerId
       );
     }
 
+    const defaultEmailSubject = "Application Update";
+    const defaultEmailBody = input.message
+      ? `Dear ${application.full_name || "Applicant"},\n\n${input.message}\n\nBest regards,\nAdmissions Team`
+      : "Thank you for applying. After careful review, we are unable to offer a place at this time.\n\nBest regards,\nAdmissions Team";
+    const defaultSmsBody = input.message || "Your application was not selected at this time.";
+
+    const drafts = buildMessageDraftsFromFlags({
+      send_email: Boolean(input.send_email),
+      send_phone: Boolean(input.send_phone),
+      email_subject: defaultEmailSubject,
+      email_body: defaultEmailBody,
+      sms_body: defaultSmsBody,
+      template_key: "decision_rejected",
+    });
+
+    const messageDispatch = await queueMessageDrafts(
+      { ...application, id: applicationId },
+      reviewerId,
+      drafts,
+      client,
+    );
+
     return {
       ...result.rows[0],
       stage: "rejected",
       send_email: input.send_email,
       send_phone: input.send_phone,
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
     };
   });
 }
@@ -1009,6 +1003,27 @@ export async function patchApplicationStageService(applicationId: number, actorU
     }
 
     const application = applicationResult.rows[0];
+    const currentNormalized = LEGACY_TO_MODERN_STAGE[application.stage] || application.stage;
+    const currentIndex = STAGE_ORDER.indexOf(currentNormalized);
+    const targetIndex = STAGE_ORDER.indexOf(requestedStatus);
+    const forceTransition = payload.force_transition === true;
+
+    if (
+      !forceTransition &&
+      currentNormalized !== "rejected" &&
+      currentIndex >= 0 &&
+      targetIndex >= 0 &&
+      targetIndex > currentIndex + 1 &&
+      requestedStatus !== "rejected"
+    ) {
+      throw new AppError(
+        409,
+        "INVALID_STAGE_TRANSITION",
+        `Cannot move from '${currentNormalized}' directly to '${requestedStatus}'. ` +
+          `Please follow the pipeline: ${STAGE_ORDER.slice(currentIndex + 1, targetIndex + 1).join(" → ")}.`,
+      );
+    }
+
     const stage = normalizeStageForFamily(requestedStatus, application.stage);
     let updated;
     const reviewMessage = normalizeReviewMessage(payload.message);
@@ -1154,7 +1169,7 @@ export async function scheduleApplicationInterviewService(applicationId: number,
       "Best regards,\nAdmissions Team";
     const defaultSmsBody =
       `Interview: ${scheduledLabel} | ${interview.location_type} | ${interview.location_details || "-"} | ` +
-      `App#${applicationId} | Token:${confirmToken} | Confirm: ${links.confirm_url} | Reschedule: ${links.reschedule_url}`;
+      `App#${applicationId} | Confirm: ${links.confirm_url} | Reschedule: ${links.reschedule_url}`;
 
     const drafts = buildMessageDraftsFromFlags({
       send_email: Boolean(payload.send_email),
@@ -1220,8 +1235,8 @@ export async function markApplicationInterviewCompletedService(applicationId: nu
 
     const updated = await updateApplicationStageAndStatus(
       applicationId,
-      "interview_confirmed",
-      "interview_confirmed",
+      "interview_completed",
+      "interview_completed",
       actorUserId,
       null,
       client,
@@ -1240,6 +1255,30 @@ export async function markApplicationInterviewCompletedService(applicationId: nu
       },
       client,
     );
+
+    const applicationRow = applicationResult.rows[0];
+    const templateResult = await getMessageTemplateByKey("interview_confirmation", client);
+    const template = templateResult.rows[0] ?? null;
+
+    if (template && (applicationRow.email || applicationRow.phone)) {
+      const drafts = buildMessageDraftsFromFlags({
+        send_email: Boolean(applicationRow.email),
+        send_phone: Boolean(applicationRow.phone),
+        email_subject: template.subject || "Interview Confirmation",
+        email_body:
+          template.body ||
+          "Dear {name},\n\nThank you for attending your interview. We will be in touch with our decision soon.\n\nBest regards,\nAdmissions Team",
+        sms_body: "Thank you for attending your interview. We will contact you with our decision soon.",
+        template_key: "interview_confirmation",
+      });
+
+      await queueMessageDrafts(
+        { ...applicationRow, id: applicationId },
+        actorUserId,
+        drafts,
+        client,
+      );
+    }
 
     return {
       application: updated.rows[0],
@@ -1376,6 +1415,59 @@ export async function confirmApplicationParticipationService(applicationId: numb
     );
 
     return updated.rows[0];
+  });
+}
+
+export async function resendAcceptanceMessageService(applicationId: number, actorUserId: number) {
+  return withTransaction(async (client: DbClient) => {
+    const applicationResult = await getApplicationForPipelineUpdate(applicationId, client);
+    if (!applicationResult.rowCount) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
+    }
+
+    const application = applicationResult.rows[0];
+    if (!["accepted", "participation_confirmed"].includes(application.stage)) {
+      throw new AppError(409, "INVALID_STAGE", "Can only resend acceptance to accepted applications.");
+    }
+
+    const drafts = buildMessageDraftsFromFlags({
+      send_email: Boolean(application.email),
+      send_phone: Boolean(application.phone),
+      email_subject: "Application Accepted — Please Confirm",
+      email_body: "Your application has been accepted. Please confirm your participation: {participation_confirm_url}",
+      sms_body: "Your application is accepted. Confirm: {participation_confirm_url}",
+      template_key: "decision_accepted",
+    });
+
+    const messageDispatch = await queueMessageDrafts(
+      { ...application, id: applicationId },
+      actorUserId,
+      drafts,
+      client,
+    );
+
+    await logAdminAction(
+      {
+        actorUserId,
+        action: ADMIN_ACTIONS.APPLICATION_MESSAGE_SENT,
+        entityType: "applications",
+        entityId: applicationId,
+        message: `Acceptance message resent for application ${applicationId}.`,
+        metadata: {
+          stage: application.stage,
+          sent_count: messageDispatch.sentMessages.length,
+          failed_count: messageDispatch.failedMessages.length,
+        },
+        title: "Acceptance Message Resent",
+        body: `Acceptance message resent for application #${applicationId}.`,
+      },
+      client,
+    );
+
+    return {
+      sent_messages: messageDispatch.sentMessages,
+      failed_messages: messageDispatch.failedMessages,
+    };
   });
 }
 
@@ -1751,6 +1843,18 @@ export async function publicRescheduleInterviewService(token: string, payload: A
       client,
     );
 
+    const requestedAtLabel = payload.requested_at
+      ? new Date(payload.requested_at).toUTCString()
+      : "not specified";
+    await sendAdmissionsAdminNotification(
+      `Interview Reschedule Request — Application #${interview.application_id || "N/A"}`,
+      `An applicant has requested to reschedule their interview.\n\n` +
+        `Application ID: ${interview.application_id || "N/A"}\n` +
+        `Requested new time: ${requestedAtLabel}\n` +
+        `Note: ${payload.note || "None"}\n\n` +
+        `Please log in to the dashboard to reschedule the interview.\n`,
+    );
+
     return updated;
   });
 }
@@ -1805,6 +1909,15 @@ export async function publicConfirmParticipationService(token: string, payload: 
         body: `Applicant confirmed participation for application #${application.id}.`,
       },
       client,
+    );
+
+    await sendAdmissionsAdminNotification(
+      `Participation Confirmed — Application #${application.id}`,
+      `${application.full_name || "An applicant"} has confirmed their participation.\n\n` +
+        `Application ID: ${application.id}\n` +
+        `Email: ${application.email || "N/A"}\n` +
+        `Phone: ${application.phone || "N/A"}\n\n` +
+        `They are ready for user account creation.\n`,
     );
 
     return {

@@ -4,11 +4,15 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnnouncementPromptModal } from "../../components/AnnouncementPromptModal";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
+import { buildCohortAnnouncementDefaults, type AnnouncementPromptDefaults } from "../../lib/announcementPrompts";
 import { ApiError, api, apiList } from "../../utils/api";
 import { formatDate, formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -103,20 +107,16 @@ type CohortSavePayload = {
   attendance_end_time: string | null;
 };
 
-type ComingSoonPrompt =
-  | {
-      kind: "save";
-      payload: CohortSavePayload;
-    }
-  | {
-      kind: "status";
-      row: CohortRow;
-      nextStatus: CohortStatus;
-    };
-
 type OpenFormPrompt = {
   cohortId: number;
   cohortName: string;
+};
+
+type AnnouncementPromptState = {
+  summary: string;
+  defaults: AnnouncementPromptDefaults;
+  cohortId: number | null;
+  nextOpenFormPrompt: OpenFormPrompt | null;
 };
 
 type FormMode = "create" | "edit" | null;
@@ -253,59 +253,8 @@ function parseProgramCapacity(value: string): number | undefined {
   return parsed;
 }
 
-function parseDate(value: string | null): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function deriveStatusFromDates(input: {
-  enrollment_open_at: string | null;
-  enrollment_close_at: string | null;
-  start_date: string | null;
-  end_date: string | null;
-}): CohortStatus {
-  const now = new Date();
-  const enrollmentOpenAt = parseDate(input.enrollment_open_at);
-  const enrollmentCloseAt = parseDate(input.enrollment_close_at);
-  const startDate = parseDate(input.start_date);
-  const endDate = parseDate(input.end_date);
-
-  if (endDate) {
-    const endOfDay = new Date(endDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    if (now > endOfDay) {
-      return "completed";
-    }
-  }
-
-  if (startDate) {
-    const startOfDay = new Date(startDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    if (now >= startOfDay) {
-      return "running";
-    }
-  }
-
-  if (enrollmentOpenAt && now < enrollmentOpenAt) {
-    return "coming_soon";
-  }
-
-  if (enrollmentOpenAt && (!enrollmentCloseAt || now <= enrollmentCloseAt)) {
-    return "open";
-  }
-
-  if (!enrollmentOpenAt && enrollmentCloseAt && now <= enrollmentCloseAt) {
-    return "open";
-  }
-
-  return "coming_soon";
-}
-
 export function CohortsPage() {
+  const { toasts, pushToast, dismissToast } = useDashboardToasts();
   const navigate = useNavigate();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -336,8 +285,9 @@ export function CohortsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CohortRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [comingSoonPrompt, setComingSoonPrompt] = useState<ComingSoonPrompt | null>(null);
   const [openFormPrompt, setOpenFormPrompt] = useState<OpenFormPrompt | null>(null);
+  const [announcementPrompt, setAnnouncementPrompt] = useState<AnnouncementPromptState | null>(null);
+  const [isPublishingAnnouncement, setIsPublishingAnnouncement] = useState(false);
   const [isAssigningGeneralForm, setIsAssigningGeneralForm] = useState(false);
   const [isPreparingCustomForm, setIsPreparingCustomForm] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
@@ -497,7 +447,39 @@ export function CohortsPage() {
   const totalCohorts = rows.length;
   const openCount = rows.filter((row) => row.status === "open").length;
   const lastUpdated = rows[0]?.updated_at ?? "";
+
+  useEffect(() => {
+    if (success) {
+      pushToast("success", success);
+    }
+  }, [pushToast, success]);
+
+  useEffect(() => {
+    if (error) {
+      pushToast("error", error);
+    }
+  }, [error, pushToast]);
   const formTitle = formMode === "create" ? "Add Cohort" : "Edit Cohort";
+
+  const getProgramMeta = (programId: number) => {
+    const match = programs.find((program) => program.id === programId) ?? null;
+    return {
+      title: match?.title || "this program",
+      slug: match?.slug || null,
+    };
+  };
+
+  const releaseAnnouncementFollowUp = () => {
+    const nextPrompt = announcementPrompt?.nextOpenFormPrompt ?? null;
+    setAnnouncementPrompt(null);
+    if (nextPrompt) {
+      setOpenFormPrompt(nextPrompt);
+    }
+  };
+
+  const openAnnouncementPrompt = (config: AnnouncementPromptState) => {
+    setAnnouncementPrompt(config);
+  };
 
   const closeMobileFilters = () => {
     setShowFiltersMobile(false);
@@ -835,16 +817,13 @@ export function CohortsPage() {
     ]);
   };
 
-  const persistCohort = async (payload: CohortSavePayload, autoAnnounce: boolean) => {
+  const persistCohort = async (payload: CohortSavePayload) => {
     setIsSubmitting(true);
     setFormError("");
     setError("");
 
     try {
       const requestBody: Record<string, unknown> = { ...payload };
-      if (autoAnnounce) {
-        requestBody.auto_announce = true;
-      }
 
       let saved: CohortRow;
       if (formMode === "create") {
@@ -881,11 +860,63 @@ export function CohortsPage() {
 
       const isCreateFlow = formMode === "create";
       const wasOpenBefore = formMode === "edit" && editing?.status === "open";
-      if (isCreateFlow || (saved.status === "open" && !wasOpenBefore)) {
-        setOpenFormPrompt({
+      const nextOpenFormPrompt = isCreateFlow || (saved.status === "open" && !wasOpenBefore)
+        ? {
           cohortId: saved.id,
           cohortName: saved.name,
+        }
+        : null;
+
+      const { title: programName, slug: programSlug } = getProgramMeta(saved.program_id);
+      const previousStatus = editing?.status ?? null;
+      let defaults: AnnouncementPromptDefaults | null = null;
+      if (isCreateFlow) {
+        defaults = buildCohortAnnouncementDefaults({
+          mode:
+            saved.status === "open"
+              ? "open"
+              : saved.status === "running"
+                ? "running"
+                : saved.status === "completed"
+                  ? "completed"
+                  : saved.status === "cancelled"
+                    ? "deleted"
+                    : "coming_soon",
+          cohortName: saved.name,
+          programName,
+          programSlug,
+          cohortId: saved.id,
         });
+      } else if (previousStatus && previousStatus !== saved.status) {
+        defaults = buildCohortAnnouncementDefaults({
+          mode:
+            saved.status === "open"
+              ? "open"
+              : saved.status === "running"
+                ? "running"
+                : saved.status === "completed"
+                  ? "completed"
+                  : saved.status === "cancelled"
+                    ? "deleted"
+                    : previousStatus === "open" && saved.status === "coming_soon"
+                      ? "closed"
+                      : "coming_soon",
+          cohortName: saved.name,
+          programName,
+          programSlug,
+          cohortId: saved.id,
+        });
+      }
+
+      if (defaults) {
+        openAnnouncementPrompt({
+          summary: `${saved.name} has been ${isCreateFlow ? "created" : "updated"}. Would you like to publish an announcement?`,
+          defaults,
+          cohortId: saved.id,
+          nextOpenFormPrompt,
+        });
+      } else if (nextOpenFormPrompt) {
+        setOpenFormPrompt(nextOpenFormPrompt);
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -900,16 +931,13 @@ export function CohortsPage() {
     }
   };
 
-  const applyStatusChange = async (row: CohortRow, nextStatus: CohortStatus, autoAnnounce: boolean) => {
+  const applyStatusChange = async (row: CohortRow, nextStatus: CohortStatus) => {
     setStatusUpdatingId(row.id);
     setError("");
     setSuccess("");
 
     try {
       const body: Record<string, unknown> = { status: nextStatus };
-      if (autoAnnounce) {
-        body.auto_announce = true;
-      }
 
       const updated = await api<CohortRow>(`/cohorts/${row.id}`, {
         method: "PATCH",
@@ -920,9 +948,44 @@ export function CohortsPage() {
       setRefreshKey((current) => current + 1);
 
       if (updated.status === "open" && row.status !== "open") {
-        setOpenFormPrompt({
+        const { title: programName, slug: programSlug } = getProgramMeta(updated.program_id);
+        openAnnouncementPrompt({
+          summary: `${updated.name} status was updated. Would you like to publish an announcement?`,
+          defaults: buildCohortAnnouncementDefaults({
+            mode: "open",
+            cohortName: updated.name,
+            programName,
+            programSlug,
+            cohortId: updated.id,
+          }),
           cohortId: updated.id,
-          cohortName: updated.name,
+          nextOpenFormPrompt: {
+            cohortId: updated.id,
+            cohortName: updated.name,
+          },
+        });
+      } else if (updated.status !== row.status) {
+        const { title: programName, slug: programSlug } = getProgramMeta(updated.program_id);
+        openAnnouncementPrompt({
+          summary: `${updated.name} status was updated. Would you like to publish an announcement?`,
+          defaults: buildCohortAnnouncementDefaults({
+            mode:
+              updated.status === "running"
+                ? "running"
+                : updated.status === "completed"
+                  ? "completed"
+                  : updated.status === "cancelled"
+                    ? "deleted"
+                    : row.status === "open" && updated.status === "coming_soon"
+                      ? "closed"
+                      : "coming_soon",
+            cohortName: updated.name,
+            programName,
+            programSlug,
+            cohortId: updated.id,
+          }),
+          cohortId: updated.id,
+          nextOpenFormPrompt: null,
         });
       }
     } catch (err) {
@@ -941,16 +1004,7 @@ export function CohortsPage() {
       return;
     }
 
-    if (nextStatus === "coming_soon" && row.status !== "coming_soon") {
-      setComingSoonPrompt({
-        kind: "status",
-        row,
-        nextStatus,
-      });
-      return;
-    }
-
-    void applyStatusChange(row, nextStatus, false);
+    void applyStatusChange(row, nextStatus);
   };
 
   const handleSave = async () => {
@@ -963,19 +1017,7 @@ export function CohortsPage() {
         return;
       }
 
-      const predictedStatus = deriveStatusFromDates(payload);
-      const shouldPromptComingSoon =
-        predictedStatus === "coming_soon" && (formMode === "create" || editing?.status !== "coming_soon");
-
-      if (shouldPromptComingSoon) {
-        setComingSoonPrompt({
-          kind: "save",
-          payload,
-        });
-        return;
-      }
-
-      await persistCohort(payload, false);
+      await persistCohort(payload);
     } catch (err) {
       if (err instanceof Error) {
         setFormError(err.message || "Failed to save cohort.");
@@ -985,20 +1027,39 @@ export function CohortsPage() {
     }
   };
 
-  const handleComingSoonPromptDecision = (shouldCreateAnnouncement: boolean) => {
-    const prompt = comingSoonPrompt;
-    setComingSoonPrompt(null);
-
-    if (!prompt) {
+  const handleAnnouncementConfirm = async (payload: {
+    title: string;
+    body: string;
+    cta_label: string | null;
+    cta_url: string | null;
+    is_published: boolean;
+    publish_at: string | null;
+    target_audience: "all" | "website" | "admin";
+  }) => {
+    if (!announcementPrompt) {
       return;
     }
 
-    if (prompt.kind === "save") {
-      void persistCohort(prompt.payload, shouldCreateAnnouncement);
-      return;
+    setIsPublishingAnnouncement(true);
+    try {
+      await api("/announcements", {
+        method: "POST",
+        body: JSON.stringify({
+          ...payload,
+          cohort_id: announcementPrompt.cohortId,
+        }),
+      });
+      setSuccess("Announcement published successfully.");
+      releaseAnnouncementFollowUp();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "Failed to publish announcement.");
+      } else {
+        setError("Failed to publish announcement.");
+      }
+    } finally {
+      setIsPublishingAnnouncement(false);
     }
-
-    void applyStatusChange(prompt.row, prompt.nextStatus, shouldCreateAnnouncement);
   };
 
   const applyGeneralFormToOpenCohort = async () => {
@@ -1070,12 +1131,26 @@ export function CohortsPage() {
     setError("");
 
     try {
+      const cohortToDelete = deleteTarget;
       await api<{ id: number }>(`/cohorts/${deleteTarget.id}`, {
         method: "DELETE",
       });
       setSuccess("Cohort deleted successfully.");
       setDeleteTarget(null);
       setRefreshKey((current) => current + 1);
+      const { title: programName, slug: programSlug } = getProgramMeta(cohortToDelete.program_id);
+      openAnnouncementPrompt({
+        summary: `${cohortToDelete.name} has been deleted. Would you like to publish an announcement?`,
+        defaults: buildCohortAnnouncementDefaults({
+          mode: "deleted",
+          cohortName: cohortToDelete.name,
+          programName,
+          programSlug,
+          cohortId: cohortToDelete.id,
+        }),
+        cohortId: null,
+        nextOpenFormPrompt: null,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || "Failed to delete cohort.");
@@ -1098,20 +1173,7 @@ export function CohortsPage() {
       }
     >
       <div className="dh-page">
-        {(success || error) ? (
-          <div className="dh-toast-stack dh-toast-stack--top-right" aria-live="polite" aria-atomic="true">
-            {success ? (
-              <div className="dh-toast dh-toast--success">
-                <p className="dh-toast__message">{success}</p>
-              </div>
-            ) : null}
-            {error ? (
-              <div className="dh-toast dh-toast--error">
-                <p className="dh-toast__message">{error}</p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
         <div className="stats-grid stats-grid--compact dh-stats">
           <StatsCard label="Total Cohorts" value={String(totalCohorts)} hint="Rows after current filters" />
@@ -1689,31 +1751,18 @@ export function CohortsPage() {
         </div>
       ) : null}
 
-      {comingSoonPrompt ? (
-        <div className="modal-overlay" role="presentation" onClick={() => setComingSoonPrompt(null)}>
-          <div
-            className="modal-card modal-card--narrow"
-            role="dialog"
-            aria-modal="true"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="modal-header">
-              <h3 className="modal-title">Create Announcement?</h3>
-            </header>
-            <p className="post-details__line">
-              This cohort is <strong>Coming Soon</strong>. Do you want to automatically create and publish an announcement now?
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn--secondary" type="button" onClick={() => handleComingSoonPromptDecision(false)}>
-                No
-              </button>
-              <button className="btn btn--primary" type="button" onClick={() => handleComingSoonPromptDecision(true)}>
-                Yes, Create Announcement
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AnnouncementPromptModal
+        open={Boolean(announcementPrompt)}
+        defaultTitle={announcementPrompt?.defaults.title || ""}
+        defaultBody={announcementPrompt?.defaults.body || ""}
+        defaultCtaLabel={announcementPrompt?.defaults.ctaLabel || ""}
+        defaultCtaUrl={announcementPrompt?.defaults.ctaUrl || ""}
+        defaultTargetAudience={announcementPrompt?.defaults.targetAudience || "website"}
+        summary={announcementPrompt?.summary || ""}
+        saving={isPublishingAnnouncement}
+        onConfirm={handleAnnouncementConfirm}
+        onSkip={releaseAnnouncementFollowUp}
+      />
 
       {openFormPrompt ? (
         <div className="modal-overlay" role="presentation">

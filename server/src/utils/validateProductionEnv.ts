@@ -68,5 +68,12 @@ export function validateProductionEnv() {
   requireEnv("SMTP_USER", 3);
   requireEnv("SMTP_PASS", 8);
   requireEnv("DIGITAL_HUB_EMAIL", 5);
+  requireEnv("PUBLIC_API_BASE_URL", 10);
+  requireEnv("LEARNER_SIGNIN_URL", 10);
+
+  const metaApiVersion = String(process.env.META_WA_API_VERSION || "").trim();
+  if (metaApiVersion && looksLikePlaceholder(metaApiVersion)) {
+    throw new AppError(500, "INTERNAL_ERROR", "Production env 'META_WA_API_VERSION' is still a placeholder.");
+  }
 }
 

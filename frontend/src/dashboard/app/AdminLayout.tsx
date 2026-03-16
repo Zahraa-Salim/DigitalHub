@@ -7,8 +7,9 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { GlobalMessageHub } from "../components/GlobalMessageHub";
 import { GlobalMessagingProvider } from "../components/GlobalMessagingContext";
 import { Sidebar } from "../components/Sidebar";
+import { useAuthStore } from "../stores/useAuthStore";
 import { ApiError, api } from "../utils/api";
-import { clearAuth, getUser, setUser } from "../utils/auth";
+import { normalizeUser } from "../utils/auth";
 
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,7 +27,9 @@ export function AdminLayout() {
     }
     return document.documentElement.classList.contains("dark");
   });
-  const [user, setUserState] = useState(() => getUser());
+  const user = useAuthStore((state) => state.user);
+  const storeSetAuth = useAuthStore((state) => state.setAuth);
+  const storeClearAuth = useAuthStore((state) => state.clearAuth);
   const location = useLocation();
   const navigate = useNavigate();
   const showGlobalMessageHub =
@@ -48,32 +51,18 @@ export function AdminLayout() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const refreshUser = () => {
-      setUserState(getUser());
-    };
-
-    window.addEventListener("storage", refreshUser);
-    window.addEventListener("dh-auth-updated", refreshUser as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", refreshUser);
-      window.removeEventListener("dh-auth-updated", refreshUser as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
     let active = true;
 
     const loadCurrentUser = async () => {
       try {
         const me = await api<Record<string, unknown>>("/auth/me");
-        setUser(me);
         if (active) {
-          setUserState(getUser());
+          const currentToken = useAuthStore.getState().token ?? "";
+          storeSetAuth(currentToken, me);
         }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-          clearAuth();
+          storeClearAuth();
           navigate("/login", { replace: true });
         }
       }
@@ -83,7 +72,7 @@ export function AdminLayout() {
     return () => {
       active = false;
     };
-  }, [navigate]);
+  }, [navigate, storeClearAuth, storeSetAuth]);
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -103,9 +92,9 @@ export function AdminLayout() {
   }, [mobileOpen]);
 
   const handleLogout = useCallback(() => {
-    clearAuth();
+    storeClearAuth();
     navigate("/login", { replace: true });
-  }, [navigate]);
+  }, [navigate, storeClearAuth]);
 
   return (
     <div className="dashboard-root">
@@ -117,7 +106,7 @@ export function AdminLayout() {
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-            user={user}
+            user={user ?? normalizeUser(null)}
             onLogout={handleLogout}
             onToggleTheme={() => setIsDark((current) => !current)}
             isDark={isDark}
@@ -135,7 +124,7 @@ export function AdminLayout() {
             <aside className="sidebar-mobile-drawer">
               <Sidebar
                 collapsed={false}
-                user={user}
+                user={user ?? normalizeUser(null)}
                 onNavigate={() => setMobileOpen(false)}
                 onLogout={handleLogout}
                 onToggleTheme={() => setIsDark((current) => !current)}

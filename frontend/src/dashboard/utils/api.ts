@@ -2,19 +2,9 @@
 // Purpose: Provides dashboard utility functions for API.
 // It supports repeated admin-side formatting, query, or state logic.
 
-import { clearAuth, getToken } from "./auth";
-
-const resolveFallbackApiUrl = () => {
-  if (typeof window === "undefined") {
-    return "http://localhost:5000";
-  }
-  const hostname = window.location.hostname || "localhost";
-  const normalizedHost = hostname.includes(":") && !hostname.startsWith("[")
-    ? `[${hostname}]`
-    : hostname;
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  return `${protocol}//${normalizedHost}:5000`;
-};
+import { resolveFallbackApiUrl } from "../../lib/resolveApiUrl";
+import { useAuthStore } from "../stores/useAuthStore";
+import { buildQueryString } from "./query";
 
 const FALLBACK_API_URL = resolveFallbackApiUrl();
 
@@ -25,6 +15,18 @@ export type PaginationMeta = {
   limit: number;
   total: number;
   totalPages: number;
+};
+
+export type SubscriberRow = {
+  id: number;
+  phone: string;
+  name: string | null;
+  preferences: string[];
+  is_active: boolean;
+  opted_out_at: string | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type ApiErrorPayload = {
@@ -125,7 +127,7 @@ async function request<T>(path: string, options: RequestInit = {}, requireAuth =
   }
 
   if (requireAuth) {
-    const token = getToken();
+    const token = useAuthStore.getState().token;
     if (!token) {
       throw new ApiError(401, "UNAUTHORIZED", "Authentication required.");
     }
@@ -147,7 +149,7 @@ async function request<T>(path: string, options: RequestInit = {}, requireAuth =
     const details = failure?.error.details;
 
     if (response.status === 401) {
-      clearAuth();
+      useAuthStore.getState().clearAuth();
       if (typeof window !== "undefined") {
         const loginPath = `${import.meta.env.BASE_URL}login`;
         if (window.location.pathname !== loginPath) {
@@ -178,5 +180,32 @@ export async function apiList<T>(path: string, options: RequestInit = {}, requir
     data: envelope.data,
     pagination: envelope.pagination ?? { page: 1, limit: envelope.data.length, total: envelope.data.length, totalPages: 1 },
   };
+}
+
+export async function getSubscribers(params?: Record<string, string | number | boolean>) {
+  return apiList<SubscriberRow>(`/admin/subscribers${buildQueryString(params ?? {})}`);
+}
+
+export async function patchSubscriber(
+  id: number,
+  payload: {
+    name?: string | null;
+    preferences?: string[];
+    is_active?: boolean;
+  },
+) {
+  return api<SubscriberRow>(`/admin/subscribers/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBroadcastPreview(announcementId: number) {
+  return api<{
+    announcement_id: number;
+    derived_topics: string[];
+    user_count: number;
+    subscriber_count: number;
+  }>(`/announcements/${announcementId}/broadcast/preview`);
 }
 

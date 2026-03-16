@@ -13,6 +13,15 @@ export type WorkflowStage =
   | "rejected"
   | "participation_confirmed";
 
+const WORKFLOW_STAGE_ORDER: WorkflowStage[] = [
+  "applied",
+  "reviewing",
+  "invited_to_interview",
+  "interview_confirmed",
+  "accepted",
+  "participation_confirmed",
+];
+
 type StatusLabelOptions = {
   confirmedLabel?: string;
 };
@@ -22,6 +31,32 @@ export function workflowStatusLabel(stage: WorkflowStage, options?: StatusLabelO
   if (stage === "interview_confirmed") return "Interview Confirmed";
   if (stage === "participation_confirmed") return options?.confirmedLabel || "Participation Confirmed";
   return stage.charAt(0).toUpperCase() + stage.slice(1);
+}
+
+export function getSkippedStageTransitionWarning(
+  currentStage: WorkflowStage,
+  nextStage: WorkflowStage,
+  options?: StatusLabelOptions,
+): string | null {
+  if (currentStage === nextStage || currentStage === "rejected" || nextStage === "rejected") {
+    return null;
+  }
+
+  const currentIndex = WORKFLOW_STAGE_ORDER.indexOf(currentStage);
+  const targetIndex = WORKFLOW_STAGE_ORDER.indexOf(nextStage);
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex <= currentIndex + 1) {
+    return null;
+  }
+
+  const skippedStages = WORKFLOW_STAGE_ORDER.slice(currentIndex + 1, targetIndex).map((stage) =>
+    workflowStatusLabel(stage, options),
+  );
+  const skippedText = skippedStages.length ? ` This skips ${skippedStages.join(" -> ")}.` : "";
+
+  return (
+    `This moves the applicant directly from ${workflowStatusLabel(currentStage, options)} ` +
+    `to ${workflowStatusLabel(nextStage, options)}.${skippedText}`
+  );
 }
 
 export function toFriendlyCreateUserError(

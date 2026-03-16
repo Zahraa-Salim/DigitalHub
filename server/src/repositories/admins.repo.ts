@@ -2,13 +2,16 @@
 // Purpose: Runs the database queries used for admins.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type AdminCreateInput = {
+  email: string;
+  password_hash: string;
+};
 
 // Handles 'countAdmins' workflow for this module.
-export async function countAdmins(whereClause, params, db = pool) {
+export async function countAdmins(whereClause: string, params: unknown[], db: DbClient = pool) {
   return db.query(
     `
       SELECT COUNT(*)::int AS total
@@ -21,7 +24,15 @@ export async function countAdmins(whereClause, params, db = pool) {
 }
 
 // Handles 'listAdmins' workflow for this module.
-export async function listAdmins(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listAdmins(
+  whereClause: string,
+  sortBy: string,
+  order: string,
+  params: unknown[],
+  limit: number,
+  offset: number,
+  db: DbClient = pool,
+) {
   return db.query(
     `
       SELECT
@@ -52,7 +63,7 @@ export async function listAdmins(whereClause, sortBy, order, params, limit, offs
 }
 
 // Handles 'createAdminUser' workflow for this module.
-export async function createAdminUser(input, db = pool) {
+export async function createAdminUser(input: AdminCreateInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO users (email, password_hash, is_admin, is_active, created_at, updated_at)
@@ -64,7 +75,7 @@ export async function createAdminUser(input, db = pool) {
 }
 
 // Handles 'setAdminActiveByUserId' workflow for this module.
-export async function setAdminActiveByUserId(userId, isActive, db = pool) {
+export async function setAdminActiveByUserId(userId: number, isActive: boolean, db: DbClient = pool) {
   return db.query(
     `
       UPDATE users
@@ -78,7 +89,7 @@ export async function setAdminActiveByUserId(userId, isActive, db = pool) {
 }
 
 // Handles 'updateAdminUserById' workflow for this module.
-export async function updateAdminUserById(userId, setClause, values, db = pool) {
+export async function updateAdminUserById(userId: number, setClause: string, values: unknown[], db: DbClient = pool) {
   return db.query(
     `
       UPDATE users
@@ -92,7 +103,7 @@ export async function updateAdminUserById(userId, setClause, values, db = pool) 
 }
 
 // Handles 'findAdminForUpdate' workflow for this module.
-export async function findAdminForUpdate(userId, db = pool) {
+export async function findAdminForUpdate(userId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -123,7 +134,7 @@ export async function findAdminForUpdate(userId, db = pool) {
 }
 
 // Handles 'findAdminByUserId' workflow for this module.
-export async function findAdminByUserId(userId, db = pool) {
+export async function findAdminByUserId(userId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT

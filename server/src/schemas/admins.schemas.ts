@@ -2,9 +2,6 @@
 // Purpose: Defines the Zod schemas for admins.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
-
 import { z } from "zod";
 
 export const adminUserIdParamsSchema = z

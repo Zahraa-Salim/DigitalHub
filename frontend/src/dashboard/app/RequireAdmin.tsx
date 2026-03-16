@@ -3,12 +3,13 @@
 // It wires route guards, layouts, and route configuration for the admin experience.
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { getToken } from "../utils/auth";
+import { useAuthStore } from "../stores/useAuthStore";
 
 export function RequireAdmin() {
   const location = useLocation();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
 
-  if (!getToken()) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 

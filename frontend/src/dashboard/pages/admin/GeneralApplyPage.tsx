@@ -2,25 +2,22 @@
 // Purpose: Renders the admin general apply page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ConfirmActionModal } from "../../components/ConfirmActionModal";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
 import {
   type MessageTemplate,
-  type ProgramApplicationFormField,
-  type ProgramApplicationFormFieldType,
   type ProgramApplicationListItem,
   type ProgramApplicationStage,
   createProgramApplicationMessage,
   createUserFromProgramApplication,
   getProgramApplicationDetail,
-  getProgramApplicationForm,
   listMessageTemplates,
   listProgramApplications,
   markProgramApplicationInterviewCompleted,
   scheduleProgramApplicationInterview,
   sendProgramApplicationMessage,
-  updateProgramApplicationFormFields,
   updateProgramApplicationStage,
 } from "../../lib/api";
 import { useGlobalMessagingContext } from "../../components/GlobalMessagingContext";
@@ -31,19 +28,22 @@ import {
 } from "../../lib/messageTemplates";
 import {
   buildInterviewScheduleFeedback,
+  getSkippedStageTransitionWarning,
   toFriendlyCreateUserError,
   toFriendlyDeliveryFailure,
   workflowStatusLabel,
 } from "../../lib/adminWorkflowText";
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, apiList } from "../../utils/api";
-import "./GeneralApplyPage.css";
+import "../../styles/general-apply.css";
 
-type PageTab = "applications" | "form";
 type ApplicationFilter = "all" | ProgramApplicationStage;
-type FieldOptionSource = "manual" | "programs";
 type RecipientGroup = "individual" | "all" | "selected" | ProgramApplicationStage;
 type InterviewLocationType = "online" | "in_person" | "phone";
+type ConfirmState = {
+  title: string;
+  message: string;
+};
 
 type ProgramOption = { id: number; title: string };
 type ComposerRecipient = {
@@ -63,37 +63,6 @@ type DetailData = {
 type CreateUserDeliveryChannels = {
   email: boolean;
   sms: boolean;
-};
-
-type EditableField = {
-  id: string;
-  name: string;
-  label: string;
-  type: ProgramApplicationFormFieldType;
-  required: boolean;
-  placeholder: string;
-  options: Array<{ label: string; value: string }>;
-  is_enabled: boolean;
-};
-
-type NewFieldDraft = {
-  label: string;
-  type: ProgramApplicationFormFieldType;
-  required: boolean;
-  placeholder: string;
-  optionsText: string;
-  optionsSource: FieldOptionSource;
-};
-
-type FieldEditDraft = {
-  label: string;
-  name: string;
-  type: ProgramApplicationFormFieldType;
-  required: boolean;
-  placeholder: string;
-  optionsText: string;
-  optionsSource: FieldOptionSource;
-  is_enabled: boolean;
 };
 
 type StatusCountMap = Record<ProgramApplicationStage, number>;
@@ -118,17 +87,6 @@ const EMPTY_STATUS_COUNTS: StatusCountMap = {
   participation_confirmed: 0,
 };
 
-const FIELD_TYPE_OPTIONS: ProgramApplicationFormFieldType[] = [
-  "text",
-  "textarea",
-  "email",
-  "phone",
-  "select",
-  "checkbox",
-  "date",
-  "file",
-];
-
 function FilterIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -143,43 +101,6 @@ function MessageIcon() {
       <path d="M4 5.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4.5 3v-3H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
     </svg>
   );
-}
-
-function GripIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="9" cy="6" r="1.2" />
-      <circle cx="15" cy="6" r="1.2" />
-      <circle cx="9" cy="12" r="1.2" />
-      <circle cx="15" cy="12" r="1.2" />
-      <circle cx="9" cy="18" r="1.2" />
-      <circle cx="15" cy="18" r="1.2" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
-      <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
-}
-
-function toSafeFieldName(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64);
 }
 
 function toStage(value: string): ProgramApplicationStage {
@@ -238,39 +159,6 @@ function overviewGeneralApplyFocusMessage(focus: string): string {
     default:
       return "Overview shortcut applied to General Apply.";
   }
-}
-
-function parseOptions(options: unknown): Array<{ label: string; value: string }> {
-  if (Array.isArray(options)) {
-    return options
-      .map((item) => {
-        if (typeof item === "string") return { label: item, value: item };
-        if (item && typeof item === "object") {
-          const value = item as { label?: unknown; value?: unknown };
-          if (typeof value.label === "string" && typeof value.value === "string") {
-            return { label: value.label, value: value.value };
-          }
-        }
-        return null;
-      })
-      .filter((entry): entry is { label: string; value: string } => Boolean(entry));
-  }
-
-  if (options && typeof options === "object") {
-    const choices = (options as { choices?: unknown }).choices;
-    if (Array.isArray(choices)) {
-      return choices
-        .map((item) => (typeof item === "string" ? { label: item, value: item } : null))
-        .filter((entry): entry is { label: string; value: string } => Boolean(entry));
-    }
-  }
-
-  return [];
-}
-
-function toOptionsText(options: Array<{ label: string; value: string }>): string {
-  if (!options.length) return "";
-  return options.map((entry) => entry.label || entry.value).join(", ");
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -578,7 +466,6 @@ function CreateUserDeliveryModal({
 export function GeneralApplyPage() {
   const { setPageData: setGlobalMessagingPageData } = useGlobalMessagingContext();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<PageTab>("applications");
   const [activeFilter, setActiveFilter] = useState<ApplicationFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -594,7 +481,7 @@ export function GeneralApplyPage() {
   const [bulkStatus, setBulkStatus] = useState<ProgramApplicationStage | "">("");
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [loadingApplications, setLoadingApplications] = useState(false);
+  const [loadingApplications, setLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState("");
 
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
@@ -611,6 +498,7 @@ export function GeneralApplyPage() {
   const [scheduleTargetName, setScheduleTargetName] = useState("");
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [scheduleInitial, setScheduleInitial] = useState({
     scheduled_at: "",
     duration_minutes: 30,
@@ -636,43 +524,30 @@ export function GeneralApplyPage() {
   const [composerBusy, setComposerBusy] = useState(false);
   const [composerError, setComposerError] = useState("");
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
+  const [confirmResolver, setConfirmResolver] = useState<((confirmed: boolean) => void) | null>(null);
 
-  const [fields, setFields] = useState<EditableField[]>([]);
-  const [loadingForm, setLoadingForm] = useState(false);
-  const [savingFormFields, setSavingFormFields] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
-  const [fieldEditDraft, setFieldEditDraft] = useState<FieldEditDraft | null>(null);
-  const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  const [isAdding, setIsAdding] = useState(false);
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
-  const [loadingPrograms, setLoadingPrograms] = useState(false);
-  const [newField, setNewField] = useState<NewFieldDraft>({
-    label: "",
-    type: "text",
-    required: false,
-    placeholder: "",
-    optionsText: "",
-    optionsSource: "manual",
-  });
+
+  const requestConfirmation = (title: string, message: string) =>
+    new Promise<boolean>((resolve) => {
+      setConfirmResolver(() => resolve);
+      setConfirmState({ title, message });
+    });
+
+  const closeConfirmation = (confirmed: boolean) => {
+    setConfirmState(null);
+    confirmResolver?.(confirmed);
+    setConfirmResolver(null);
+  };
 
   useEffect(() => {
     const sourceParam = String(searchParams.get("source") || "").trim().toLowerCase();
-    const tabParam = String(searchParams.get("tab") || "").trim().toLowerCase();
     const stageParam = String(searchParams.get("stage") || "").trim().toLowerCase();
     const programIdParam = String(searchParams.get("program_id") || "").trim();
     const searchParam = searchParams.get("search");
     const sortByParam = String(searchParams.get("sortBy") || "").trim().toLowerCase();
     const orderParam = String(searchParams.get("order") || "").trim().toLowerCase();
     const focusParam = String(searchParams.get("focus") || "").trim().toLowerCase();
-
-    if (tabParam === "form") {
-      setActiveTab("form");
-    } else if (tabParam === "applications") {
-      setActiveTab("applications");
-    }
 
     if (stageParam === "all") {
       setActiveFilter("all");
@@ -705,14 +580,8 @@ export function GeneralApplyPage() {
       setSelectedIds(new Set());
       setPage(1);
       setFilterPanelOpen(false);
-      if (!tabParam) {
-        setActiveTab("applications");
-      }
     }
   }, [searchParams]);
-
-  const addFieldCardRef = useRef<HTMLDivElement | null>(null);
-  const addFieldLabelRef = useRef<HTMLInputElement | null>(null);
 
   const selectedApplication = useMemo(() => applicants.find((item) => item.id === selectedApplicationId) ?? null, [applicants, selectedApplicationId]);
   const programTitleById = useMemo(
@@ -816,11 +685,6 @@ export function GeneralApplyPage() {
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
 
   useEffect(() => {
-    if (activeTab !== "applications") {
-      setGlobalMessagingPageData(null);
-      return;
-    }
-
     setGlobalMessagingPageData({
       scope: "program_applications",
       recipients: applicants.map((entry) => ({
@@ -836,7 +700,7 @@ export function GeneralApplyPage() {
     });
 
     return () => setGlobalMessagingPageData(null);
-  }, [activeTab, applicants, selectedIds, setGlobalMessagingPageData]);
+  }, [applicants, selectedIds, setGlobalMessagingPageData]);
 
   useEffect(() => {
     if (selectedIds.size === 0) {
@@ -918,34 +782,6 @@ export function GeneralApplyPage() {
     }
   };
 
-  const loadProgramForm = async () => {
-    setLoadingForm(true);
-    setFormError("");
-    try {
-      const payload = await getProgramApplicationForm();
-      setEditingFieldId(null);
-      setFieldEditDraft(null);
-      setDragFromIndex(null);
-      setDragOverIndex(null);
-      setFields(
-        payload.fields.map((field, index) => ({
-          id: String(field.id ?? `field-${index}`),
-          name: field.name || toSafeFieldName(field.label || `field_${index + 1}`),
-          label: field.label || `Field ${index + 1}`,
-          type: field.type,
-          required: Boolean(field.required),
-          placeholder: field.placeholder ?? "",
-          options: parseOptions(field.options),
-          is_enabled: field.is_enabled !== false,
-        })),
-      );
-    } catch (error) {
-      setFormError(error instanceof ApiError ? error.message : "Failed to load form.");
-    } finally {
-      setLoadingForm(false);
-    }
-  };
-
   useEffect(() => {
     void loadApplications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -973,15 +809,8 @@ export function GeneralApplyPage() {
   }, [searchQuery, programFilter]);
 
   useEffect(() => {
-    if (activeTab === "form") {
-      void loadProgramForm();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
     let active = true;
     const loadPrograms = async () => {
-      setLoadingPrograms(true);
       try {
         const result = await apiList<ProgramOption>("/programs?limit=100&sortBy=title&order=asc");
         if (!active) return;
@@ -989,8 +818,6 @@ export function GeneralApplyPage() {
       } catch {
         if (!active) return;
         setPrograms([]);
-      } finally {
-        if (active) setLoadingPrograms(false);
       }
     };
     void loadPrograms();
@@ -1029,8 +856,10 @@ export function GeneralApplyPage() {
       if (selectedApplicationId) {
         await loadDetail(selectedApplicationId);
       }
+      return true;
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "Action couldn't be completed. Please try again.");
+      return false;
     } finally {
       setActionBusy(false);
     }
@@ -1261,9 +1090,24 @@ export function GeneralApplyPage() {
     id: number,
     nextStage: ProgramApplicationStage,
     fallbackName?: string | null,
+    skipConfirmation = false,
   ) => {
+    const target = applicants.find((entry) => entry.id === id);
+    const currentStage = target ? toStage(target.stage) : "applied";
+    const transitionWarning = getSkippedStageTransitionWarning(currentStage, nextStage, {
+      confirmedLabel: "Confirmed",
+    });
+    if (!skipConfirmation && transitionWarning) {
+      const confirmed = await requestConfirmation(
+        "Confirm Stage Skip",
+        `${transitionWarning}\n\nDo you want to continue?`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     if (nextStage === "invited_to_interview") {
-      const target = applicants.find((entry) => entry.id === id);
       const name =
         target?.full_name?.trim() ||
         target?.email?.trim() ||
@@ -1273,13 +1117,23 @@ export function GeneralApplyPage() {
       return;
     }
 
-    await runAction(async () => {
+    const succeeded = await runAction(async () => {
       if (nextStage === "interview_confirmed") {
         await markProgramApplicationInterviewCompleted(id);
         return;
       }
-      await updateProgramApplicationStage(id, { stage: nextStage });
+      await updateProgramApplicationStage(id, {
+        stage: nextStage,
+        force_transition: Boolean(transitionWarning),
+      });
     });
+    if (succeeded && target) {
+      setActionSuccess(
+        `${target.full_name?.trim() || target.email?.trim() || "Applicant"} moved to ${workflowStatusLabel(nextStage, {
+          confirmedLabel: "Confirmed",
+        })}.`,
+      );
+    }
   };
 
   const submitScheduleModal = async (input: {
@@ -1469,207 +1323,9 @@ export function GeneralApplyPage() {
     }
   };
 
-  const toProgramApplicationFieldPayload = (nextFields: EditableField[]): ProgramApplicationFormField[] => {
-    return nextFields.map((field, index) => {
-      const row: ProgramApplicationFormField = {
-        name: toSafeFieldName(field.name || field.label) || `field_${index + 1}`,
-        label: field.label || `Field ${index + 1}`,
-        type: field.type,
-        required: field.required,
-        placeholder: field.placeholder || null,
-        sort_order: index,
-        is_enabled: field.is_enabled,
-      };
-      if (field.type === "select" || field.type === "checkbox") row.options = field.options;
-      return row;
-    });
-  };
-
-  const persistFields = async (nextFields: EditableField[]) => {
-    setFields(nextFields);
-    setSavingFormFields(true);
-    setFormError("");
-    try {
-      await updateProgramApplicationFormFields({
-        fields: toProgramApplicationFieldPayload(nextFields),
-      });
-    } catch (error) {
-      setFormError(error instanceof ApiError ? error.message : "Failed to save fields.");
-      await loadProgramForm();
-    } finally {
-      setSavingFormFields(false);
-    }
-  };
-
-  const addField = async () => {
-    if (!newField.label.trim()) return;
-    const options =
-      newField.type === "select" && newField.optionsSource === "programs"
-        ? programs.map((program) => ({ label: program.title, value: String(program.id) }))
-        : newField.optionsText
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean)
-            .map((value) => ({ label: value, value }));
-
-    const nextFields = [
-      ...fields,
-      {
-        id: `new-${Date.now()}-${fields.length}`,
-        name: toSafeFieldName(newField.label) || `field_${fields.length + 1}`,
-        label: newField.label,
-        type: newField.type,
-        required: newField.required,
-        placeholder: newField.placeholder,
-        options,
-        is_enabled: true,
-      },
-    ];
-
-    await persistFields(nextFields);
-    setNewField({ label: "", type: "text", required: false, placeholder: "", optionsText: "", optionsSource: "manual" });
-    setIsAdding(false);
-  };
-
-  const startEditField = (field: EditableField) => {
-    setEditingFieldId(field.id);
-    setFieldEditDraft({
-      label: field.label,
-      name: field.name,
-      type: field.type,
-      required: field.required,
-      placeholder: field.placeholder,
-      optionsText: toOptionsText(field.options),
-      optionsSource:
-        field.type === "select" &&
-        field.options.length > 0 &&
-        field.options.every((entry) => programs.some((program) => String(program.id) === entry.value))
-          ? "programs"
-          : "manual",
-      is_enabled: field.is_enabled,
-    });
-  };
-
-  const saveEditedField = async (fieldId: string) => {
-    if (!fieldEditDraft) return;
-    const options =
-      fieldEditDraft.type === "select" && fieldEditDraft.optionsSource === "programs"
-        ? programs.map((program) => ({ label: program.title, value: String(program.id) }))
-        : fieldEditDraft.optionsText
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean)
-            .map((value) => ({ label: value, value }));
-
-    const nextFields = fields.map((field) =>
-      field.id === fieldId
-        ? {
-            ...field,
-            label: fieldEditDraft.label.trim() || field.label,
-            name: toSafeFieldName(fieldEditDraft.name || fieldEditDraft.label) || field.name,
-            type: fieldEditDraft.type,
-            required: fieldEditDraft.required,
-            placeholder: fieldEditDraft.placeholder,
-            options: fieldEditDraft.type === "select" || fieldEditDraft.type === "checkbox" ? options : [],
-            is_enabled: fieldEditDraft.is_enabled,
-          }
-        : field,
-    );
-
-    await persistFields(nextFields);
-    setEditingFieldId(null);
-    setFieldEditDraft(null);
-  };
-
-  const moveField = async (index: number, direction: -1 | 1) => {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= fields.length) return;
-    const clone = [...fields];
-    const [item] = clone.splice(index, 1);
-    clone.splice(targetIndex, 0, item);
-    await persistFields(clone);
-  };
-
-  const handleFieldDragStart = (index: number, event: DragEvent<HTMLDivElement>) => {
-    if (savingFormFields) return;
-    setDragFromIndex(index);
-    setDragOverIndex(index);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", String(index));
-  };
-
-  const handleFieldDrop = async (dropIndex: number) => {
-    if (dragFromIndex === null) return;
-    if (dragFromIndex === dropIndex) {
-      setDragFromIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-    const clone = [...fields];
-    const [item] = clone.splice(dragFromIndex, 1);
-    clone.splice(dropIndex, 0, item);
-    setDragFromIndex(null);
-    setDragOverIndex(null);
-    await persistFields(clone);
-  };
-
-  const handleFieldDragEnd = () => {
-    setDragFromIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const removeField = async (fieldId: string) => {
-    const nextFields = fields.filter((item) => item.id !== fieldId);
-    await persistFields(nextFields);
-    if (editingFieldId === fieldId) {
-      setEditingFieldId(null);
-      setFieldEditDraft(null);
-    }
-  };
-
-  const confirmDeleteField = async (field: EditableField) => {
-    const confirmed = window.confirm(`Delete field "${field.label}"?`);
-    if (!confirmed) return;
-    await removeField(field.id);
-  };
-
-  const openAddField = () => {
-    setEditingFieldId(null);
-    setFieldEditDraft(null);
-    if (isAdding) {
-      addFieldCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      addFieldLabelRef.current?.focus();
-      return;
-    }
-    setIsAdding(true);
-  };
-
-  useEffect(() => {
-    if (!isAdding) return;
-    addFieldCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    addFieldLabelRef.current?.focus();
-  }, [isAdding]);
-
-  const cancelEditField = () => {
-    setEditingFieldId(null);
-    setFieldEditDraft(null);
-  };
-
   return (
     <div className="popapply-page">
-      <header className="popapply-topnav">
-        <nav className="popapply-tabs" aria-label="General Apply tabs">
-          <button type="button" className={activeTab === "applications" ? "popapply-tab popapply-tab--active" : "popapply-tab"} onClick={() => setActiveTab("applications")}>
-            Applications
-          </button>
-          <button type="button" className={activeTab === "form" ? "popapply-tab popapply-tab--active" : "popapply-tab"} onClick={() => setActiveTab("form")}>
-            Form Management
-          </button>
-        </nav>
-      </header>
-
-      {activeTab === "applications" ? (
-        <section className="popapply-apps">
+      <section className="popapply-apps">
           <div className="popapply-stage-filters popapply-stage-filters--tabs">
             <button type="button" className={activeFilter === "all" ? "popapply-stage-chip popapply-stage-chip--active" : "popapply-stage-chip"} onClick={() => setActiveFilter("all")}>
               <span className="popapply-stage-chip__label">All</span>
@@ -1766,22 +1422,61 @@ export function GeneralApplyPage() {
                   type="button"
                   disabled={actionBusy || !bulkStatus}
                   onClick={() => {
-                    if (!bulkStatus) return;
-                    if (bulkStatus === "invited_to_interview") {
-                      setActionError("Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
-                      return;
-                    }
-                    void runAction(async () => {
-                      await Promise.all(
-                        [...selectedIds].map((id) => {
-                          if (bulkStatus === "interview_confirmed") {
-                            return markProgramApplicationInterviewCompleted(id);
-                          }
-                          return updateProgramApplicationStage(id, { stage: bulkStatus as ProgramApplicationStage });
-                        }),
+                    void (async () => {
+                      if (!bulkStatus) return;
+                      if (bulkStatus === "invited_to_interview") {
+                        setActionError("Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
+                        return;
+                      }
+
+                      const skippedTargets = applicants.filter(
+                        (applicant) =>
+                          selectedIds.has(applicant.id) &&
+                          Boolean(
+                            getSkippedStageTransitionWarning(toStage(applicant.stage), bulkStatus as ProgramApplicationStage, {
+                              confirmedLabel: "Confirmed",
+                            }),
+                          ),
                       );
-                      setSelectedIds(new Set());
-                    });
+                      if (
+                        skippedTargets.length > 0 &&
+                        !(await requestConfirmation(
+                          "Confirm Bulk Stage Skip",
+                          `This will skip the normal pipeline for ${skippedTargets.length} selected applicant${
+                            skippedTargets.length === 1 ? "" : "s"
+                          } and move them directly to ${workflowStatusLabel(bulkStatus as ProgramApplicationStage, {
+                            confirmedLabel: "Confirmed",
+                          })}.\n\nDo you want to continue?`,
+                        ))
+                      ) {
+                        return;
+                      }
+
+                      void (async () => {
+                        const succeeded = await runAction(async () => {
+                          await Promise.all(
+                            [...selectedIds].map((id) => {
+                              if (bulkStatus === "interview_confirmed") {
+                                return markProgramApplicationInterviewCompleted(id);
+                              }
+                              return updateProgramApplicationStage(id, {
+                                stage: bulkStatus as ProgramApplicationStage,
+                                force_transition: skippedTargets.some((applicant) => applicant.id === id),
+                              });
+                            }),
+                          );
+                          setSelectedIds(new Set());
+                        });
+                        if (succeeded) {
+                          setActionSuccess(
+                            `${selectedIds.size} applicant${selectedIds.size === 1 ? "" : "s"} moved to ${workflowStatusLabel(
+                              bulkStatus as ProgramApplicationStage,
+                              { confirmedLabel: "Confirmed" },
+                            )}.`,
+                          );
+                        }
+                      })();
+                    })();
                   }}
                 >
                   Apply
@@ -2150,115 +1845,17 @@ export function GeneralApplyPage() {
             />
           ) : null}
 
-        </section>
-      ) : (
-        <section className="popapply-form-container">
-          <div className="popapply-header">
-            <div>
-              <h2 className="popapply-title">Application Form</h2>
-            </div>
-            <button className="popapply-btn popapply-btn--primary" type="button" onClick={openAddField}>Add Field</button>
-          </div>
+          <ConfirmActionModal
+            open={Boolean(confirmState)}
+            title={confirmState?.title || ""}
+            message={confirmState?.message || ""}
+            confirmLabel="Continue"
+            cancelLabel="Cancel"
+            onConfirm={() => closeConfirmation(true)}
+            onClose={() => closeConfirmation(false)}
+          />
 
-          {loadingForm ? <p className="popapply-info">Loading form...</p> : null}
-          {formError ? <p className="popapply-error">{formError}</p> : null}
-
-          {isAdding ? (
-            <div className="popapply-card popapply-card--add" ref={addFieldCardRef}>
-              <div className="popapply-card-header"><h3 className="popapply-card-title">Add New Field</h3></div>
-              <div className="popapply-card-content">
-                <div className="popapply-grid">
-                  <div className="popapply-control"><label className="popapply-label">Label</label><input ref={addFieldLabelRef} className="popapply-input" value={newField.label} onChange={(event) => setNewField((current) => ({ ...current, label: event.target.value }))} /></div>
-                  <div className="popapply-control"><label className="popapply-label">Type</label><select className="popapply-input" value={newField.type} onChange={(event) => setNewField((current) => ({ ...current, type: event.target.value as ProgramApplicationFormFieldType }))}>{FIELD_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}</select></div>
-                  {newField.type === "select" ? <div className="popapply-control"><label className="popapply-label">Options Source</label><select className="popapply-input" value={newField.optionsSource} onChange={(event) => setNewField((current) => ({ ...current, optionsSource: event.target.value as FieldOptionSource }))}><option value="manual">manual</option><option value="programs">programs</option></select></div> : null}
-                  <div className="popapply-control"><label className="popapply-label">Placeholder</label><input className="popapply-input" value={newField.placeholder} onChange={(event) => setNewField((current) => ({ ...current, placeholder: event.target.value }))} /></div>
-                  {(newField.type === "select" || newField.type === "checkbox") && (newField.type !== "select" || newField.optionsSource === "manual") ? <div className="popapply-control"><label className="popapply-label">Options (comma)</label><input className="popapply-input" value={newField.optionsText} onChange={(event) => setNewField((current) => ({ ...current, optionsText: event.target.value }))} /></div> : null}
-                  {newField.type === "select" && newField.optionsSource === "programs" ? <p className="popapply-info">{loadingPrograms ? "Loading programs..." : `${programs.length} programs loaded; value uses id.`}</p> : null}
-                  <label className="popapply-checkbox-wrap"><input className="popapply-checkbox" type="checkbox" checked={newField.required} onChange={(event) => setNewField((current) => ({ ...current, required: event.target.checked }))} /><span>Required</span></label>
-                </div>
-                <div className="popapply-footer">
-                  <button className="popapply-btn popapply-btn--ghost" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
-                  <button className="popapply-btn popapply-btn--primary" type="button" onClick={() => void addField()} disabled={!newField.label.trim() || savingFormFields}>{savingFormFields ? "Saving..." : "Add Field"}</button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="popapply-fields">
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                className={
-                  editingFieldId === field.id
-                    ? `popapply-field-row popapply-field-row--editing${dragOverIndex === index && dragFromIndex !== index ? " popapply-field-row--drag-over" : ""}`
-                    : `popapply-field-row${dragOverIndex === index && dragFromIndex !== index ? " popapply-field-row--drag-over" : ""}`
-                }
-                onDragOver={(event) => {
-                  if (dragFromIndex === null || savingFormFields) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  if (dragOverIndex !== index) setDragOverIndex(index);
-                }}
-                onDrop={(event) => {
-                  if (savingFormFields) return;
-                  event.preventDefault();
-                  void handleFieldDrop(index);
-                }}
-              >
-                <div
-                  className="popapply-drag-handle"
-                  draggable={!savingFormFields}
-                  onDragStart={(event) => handleFieldDragStart(index, event)}
-                  onDragEnd={handleFieldDragEnd}
-                  title="Drag to reorder"
-                >
-                  <GripIcon />
-                </div>
-                <div className="popapply-field-body">
-                  <div className="popapply-field-head"><h3 className="popapply-field-label">{field.label}</h3>{field.required ? <span className="popapply-required">Required</span> : null}{!field.is_enabled ? <span className="popapply-required">Disabled</span> : null}</div>
-                  <div className="popapply-field-meta"><span className="popapply-type-chip">{field.type}</span><span className="popapply-options-chip">name: {field.name}</span></div>
-
-                  {editingFieldId === field.id && fieldEditDraft ? (
-                    <div className="popapply-field-inline-edit">
-                      <div className="popapply-grid">
-                        <div className="popapply-control"><label className="popapply-label">Label</label><input className="popapply-input" value={fieldEditDraft.label} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, label: event.target.value } : current)} /></div>
-                        <div className="popapply-control"><label className="popapply-label">Name</label><input className="popapply-input" value={fieldEditDraft.name} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, name: event.target.value } : current)} /></div>
-                        <div className="popapply-control"><label className="popapply-label">Type</label><select className="popapply-input" value={fieldEditDraft.type} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, type: event.target.value as ProgramApplicationFormFieldType } : current)}>{FIELD_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}</select></div>
-                        {fieldEditDraft.type === "select" ? <div className="popapply-control"><label className="popapply-label">Options Source</label><select className="popapply-input" value={fieldEditDraft.optionsSource} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, optionsSource: event.target.value as FieldOptionSource } : current)}><option value="manual">manual</option><option value="programs">programs</option></select></div> : null}
-                        <div className="popapply-control"><label className="popapply-label">Placeholder</label><input className="popapply-input" value={fieldEditDraft.placeholder} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, placeholder: event.target.value } : current)} /></div>
-                        {(fieldEditDraft.type === "select" || fieldEditDraft.type === "checkbox") && (fieldEditDraft.type !== "select" || fieldEditDraft.optionsSource === "manual") ? <div className="popapply-control"><label className="popapply-label">Options (comma)</label><input className="popapply-input" value={fieldEditDraft.optionsText} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, optionsText: event.target.value } : current)} /></div> : null}
-                        {fieldEditDraft.type === "select" && fieldEditDraft.optionsSource === "programs" ? <p className="popapply-info">{loadingPrograms ? "Loading programs..." : `${programs.length} programs loaded; value uses id.`}</p> : null}
-                      </div>
-                      <div className="popapply-inline-footer">
-                        <div className="popapply-inline-checkboxes">
-                          <label className="popapply-checkbox-wrap"><input className="popapply-checkbox" type="checkbox" checked={fieldEditDraft.required} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, required: event.target.checked } : current)} /><span>Required</span></label>
-                          <label className="popapply-checkbox-wrap"><input className="popapply-checkbox" type="checkbox" checked={fieldEditDraft.is_enabled} onChange={(event) => setFieldEditDraft((current) => current ? { ...current, is_enabled: event.target.checked } : current)} /><span>Enabled</span></label>
-                        </div>
-                        <div className="popapply-inline-actions">
-                          <button className="popapply-btn popapply-btn--icon popapply-btn--ghost" type="button" disabled={index === 0 || savingFormFields} onClick={() => void moveField(index, -1)}>↑</button>
-                          <button className="popapply-btn popapply-btn--icon popapply-btn--ghost" type="button" disabled={index === fields.length - 1 || savingFormFields} onClick={() => void moveField(index, 1)}>↓</button>
-                          <button className="popapply-btn popapply-btn--outline" type="button" disabled={savingFormFields || !fieldEditDraft?.label.trim()} onClick={() => void saveEditedField(field.id)}>{savingFormFields ? "Saving..." : "Save"}</button>
-                          <button className="popapply-btn popapply-btn--ghost" type="button" disabled={savingFormFields} onClick={cancelEditField}>Cancel</button>
-                          <button className="popapply-btn popapply-btn--icon popapply-btn--ghost popapply-btn--danger-hover" type="button" disabled={savingFormFields} onClick={() => void confirmDeleteField(field)}><TrashIcon /></button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                {editingFieldId !== field.id ? (
-                  <div className="popapply-row-actions">
-                    <button className="popapply-btn popapply-btn--icon popapply-btn--ghost" type="button" disabled={index === 0 || savingFormFields} onClick={() => void moveField(index, -1)}>↑</button>
-                    <button className="popapply-btn popapply-btn--icon popapply-btn--ghost" type="button" disabled={index === fields.length - 1 || savingFormFields} onClick={() => void moveField(index, 1)}>↓</button>
-                    <button className="popapply-btn popapply-btn--icon popapply-btn--ghost" type="button" disabled={savingFormFields} onClick={() => startEditField(field)}><SettingsIcon /></button>
-                    <button className="popapply-btn popapply-btn--icon popapply-btn--ghost popapply-btn--danger-hover" type="button" disabled={savingFormFields} onClick={() => void confirmDeleteField(field)}><TrashIcon /></button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-            <p className="popapply-info popapply-autosave">{savingFormFields ? "Saving field changes..." : "Field changes save automatically."}</p>
-          </div>
-        </section>
-      )}
+      </section>
     </div>
   );
 }

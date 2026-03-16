@@ -1,10 +1,9 @@
-﻿// File: frontend/src/components/homes/home-one/Announcements.tsx
+// File: frontend/src/components/homes/home-one/Announcements.tsx
 // Purpose: Renders the announcements UI block for the frontend.
-// Style: Full-width banner strip per announcement — no cards.
 
 "use client";
 
-import Link from "@/components/common/Link";
+import { AnnouncementCard, resolveAnnouncementCardProps } from "@/components/common/AnnouncementCard";
 import { getCmsNumber, getCmsString } from "@/lib/cmsContent";
 import { listPublicAnnouncements, type PublicAnnouncement } from "@/lib/publicApi";
 import { useEffect, useMemo, useState } from "react";
@@ -13,105 +12,27 @@ type AnnouncementsProps = {
   content?: Record<string, unknown> | null;
 };
 
-type AnnouncementTone = "cohort" | "event" | "general";
-
-const formatAnnouncementDate = (value?: string | null) => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString(undefined, {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-};
-
-const resolveAnnouncementMeta = (item: PublicAnnouncement) => {
-  const defaultMeta = (() => {
-  if (item.cohort_id) {
-    const isOpen = item.cohort_status === "open";
-    return {
-      tone: "cohort" as AnnouncementTone,
-      label: isOpen ? "Open Program" : "Coming Soon",
-      href: isOpen ? `/apply?cohortId=${item.cohort_id}` : `/programs/${item.cohort_id}`,
-      actionLabel: isOpen ? "Apply Now" : "View Program",
-      eyebrow: item.program_title || "Program Update",
-      note: isOpen ? "Applications are live now." : "Enrollment opens soon.",
-      openInNewTab: false,
-    };
-  }
-
-  if (item.event_id && item.event_slug) {
-    return {
-      tone: "event" as AnnouncementTone,
-      label: "Upcoming Event",
-      href: `/events/${item.event_slug}`,
-      actionLabel: "View Event",
-      eyebrow: item.event_title || "Event Update",
-      note: "Save the date and review the agenda.",
-      openInNewTab: false,
-    };
-  }
-
-  return {
-    tone: "general" as AnnouncementTone,
-    label: "Announcement",
-    href: "/programs",
-    actionLabel: "Learn More",
-    eyebrow: "Digital Hub",
-    note: "Latest update from Digital Hub.",
-    openInNewTab: false,
-  };
-  })();
-
-  const customCtaUrl = String(item.cta_url || "").trim();
-  const customCtaLabel = String(item.cta_label || "").trim();
-  if (!customCtaUrl) {
-    return defaultMeta;
-  }
-
-  return {
-    ...defaultMeta,
-    href: customCtaUrl,
-    actionLabel: customCtaLabel || defaultMeta.actionLabel || "Learn More",
-    openInNewTab: Boolean(item.cta_open_in_new_tab),
-  };
-};
-
-// Tone → left accent color token (maps to a CSS var or inline style)
-const toneAccent: Record<AnnouncementTone, string> = {
-  cohort:  "var(--tg-theme-primary, #2563eb)",
-  event:   "var(--tg-color-purple, #7c3aed)",
-  general: "var(--tg-theme-secondary, #FFC224)",
-};
-
-const tonePillBg: Record<AnnouncementTone, string> = {
-  cohort:  "rgba(37,99,235,0.08)",
-  event:   "rgba(124,58,237,0.08)",
-  general: "rgba(255,194,36,0.16)",
-};
-
-const tonePillColor: Record<AnnouncementTone, string> = {
-  cohort:  "#2563eb",
-  event:   "#7c3aed",
-  general: "#9A6800",
-};
-
 const Announcements = ({ content }: AnnouncementsProps) => {
   const [items, setItems] = useState<PublicAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
 
   const sectionSubtitle = getCmsString(content, ["subtitle", "sub_title"], "Latest Updates");
-  const sectionTitle    = getCmsString(content, ["title", "heading"], "What Is Happening At The Digital Hub");
-  const cardsLimit      = Math.trunc(getCmsNumber(content, ["limit", "card_limit", "items_limit"], 6, 1, 24));
+  const sectionTitle = getCmsString(content, ["title", "heading"], "What Is Happening At The Digital Hub");
+  const cardsLimit = Math.trunc(getCmsNumber(content, ["limit", "card_limit", "items_limit"], 6, 1, 24));
 
   useEffect(() => {
     let active = true;
+
     const load = async () => {
       try {
-        const rows = await listPublicAnnouncements({ page: 1, limit: 200, sortBy: "publish_at", order: "desc" });
+        const rows = await listPublicAnnouncements({
+          page: 1,
+          limit: 200,
+          sortBy: "publish_at",
+          order: "desc",
+        });
         if (!active) return;
-        setItems(Array.isArray(rows) ? rows.filter((r) => Boolean(r?.title)) : []);
+        setItems(Array.isArray(rows) ? rows.filter((row) => Boolean(row?.title)) : []);
       } catch {
         if (!active) return;
         setItems([]);
@@ -119,93 +40,36 @@ const Announcements = ({ content }: AnnouncementsProps) => {
         if (active) setLoading(false);
       }
     };
+
     void load();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const banners = useMemo(
-    () =>
-      items.slice(0, cardsLimit).map((item) => ({
-        ...item,
-        meta:          resolveAnnouncementMeta(item),
-        displayDate:   formatAnnouncementDate(item.publish_at || item.created_at),
-        secondaryDate: formatAnnouncementDate(item.event_starts_at || null),
-      })),
-    [cardsLimit, items],
-  );
+  const cards = useMemo(() => items.slice(0, cardsLimit), [cardsLimit, items]);
 
-  // Only render when there is at least one announcement
-  if (loading || banners.length === 0) return null;
+  if (loading || !cards.length) return null;
 
   return (
     <section className="home-announcements section-py-80">
       <div className="container">
-
-        {/* Section heading */}
         <div className="home-announcements__heading" data-aos="fade-up">
           <span className="sub-title">{sectionSubtitle}</span>
           <h2 className="title">{sectionTitle}</h2>
         </div>
 
-        {/* Banner strips */}
         <div className="home-announcements__list">
-          {banners.map((item, index) => {
-            const accent     = toneAccent[item.meta.tone];
-            const pillBg     = tonePillBg[item.meta.tone];
-            const pillColor  = tonePillColor[item.meta.tone];
-            const dateLabel  = item.secondaryDate
-              ? `Starts ${item.secondaryDate}`
-              : item.displayDate || item.meta.note;
-
-            return (
-              <article
-                key={item.id}
-                className="home-announcements__banner"
-                data-aos="fade-up"
-                data-aos-delay={80 + index * 60}
-                style={{ "--banner-accent": accent } as React.CSSProperties}
-              >
-                {/* Left accent bar */}
-                <span className="home-announcements__accent-bar" aria-hidden="true" />
-
-                {/* Left: pill + title + body */}
-                <div className="home-announcements__banner-main">
-                  <div className="home-announcements__banner-top">
-                    <span
-                      className="home-announcements__pill"
-                      style={{ background: pillBg, color: pillColor }}
-                    >
-                      {item.meta.label}
-                    </span>
-                    <span className="home-announcements__eyebrow">{item.meta.eyebrow}</span>
-                  </div>
-                  <h3 className="home-announcements__banner-title">{item.title}</h3>
-                  {item.body ? (
-                    <p className="home-announcements__banner-body">{item.body}</p>
-                  ) : null}
-                </div>
-
-                {/* Right: date + CTA */}
-                <div className="home-announcements__banner-side">
-                  {dateLabel ? (
-                    <span className="home-announcements__banner-date">{dateLabel}</span>
-                  ) : null}
-                  <Link
-                    to={item.meta.href}
-                    className="home-announcements__banner-cta"
-                    style={{ color: pillColor }}
-                    target={item.meta.openInNewTab ? "_blank" : undefined}
-                    rel={item.meta.openInNewTab ? "noopener noreferrer" : undefined}
-                  >
-                    <span>{item.meta.actionLabel}</span>
-                    <i className="flaticon-arrow-right" />
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
+          {cards.map((item, index) => (
+            <div
+              key={item.id}
+              data-aos="fade-up"
+              data-aos-delay={80 + index * 60}
+            >
+              <AnnouncementCard {...resolveAnnouncementCardProps(item)} />
+            </div>
+          ))}
         </div>
-
       </div>
     </section>
   );

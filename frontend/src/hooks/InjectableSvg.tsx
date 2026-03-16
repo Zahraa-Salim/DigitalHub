@@ -80,6 +80,7 @@ const InjectableSvg: React.FC<InjectableSvgProps> = ({
       src={finalSrc}
       alt={alt}
       className={`injectable ${className}`}
+      style={{ visibility: "hidden", display: "inline-block" }}
     />
   );
 };

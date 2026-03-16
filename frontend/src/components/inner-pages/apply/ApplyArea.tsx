@@ -54,7 +54,7 @@ const ApplyArea = () => {
   const programDescription = getCmsString(
     content,
     ["hero_subtitle", "heroSubtitle", "program_hero_subtitle", "programHeroSubtitle"],
-    "Fill in your details and submit your general program application. This form is managed from the dashboard General Apply form settings.",
+    "Choose a program first, then complete the application form assigned to that program. If no custom form is set, the general application form will be used.",
   );
 
   return (

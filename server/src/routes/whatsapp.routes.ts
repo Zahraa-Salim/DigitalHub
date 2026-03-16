@@ -1,14 +1,12 @@
 // File: server/src/routes/whatsapp.routes.ts
 // Purpose: Registers the Express routes for WhatsApp messaging.
-// It validates requests and forwards them to the WhatsApp service.
-
-// @ts-nocheck
+// It validates requests and forwards them to the WhatsApp utility.
 
 import { Router } from "express";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { whatsappSendBodySchema } from "../schemas/whatsapp.schemas.js";
-import { sendWhatsAppMessage } from "../services/whatsappService.js";
+import { sendDigitalHubWhatsApp } from "../utils/whatsapp.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { sendError, sendSuccess } from "../utils/httpResponse.js";
 
@@ -21,14 +19,12 @@ whatsappRouter.post(
   validateRequest({ body: whatsappSendBodySchema }),
   asyncHandler(async (req, res) => {
     const { to, message } = req.body || {};
-    const result = await sendWhatsAppMessage(to, message);
-
-    if (!result.success) {
-      sendError(res, result.error.status, result.error.code, result.error.message, result.error.details);
-      return;
+    try {
+      const result = await sendDigitalHubWhatsApp({ to, body: message });
+      sendSuccess(res, result, "WhatsApp message sent.");
+    } catch (err: any) {
+      sendError(res, err.statusCode ?? 502, err.code ?? "WHATSAPP_SEND_FAILED", err.message, err.details);
     }
-
-    sendSuccess(res, result.data, "WhatsApp message sent.");
   }),
 );
 

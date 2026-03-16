@@ -7,10 +7,13 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { navConfig } from "../app/adminRoutes";
 import { cn } from "../utils/cn";
 import { isSuperAdminUser, type AuthUser } from "../utils/auth";
+import { ApiError, apiList } from "../utils/api";
 import {
   getCachedNotificationsUnreadCount,
   getUnreadCountFromEvent,
+  NOTIFICATIONS_UPDATED_EVENT,
   NOTIFICATIONS_COUNT_UPDATED_EVENT,
+  setCachedNotificationsUnreadCount,
 } from "../utils/notifications";
 
 type SidebarProps = {
@@ -25,6 +28,15 @@ type SidebarProps = {
 
 function icon(children: ReactNode) {
   return <svg viewBox="0 0 24 24" aria-hidden>{children}</svg>;
+}
+
+function isProfilesChildPath(path: string | undefined): boolean {
+  return (
+    path === "/admin/profiles/students" ||
+    path === "/admin/profiles/instructors" ||
+    path === "/admin/profiles/managers" ||
+    path === "/admin/subscribers"
+  );
 }
 
 function getNavIcon(path: string | undefined, label: string): ReactNode {
@@ -55,6 +67,7 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
     case "/admin/profiles/students":
     case "/admin/profiles/instructors":
     case "/admin/profiles/managers":
+    case "/admin/subscribers":
     case "Profiles":
       return icon(
         <>
@@ -113,6 +126,14 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
           <path d="M5 10.5V20h14v-9.5" />
         </>,
       );
+    case "/admin/cms/visual-editor":
+      return icon(
+        <>
+          <path d="M4 19.5V16l9.8-9.8a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L8 20H4z" />
+          <path d="m12.5 7.5 4 4" />
+          <path d="M14 4h6M17 1v6" />
+        </>,
+      );
     case "/admin/cms/theme":
       return icon(
         <>
@@ -135,6 +156,15 @@ function getNavIcon(path: string | undefined, label: string): ReactNode {
         <>
           <rect x="3" y="5" width="18" height="16" rx="2" />
           <path d="M8 3v4M16 3v4M3 10h18" />
+        </>,
+      );
+    case "/admin/import-csv":
+      return icon(
+        <>
+          <path d="M12 3v11" />
+          <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+          <path d="M5 19h14" />
+          <rect x="4" y="17" width="16" height="4" rx="1.5" />
         </>,
       );
     case "/admin/contact":
@@ -221,6 +251,45 @@ export function Sidebar({ user, collapsed, onToggleSidebar, onNavigate, onLogout
   }, [location.pathname]);
 
   useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    let nextAttemptAt = 0;
+
+    const syncFromCache = () => {
+      if (active) {
+        setUnreadCount(getCachedNotificationsUnreadCount());
+      }
+    };
+
+    const loadUnreadCount = async () => {
+      if (inFlight) {
+        return;
+      }
+      if (Date.now() < nextAttemptAt) {
+        return;
+      }
+
+      inFlight = true;
+      try {
+        const result = await apiList<unknown>(
+          "/notifications?is_read=false&page=1&limit=1&sortBy=created_at&order=desc",
+        );
+        if (active) {
+          nextAttemptAt = 0;
+          setCachedNotificationsUnreadCount(result.pagination.total);
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 503) {
+          nextAttemptAt = Date.now() + 60000;
+        } else {
+          nextAttemptAt = Date.now() + 15000;
+        }
+      } finally {
+        inFlight = false;
+        syncFromCache();
+      }
+    };
+
     const onUnreadCountUpdated = (event: Event) => {
       const value = getUnreadCountFromEvent(event);
       if (value === null) {
@@ -229,10 +298,32 @@ export function Sidebar({ user, collapsed, onToggleSidebar, onNavigate, onLogout
       setUnreadCount(value);
     };
 
+    const onNotificationsUpdated = () => {
+      void loadUnreadCount();
+    };
+    const onWindowFocus = () => {
+      void loadUnreadCount();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadUnreadCount();
+      }
+    };
+
+    syncFromCache();
+    void loadUnreadCount();
+
     window.addEventListener(NOTIFICATIONS_COUNT_UPDATED_EVENT, onUnreadCountUpdated as EventListener);
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, onNotificationsUpdated);
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      active = false;
       window.removeEventListener(NOTIFICATIONS_COUNT_UPDATED_EVENT, onUnreadCountUpdated as EventListener);
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, onNotificationsUpdated);
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
@@ -318,7 +409,9 @@ export function Sidebar({ user, collapsed, onToggleSidebar, onNavigate, onLogout
                 title={collapsed ? item.label : undefined}
               >
                 <span className="sidebar-nav__icon" aria-hidden>
-                  <span className="sidebar-nav__icon-glyph">{getNavIcon(item.path, item.label)}</span>
+                  <span className="sidebar-nav__icon-glyph">
+                    {item.label === "Profiles" ? <span className="sidebar-nav__dot" /> : getNavIcon(item.path, item.label)}
+                  </span>
                 </span>
                 <span className="sidebar-nav__label">{item.label}</span>
                 <span className="sidebar-nav__hover-label" aria-hidden>
@@ -372,7 +465,9 @@ export function Sidebar({ user, collapsed, onToggleSidebar, onNavigate, onLogout
                     title={collapsed ? child.label : undefined}
                   >
                     <span className="sidebar-nav__icon" aria-hidden>
-                      <span className="sidebar-nav__icon-glyph">{getNavIcon(child.path, child.label)}</span>
+                      <span className="sidebar-nav__icon-glyph">
+                        {isProfilesChildPath(child.path) ? <span className="sidebar-nav__dot" /> : getNavIcon(child.path, child.label)}
+                      </span>
                     </span>
                     <span className="sidebar-nav__label">{child.label}</span>
                     <span className="sidebar-nav__hover-label" aria-hidden>

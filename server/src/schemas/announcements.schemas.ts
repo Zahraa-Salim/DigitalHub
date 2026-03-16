@@ -2,7 +2,6 @@
 // Purpose: Defines the Zod schemas for announcements.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
 
 import { z } from "zod";
 
@@ -75,4 +74,11 @@ export const announcementPatchSchema = z
 })
     .strict()
     .refine((payload) => Object.keys(payload).length > 0, { message: "At least one field is required." });
+
+export const announcementBroadcastSchema = z.object({
+    channel: z.enum(["email", "whatsapp", "both"]),
+    recipient_type: z.enum(["all_contacts", "manual"]).default("all_contacts"),
+    manual_recipients: z.array(z.string().trim().min(1)).optional(),
+    include_subscribers: z.boolean().optional(),
+}).strict();
 

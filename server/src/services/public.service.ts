@@ -6,7 +6,9 @@
 import { withTransaction } from "../db/index.js";
 import { ADMIN_ACTIONS } from "../constants/adminActions.js";
 import { getCohortFormService } from "./forms.service.js";
-import { buildPagination, parseListQuery } from "../utils/pagination.js";
+import { createApplicationService } from "./applications.service.js";
+import { getProgramFormService } from "./forms.service.js";
+import { buildPagination, parseListQuery, parseQueryBoolean } from "../utils/pagination.js";
 import { AppError } from "../utils/appError.js";
 import { buildSearchClause } from "../utils/sql.js";
 import { cacheGetJson, cacheSetJson } from "../utils/cache.js";
@@ -88,6 +90,13 @@ async function listPublicResource(query: QueryParams, config: AnyRecord) {
         params.push(normalizedStatus);
         where.push(`${config.statusFilterExpression} = $${params.length}`);
     }
+    if (config.allowApplicationsFilterExpression) {
+        const allowApplications = parseQueryBoolean(query?.allow_applications, "allow_applications");
+        if (allowApplications !== undefined) {
+            params.push(allowApplications);
+            where.push(`${config.allowApplicationsFilterExpression} = $${params.length}`);
+        }
+    }
     if (list.search) {
         params.push(`%${list.search}%`);
         where.push(buildSearchClause(config.searchableColumns, params.length));
@@ -130,6 +139,7 @@ const cohortsConfig = {
         sortPrefix: "c",
     },
     statusFilterExpression: "(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END)",
+    allowApplicationsFilterExpression: "(CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END)",
     allowedStatuses: ["open", "coming_soon", "running", "completed", "cancelled"],
     statusAliases: {
         planned: "coming_soon",
@@ -374,6 +384,23 @@ export async function getPublicCohortApplicationFormService(cohortId: number) {
         form_source: data.cohort?.use_general_form || !data.custom_form ? "general" : "custom",
     };
 }
+// Handles 'getPublicProgramApplicationFormService' workflow for this module.
+export async function getPublicProgramApplicationFormService(programId: number) {
+    const normalizedId = Number(programId);
+    if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+        throw new AppError(400, "VALIDATION_ERROR", "Program id is required.");
+    }
+    const programResult = await withDbRetry(() => getPublishedProgramById(normalizedId));
+    if (!programResult.rowCount) {
+        throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+    }
+    const data = await getProgramFormService(normalizedId);
+    return {
+        program: data.program,
+        resolved_form: data.resolved_form,
+        form_source: data.program?.use_general_form || !data.custom_form ? "general" : "custom",
+    };
+}
 // Handles 'listPublicEventsService' workflow for this module.
 export function listPublicEventsService(query: QueryParams) {
     return listPublicResource(query, eventsConfig);
@@ -557,6 +584,14 @@ export async function getPublicApplyFormService() {
         };
     });
 }
+// Handles 'getPublicGeneralFormService' workflow for this module.
+export async function getPublicGeneralFormService() {
+    const data = await getPublicApplyFormService();
+    return {
+        ...data.form,
+        fields: data.fields,
+    };
+}
 
 // Handles 'normalizeEmail' workflow for this module.
 function normalizeEmail(value: unknown) {
@@ -593,6 +628,11 @@ function pickAnswer(answers: AnyRecord, keys: string[]) {
 }
 // Handles 'submitPublicApplyService' workflow for this module.
 export async function submitPublicApplyService(payload: AnyRecord) {
+    const formResolution = await getPublicProgramApplicationFormService(Number(payload.program_id));
+    const resolvedForm = formResolution.resolved_form;
+    const resolvedFields = Array.isArray(resolvedForm?.fields)
+        ? resolvedForm.fields.filter((field: AnyRecord) => field?.is_enabled !== false)
+        : [];
     return withTransaction(async (client: DbClient) => {
         const tableReady = await programApplicationsTableExists(client);
         if (!tableReady) {
@@ -602,14 +642,8 @@ export async function submitPublicApplyService(payload: AnyRecord) {
         if (!programResult.rowCount) {
             throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
         }
-        const formResult = await getGeneralApplyForm(client);
-        if (!formResult.rowCount) {
-            throw new AppError(404, "FORM_NOT_FOUND", "General apply form is not configured.");
-        }
-        const form = formResult.rows[0];
         const answers: AnyRecord = payload.answers ?? {};
-        const fieldsResult = await listEnabledFormFieldsByFormId(form.id, client);
-        const requiredFields = fieldsResult.rows.filter((field) => field.required);
+        const requiredFields = resolvedFields.filter((field: AnyRecord) => field.required);
         const fieldErrors: Record<string, string> = {};
         for (const field of requiredFields) {
           const fieldName = String(field.name || "");
@@ -693,7 +727,7 @@ export async function submitPublicApplyService(payload: AnyRecord) {
             metadata: {
                 program_id: payload.program_id,
                 applicant_id: applicant.id ?? null,
-                form_id: form.id,
+                form_id: resolvedForm.id,
             },
             title: "New General Apply Submission",
             body: `A new program application was submitted for '${programResult.rows[0].title}'.`,
@@ -702,6 +736,33 @@ export async function submitPublicApplyService(payload: AnyRecord) {
             id: Number(row.id),
             status: row.stage ?? "applied",
         };
+    });
+}
+
+// Handles 'submitPublicCohortApplyService' workflow for this module.
+export async function submitPublicCohortApplyService(cohortId: number, payload: AnyRecord) {
+    const normalizedCohortId = Number(cohortId);
+    if (!Number.isInteger(normalizedCohortId) || normalizedCohortId <= 0) {
+        throw new AppError(400, "VALIDATION_ERROR", "Cohort id is required.");
+    }
+    const resolution = await getPublicCohortApplicationFormService(normalizedCohortId);
+    const answers: AnyRecord = payload?.answers ?? {};
+    const fullNameRaw = pickAnswer(answers, ["full_name", "name"]);
+    const emailRaw = pickAnswer(answers, ["email", "applicant_email"]);
+    const phoneRaw = pickAnswer(answers, ["phone", "applicant_phone"]);
+    const applicant = {
+        full_name: typeof fullNameRaw === "string" ? fullNameRaw.trim() || undefined : undefined,
+        email: typeof emailRaw === "string" ? emailRaw.trim() || undefined : undefined,
+        phone: typeof phoneRaw === "string" ? phoneRaw.trim() || undefined : undefined,
+    };
+    if (!applicant.email && !applicant.phone) {
+        throw new AppError(400, "VALIDATION_ERROR", "At least one of email or phone is required.");
+    }
+    return createApplicationService({
+        cohort_id: normalizedCohortId,
+        applicant,
+        form_id: resolution.resolved_form.id,
+        answers,
     });
 }
 

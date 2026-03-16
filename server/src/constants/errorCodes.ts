@@ -2,8 +2,6 @@
 // Purpose: Defines constant values for error codes.
 // It keeps repeated identifiers and fixed options in one shared place.
 
-// @ts-nocheck
-
 export const errorCodes = [
     "VALIDATION_ERROR",
     "NOT_FOUND",

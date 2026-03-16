@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for contact.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { createContactMessage, getContactMessages, patchContactMessageStatus, replyToContactMessage, } from "../controllers/contact.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";

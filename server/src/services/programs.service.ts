@@ -183,21 +183,32 @@ function isApplicationsEnabled(status: string | undefined) {
 }
 
 // Handles 'buildCohortAnnouncementContent' workflow for this module.
-function buildCohortAnnouncementContent(cohort: AnyRecord) {
+function buildCohortAnnouncementContent(cohort: AnyRecord, siteUrl = "") {
   const cohortName = cohort?.name || `Cohort #${cohort.id}`;
   const programName = cohort?.program_title || "this program";
   const status = normalizeCohortStatus(cohort?.status) || "coming_soon";
+  const slug = cohort?.program_slug || "";
+  const base = siteUrl ? siteUrl.replace(/\/$/, "") : "";
+  const ctaUrl = slug
+    ? `${base}/programs/${slug}`
+    : cohort.id
+      ? `${base}/cohorts/${cohort.id}`
+      : null;
 
   if (status === "open") {
     return {
       title: `${cohortName} is now open`,
       body: `Applications are now open for ${cohortName} in ${programName}. Submit your application while enrollment is active.`,
+      cta_label: "Apply Now",
+      cta_url: ctaUrl,
     };
   }
 
   return {
     title: `${cohortName} is coming soon`,
     body: `Applications for ${cohortName} in ${programName} will open soon. Stay tuned for enrollment updates.`,
+    cta_label: "Learn More",
+    cta_url: ctaUrl,
   };
 }
 
@@ -223,12 +234,12 @@ async function syncCohortAnnouncement(adminId: number, cohort: AnyRecord, autoAn
     return;
   }
 
-  const content = buildCohortAnnouncementContent(cohort);
+  const content = buildCohortAnnouncementContent(cohort, process.env.PUBLIC_SITE_URL || "");
   if (existing) {
     await updateAnnouncement(
       existing.id,
-      "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, event_id = NULL, cta_label = NULL, cta_url = NULL, cta_open_in_new_tab = FALSE",
-      [content.title, content.body, "website", true, new Date().toISOString()],
+      "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, event_id = NULL, cta_label = $6, cta_url = $7, cta_open_in_new_tab = TRUE",
+      [content.title, content.body, "website", true, new Date().toISOString(), content.cta_label, content.cta_url],
       dbClient,
     );
     return;
@@ -244,6 +255,9 @@ async function syncCohortAnnouncement(adminId: number, cohort: AnyRecord, autoAn
       is_auto: true,
       is_published: true,
       publish_at: new Date().toISOString(),
+      cta_label: content.cta_label,
+      cta_url: content.cta_url,
+      cta_open_in_new_tab: true,
       created_by: adminId,
     },
     dbClient,

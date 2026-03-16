@@ -2,12 +2,23 @@
 // Purpose: Runs the database queries used for projects.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type ProjectInput = {
+  student_user_id: number;
+  cohort_id?: number | null;
+  title: string;
+  description?: string | null;
+  image_url?: string | null;
+  github_url?: string | null;
+  live_url?: string | null;
+  is_public?: boolean;
+  sort_order?: number;
+};
 
 // Handles 'createProject' workflow for this module.
-export async function createProject(input, db = pool) {
+export async function createProject(input: ProjectInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO projects
@@ -31,7 +42,7 @@ export async function createProject(input, db = pool) {
 }
 
 // Handles 'countProjects' workflow for this module.
-export async function countProjects(whereClause, params, db = pool) {
+export async function countProjects(whereClause: string, params: unknown[], db: DbClient = pool) {
   const scopedWhere = whereClause
     ? `${whereClause} AND p.deleted_at IS NULL`
     : "WHERE p.deleted_at IS NULL";
@@ -47,7 +58,15 @@ export async function countProjects(whereClause, params, db = pool) {
 }
 
 // Handles 'listProjects' workflow for this module.
-export async function listProjects(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listProjects(
+  whereClause: string,
+  sortBy: string,
+  order: string,
+  params: unknown[],
+  limit: number,
+  offset: number,
+  db: DbClient = pool,
+) {
   const scopedWhere = whereClause
     ? `${whereClause} AND p.deleted_at IS NULL`
     : "WHERE p.deleted_at IS NULL";
@@ -80,7 +99,7 @@ export async function listProjects(whereClause, sortBy, order, params, limit, of
 }
 
 // Handles 'updateProject' workflow for this module.
-export async function updateProject(id, setClause, values, db = pool) {
+export async function updateProject(id: number, setClause: string, values: unknown[], db: DbClient = pool) {
   return db.query(
     `
       UPDATE projects
@@ -94,7 +113,7 @@ export async function updateProject(id, setClause, values, db = pool) {
 }
 
 // Handles 'deleteProject' workflow for this module.
-export async function deleteProject(id, db = pool) {
+export async function deleteProject(id: number, db: DbClient = pool) {
   return db.query(
     `
       UPDATE projects
@@ -108,7 +127,7 @@ export async function deleteProject(id, db = pool) {
 }
 
 // Handles 'getPublicProjectById' workflow for this module.
-export async function getPublicProjectById(id, db = pool) {
+export async function getPublicProjectById(id: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -138,7 +157,7 @@ export async function getPublicProjectById(id, db = pool) {
 }
 
 // Handles 'listPublicProjectsByStudentUserId' workflow for this module.
-export async function listPublicProjectsByStudentUserId(studentUserId, db = pool) {
+export async function listPublicProjectsByStudentUserId(studentUserId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -165,7 +184,7 @@ export async function listPublicProjectsByStudentUserId(studentUserId, db = pool
 }
 
 // Handles 'findCohortById' workflow for this module.
-export async function findCohortById(cohortId, db = pool) {
+export async function findCohortById(cohortId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT 1

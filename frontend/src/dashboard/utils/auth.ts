@@ -44,7 +44,7 @@ function isSuperAdminJobTitle(input: unknown): boolean {
   return value.includes("super admin");
 }
 
-function normalizeUser(input: unknown): AuthUser {
+export function normalizeUser(input: unknown): AuthUser {
   if (!input || typeof input !== "object") {
     return defaultUser;
   }

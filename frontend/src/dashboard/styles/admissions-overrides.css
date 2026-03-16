@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════════
+   admissions-overrides.css
+   Tightens the admissions page to match the dashboard design system.
+   Import in AdmissionsPage.tsx alongside general-apply.css.
+   Does NOT touch form management classes.
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── Funnel strip — shrink the huge numbers ─────────────────────── */
+.admx-funnel-card {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 18px;
+}
+
+.admx-funnel-metrics {
+  gap: 16px;
+}
+
+.admx-funnel-metric {
+  min-width: 100px;
+}
+
+.admx-funnel-metric__value {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.admx-funnel-metric__label {
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.admx-funnel-metric__conversion {
+  font-size: 0.74rem;
+  margin-top: 1px;
+}
+
+.admx-funnel-metric__arrow {
+  top: 12px;
+  font-size: 0.9rem;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────── */
+.admx-topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 18px;
+}
+
+.admx-topbar__title {
+  font-size: 0.94rem;
+}
+
+/* ── Table — tighter cells matching other dashboard tables ─────── */
+.admx-table-wrap {
+  margin: 12px 16px 16px;
+}
+
+.admx-table {
+  min-width: 820px;
+}
+
+.admx-table th {
+  font-size: 0.7rem;
+  padding: 9px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+}
+
+.admx-table td {
+  font-size: 0.84rem;
+  padding: 9px 12px;
+}
+
+/* Name button */
+.admx-name-btn {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+/* Applied date */
+.admx-date {
+  font-size: 0.8rem;
+}
+
+/* ── Stage pill — smaller, tighter ─────────────────────────────── */
+.admx-stage {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: 99px;
+}
+
+.admx-stage__dot {
+  width: 5px;
+  height: 5px;
+}
+
+/* ── Row check boxes ────────────────────────────────────────────── */
+.admx-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+/* ── Pagination ─────────────────────────────────────────────────── */
+.admx-pagination {
+  padding: 9px 14px;
+}
+
+.admx-pagination p {
+  font-size: 0.76rem;
+}
+
+/* ── Results head ───────────────────────────────────────────────── */
+.admx-results-head {
+  padding: 10px 18px;
+}
+
+.admx-results-head p {
+  font-size: 0.82rem;
+}
+
+/* ── Error / success banners ────────────────────────────────────── */
+.admx-inline-error,
+.admx-inline-success {
+  font-size: 0.8rem;
+  padding: 9px 12px;
+  border-radius: 8px;
+}
+
+/* ── Admissions action emphasis ────────────────────────────────── */
+.admx-bulkbar p,
+.admx-bulkbar__left p {
+  color: #fff;
+}
+
+.admx-create-user-btn {
+  background: var(--accent, #4361ee);
+  border-color: var(--accent, #4361ee);
+  color: #fff;
+}
+
+.admx-create-user-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #3751d1);
+  border-color: var(--accent-hover, #3751d1);
+  color: #fff;
+}
+
+.admx-bulkbar__message svg {
+  width: 20px;
+  height: 20px;
+}
+
+.popapply-stage-filters--tabs {
+  padding-left: 10px;
+}
+
+/* ── Responsive adjustments ─────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admx-funnel-metric { min-width: 88px; }
+  .admx-funnel-metric__value { font-size: 1.3rem; }
+  .admx-funnel-metrics { gap: 12px; }
+}
+
+@media (max-width: 900px) {
+  .admx-funnel-metric__value { font-size: 1.1rem; }
+  .admx-funnel-metric__label,
+  .admx-funnel-metric__conversion { font-size: 0.68rem; }
+}
+
+@media (max-width: 700px) {
+  .admx-funnel-metric__value { font-size: 1rem; }
+  .admx-topbar { padding: 10px 12px; }
+}

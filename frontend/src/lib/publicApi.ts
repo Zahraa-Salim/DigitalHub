@@ -2,17 +2,7 @@
 // Purpose: Calls the public backend endpoints used by the website pages.
 // It centralizes fetch logic, fallback URLs, and response handling for public content.
 
-const resolveFallbackApiUrl = () => {
-  if (typeof window === "undefined") {
-    return "http://localhost:5000";
-  }
-  const hostname = window.location.hostname || "localhost";
-  const normalizedHost = hostname.includes(":") && !hostname.startsWith("[")
-    ? `[${hostname}]`
-    : hostname;
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  return `${protocol}//${normalizedHost}:5000`;
-};
+import { resolveFallbackApiUrl } from "./resolveApiUrl";
 
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || resolveFallbackApiUrl()).replace(/\/$/, "");
 
@@ -158,7 +148,18 @@ export type PublicFormField = {
   form_id: number;
   name: string;
   label: string;
-  type: "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "date" | "file";
+  type:
+    | "text"
+    | "textarea"
+    | "email"
+    | "phone"
+    | "select"
+    | "checkbox"
+    | "radio"
+    | "date"
+    | "file"
+    | "number"
+    | "url";
   required: boolean;
   options?: unknown;
   placeholder?: string | null;
@@ -191,6 +192,26 @@ export type PublicCohortFormResolution = {
     use_general_form: boolean;
     application_form_id: number | null;
     updated_at: string;
+  };
+  resolved_form: PublicResolvedForm;
+  form_source: "general" | "custom";
+};
+
+export type PublicPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type PublicProgramFormResolution = {
+  program: {
+    id: number;
+    title: string;
+    slug?: string | null;
+    is_published?: boolean;
+    use_general_form: boolean;
+    application_form_id: number | null;
   };
   resolved_form: PublicResolvedForm;
   form_source: "general" | "custom";
@@ -301,6 +322,20 @@ export type PublicContactPayload = {
   visit_notes?: string;
 };
 
+export type SubscribePayload = {
+  phone: string;
+  name?: string;
+  preferences: string[];
+};
+
+export const SUBSCRIBER_PREFERENCES = [
+  { key: "open_programs", label: "Open programs" },
+  { key: "upcoming_programs", label: "Upcoming programs" },
+  { key: "upcoming_events", label: "Upcoming events" },
+  { key: "announcements", label: "General announcements" },
+  { key: "all", label: "Everything" },
+] as const;
+
 export type PublicApplyFormData = {
   form: {
     id: number;
@@ -317,6 +352,7 @@ export type PublicApplyFormData = {
 type PublicApiError = Error & {
   status?: number;
   path?: string;
+  fieldErrors?: Record<string, string>;
 };
 
 const buildPublicApiError = (path: string, status: number, message?: string): PublicApiError => {
@@ -355,6 +391,38 @@ async function getList<T>(
   return Array.isArray(json.data) ? json.data : [];
 }
 
+async function getListWithPagination<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined | null>
+): Promise<{ data: T[]; pagination: PublicPagination }> {
+  const res = await fetch(`${API_BASE_URL}${path}${toQueryString(params)}`, {
+    cache: "no-store",
+    credentials: "omit",
+  });
+
+  if (!res.ok) {
+    throw buildPublicApiError(path, res.status);
+  }
+
+  const json = (await res.json()) as ListResponse<T> | T[];
+  if (Array.isArray(json)) {
+    return {
+      data: json,
+      pagination: { page: 1, limit: json.length, total: json.length, totalPages: 1 },
+    };
+  }
+
+  return {
+    data: Array.isArray(json.data) ? json.data : [],
+    pagination: json.pagination ?? {
+      page: Number(params?.page ?? 1),
+      limit: Number(params?.limit ?? 0),
+      total: Array.isArray(json.data) ? json.data.length : 0,
+      totalPages: 1,
+    },
+  };
+}
+
 async function getData<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
@@ -378,6 +446,8 @@ export async function listPublicCohorts(params?: {
   sortBy?: string;
   order?: "asc" | "desc";
   search?: string;
+  status?: PublicCohort["status"];
+  allow_applications?: boolean;
 }) {
   return getList<PublicCohort>("/public/cohorts", {
     page: params?.page ?? 1,
@@ -385,18 +455,20 @@ export async function listPublicCohorts(params?: {
     sortBy: params?.sortBy ?? "start_date",
     order: params?.order ?? "asc",
     search: params?.search,
+    status: params?.status,
+    allow_applications: params?.allow_applications,
   });
 }
 
 export async function listOpenCohorts() {
-  const cohorts = await listPublicCohorts({
+  return getList<PublicCohort>("/public/cohorts", {
     page: 1,
-    limit: 200,
+    limit: 50,
     sortBy: "start_date",
     order: "asc",
+    status: "open",
+    allow_applications: true,
   });
-
-  return cohorts.filter((cohort) => cohort.status === "open" && cohort.allow_applications);
 }
 
 export async function getPublicCohortFormResolution(cohortId: number) {
@@ -503,6 +575,22 @@ export async function listPublicAnnouncements(params?: {
   });
 }
 
+export async function listPublicAnnouncementsPage(params?: {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  order?: "asc" | "desc";
+  search?: string;
+}) {
+  return getListWithPagination<PublicAnnouncement>("/public/announcements", {
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 6,
+    sortBy: params?.sortBy ?? "publish_at",
+    order: params?.order ?? "desc",
+    search: params?.search,
+  });
+}
+
 export async function getPublicEventBySlug(slug: string) {
   const normalized = String(slug || "").trim();
   if (!normalized) {
@@ -534,6 +622,57 @@ export async function getPublicApplyForm() {
   return getData<PublicApplyFormData>("/public/apply/form");
 }
 
+export async function getPublicGeneralForm() {
+  return getData<PublicResolvedForm>("/public/forms/general");
+}
+
+export async function getPublicProgramForm(programId: number) {
+  return getData<PublicProgramFormResolution>(`/public/forms/program/${programId}`);
+}
+
+export async function submitPublicSubscribe(payload: SubscribePayload) {
+  const res = await fetch(`${API_BASE_URL}/subscribe`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let message = "Unable to subscribe right now. Please try again.";
+    try {
+      const json = (await res.json()) as { error?: { message?: string } };
+      if (json?.error?.message) {
+        message = json.error.message;
+      }
+    } catch {
+      // Keep fallback message.
+    }
+    const error = new Error(message) as PublicApiError;
+    error.status = res.status;
+    throw error;
+  }
+
+  const json = (await res.json()) as SuccessResponse<{ id: number; preferences: string[] }>;
+  if (json?.data) return json.data;
+  throw new Error("Invalid response from /subscribe");
+}
+
+export async function submitPublicUnsubscribe(phone: string) {
+  const res = await fetch(`${API_BASE_URL}/unsubscribe`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+  if (!res.ok) {
+    throw new Error("Unable to unsubscribe right now.");
+  }
+  return res.json();
+}
+
 export async function submitPublicApply(payload: {
   program_id: number;
   answers: Record<string, unknown>;
@@ -548,20 +687,64 @@ export async function submitPublicApply(payload: {
 
   if (!res.ok) {
     let message = "Unable to submit your application right now. Please try again.";
+    let fieldErrors: Record<string, string> | undefined;
     try {
-      const json = (await res.json()) as { error?: { message?: string } };
+      const json = (await res.json()) as { error?: { message?: string; details?: { fieldErrors?: Record<string, string> } } };
       if (json?.error?.message) {
         message = json.error.message;
       }
+      fieldErrors = json?.error?.details?.fieldErrors;
     } catch {
       // Keep fallback message.
     }
-    throw new Error(message);
+    const error = new Error(message) as PublicApiError;
+    error.status = res.status;
+    error.path = "/public/apply";
+    error.fieldErrors = fieldErrors;
+    throw error;
   }
 
   const json = (await res.json()) as SuccessResponse<{ id: number; status: string }>;
   if (json?.data) return json.data;
   throw new Error("Invalid payload from /public/apply");
+}
+
+export async function submitPublicCohortApply(
+  cohortId: number,
+  payload: {
+    answers: Record<string, unknown>;
+  }
+) {
+  const res = await fetch(`${API_BASE_URL}/public/cohorts/${cohortId}/apply`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let message = "Unable to submit your application right now. Please try again.";
+    let fieldErrors: Record<string, string> | undefined;
+    try {
+      const json = (await res.json()) as { error?: { message?: string; details?: { fieldErrors?: Record<string, string> } } };
+      if (json?.error?.message) {
+        message = json.error.message;
+      }
+      fieldErrors = json?.error?.details?.fieldErrors;
+    } catch {
+      // Keep fallback message.
+    }
+    const error = new Error(message) as PublicApiError;
+    error.status = res.status;
+    error.path = `/public/cohorts/${cohortId}/apply`;
+    error.fieldErrors = fieldErrors;
+    throw error;
+  }
+
+  const json = (await res.json()) as SuccessResponse<{ id: number; status: string }>;
+  if (json?.data) return json.data;
+  throw new Error(`Invalid payload from /public/cohorts/${cohortId}/apply`);
 }
 
 export async function submitPublicContact(payload: PublicContactPayload) {

@@ -2,11 +2,22 @@
 // Purpose: Runs the database queries used for CMS.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type MediaAssetInput = {
+    file_name?: string;
+    original_name?: string | null;
+    mime_type?: string | null;
+    size_bytes?: number;
+    storage_path?: string | null;
+    public_url?: string | null;
+    alt_text?: string | null;
+    tags?: unknown;
+    created_by?: number | null;
+};
 // Handles 'getSiteSettings' workflow for this module.
-export async function getSiteSettings(db = pool) {
+export async function getSiteSettings(db: DbClient = pool) {
     return db.query(`
       SELECT id, site_name, default_event_location, contact_info, social_links, updated_by, updated_at
       FROM site_settings
@@ -14,7 +25,7 @@ export async function getSiteSettings(db = pool) {
     `);
 }
 // Handles 'ensureSiteSettingsRow' workflow for this module.
-export async function ensureSiteSettingsRow(adminId, db = pool) {
+export async function ensureSiteSettingsRow(adminId: number | null, db: DbClient = pool) {
     return db.query(`
       INSERT INTO site_settings (id, site_name, default_event_location, contact_info, social_links, updated_by, updated_at)
       VALUES (1, 'Digital Hub', 'Digital Hub', '{}'::jsonb, '{}'::jsonb, $1, NOW())
@@ -22,7 +33,12 @@ export async function ensureSiteSettingsRow(adminId, db = pool) {
     `, [adminId]);
 }
 // Handles 'updateSiteSettings' workflow for this module.
-export async function updateSiteSettings(setClause, values, adminId, db = pool) {
+export async function updateSiteSettings(
+    setClause: string,
+    values: unknown[],
+    adminId: number | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE site_settings
       SET ${setClause}, updated_by = $${values.length + 1}, updated_at = NOW()
@@ -31,11 +47,11 @@ export async function updateSiteSettings(setClause, values, adminId, db = pool) 
     `, [...values, adminId]);
 }
 // Handles 'countPages' workflow for this module.
-export async function countPages(whereClause, params, db = pool) {
+export async function countPages(whereClause: string, params: unknown[], db: DbClient = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM pages ${whereClause}`, params);
 }
 // Handles 'ensureDefaultPages' workflow for this module.
-export async function ensureDefaultPages(db = pool) {
+export async function ensureDefaultPages(db: DbClient = pool) {
     return db.query(`
       INSERT INTO pages (key, title, content, is_published, updated_at)
       VALUES
@@ -296,7 +312,13 @@ export async function ensureDefaultPages(db = pool) {
           'Events',
           jsonb_build_object(
             'hero_title', 'Events',
-            'hero_subtitle', 'Community moments, open days, and career conversations hosted by The Digital Hub.'
+            'hero_subtitle', 'Community moments, open days, and career conversations hosted by The Digital Hub.',
+            'announcements_title', 'Latest Announcements',
+            'announcements_subtitle', 'Updates',
+            'announcements_description', 'Stay up to date with the latest news, cohort openings, and upcoming events.',
+            'announcements_empty_text', 'No announcements at this time. Check back soon.',
+            'announcements_show_section', TRUE,
+            'announcements_per_page', 6
           ),
           TRUE,
           NOW()
@@ -556,11 +578,31 @@ export async function ensureDefaultPages(db = pool) {
           TRUE,
           NOW()
         )
-      ON CONFLICT (key) DO NOTHING
+      ON CONFLICT (key) DO NOTHING;
+
+      UPDATE pages
+      SET content = jsonb_build_object(
+        'announcements_title', 'Latest Announcements',
+        'announcements_subtitle', 'Updates',
+        'announcements_description', 'Stay up to date with the latest news, cohort openings, and upcoming events.',
+        'announcements_empty_text', 'No announcements at this time. Check back soon.',
+        'announcements_show_section', TRUE,
+        'announcements_per_page', 6
+      ) || content
+      WHERE key = 'events'
+        AND NOT (content ? 'announcements_title')
     `);
 }
 // Handles 'listPages' workflow for this module.
-export async function listPages(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listPages(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT id, key, title, content, is_published, updated_by, updated_at
       FROM pages
@@ -571,7 +613,13 @@ export async function listPages(whereClause, sortBy, order, params, limit, offse
     `, [...params, limit, offset]);
 }
 // Handles 'updatePage' workflow for this module.
-export async function updatePage(id, setClause, values, adminId, db = pool) {
+export async function updatePage(
+    id: number,
+    setClause: string,
+    values: unknown[],
+    adminId: number | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE pages
       SET ${setClause}, updated_by = $${values.length + 1}, updated_at = NOW()
@@ -580,11 +628,11 @@ export async function updatePage(id, setClause, values, adminId, db = pool) {
     `, [...values, adminId, id]);
 }
 // Handles 'countHomeSections' workflow for this module.
-export async function countHomeSections(whereClause, params, db = pool) {
+export async function countHomeSections(whereClause: string, params: unknown[], db: DbClient = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM home_sections ${whereClause}`, params);
 }
 // Handles 'ensureDefaultHomeSections' workflow for this module.
-export async function ensureDefaultHomeSections(db = pool) {
+export async function ensureDefaultHomeSections(db: DbClient = pool) {
     return db.query(`
       WITH legacy_team_row AS (
         SELECT id
@@ -623,9 +671,9 @@ export async function ensureDefaultHomeSections(db = pool) {
             'subtitle', 'Latest Updates',
             'title', 'What Is Happening At The Digital Hub',
             'description', 'Track important updates across upcoming events, cohort announcements, and new opportunities published by the team.',
-            'limit', 3,
+            'limit', 2,
             'cta_text', 'View All Updates',
-            'cta_link', '/events'
+            'cta_link', '/events#announcements'
           ),
           NOW()
         ),
@@ -707,7 +755,15 @@ export async function ensureDefaultHomeSections(db = pool) {
     `);
 }
 // Handles 'listHomeSections' workflow for this module.
-export async function listHomeSections(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listHomeSections(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT id, key, title, is_enabled, sort_order, content, updated_by, updated_at
       FROM home_sections
@@ -718,7 +774,13 @@ export async function listHomeSections(whereClause, sortBy, order, params, limit
     `, [...params, limit, offset]);
 }
 // Handles 'updateHomeSection' workflow for this module.
-export async function updateHomeSection(id, setClause, values, adminId, db = pool) {
+export async function updateHomeSection(
+    id: number,
+    setClause: string,
+    values: unknown[],
+    adminId: number | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE home_sections
       SET ${setClause}, updated_by = $${values.length + 1}, updated_at = NOW()
@@ -727,11 +789,19 @@ export async function updateHomeSection(id, setClause, values, adminId, db = poo
     `, [...values, adminId, id]);
 }
 // Handles 'countMediaAssets' workflow for this module.
-export async function countMediaAssets(whereClause, params, db = pool) {
+export async function countMediaAssets(whereClause: string, params: unknown[], db: DbClient = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM media_assets ${whereClause}`, params);
 }
 // Handles 'listMediaAssets' workflow for this module.
-export async function listMediaAssets(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listMediaAssets(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT
         id,
@@ -754,7 +824,7 @@ export async function listMediaAssets(whereClause, sortBy, order, params, limit,
     `, [...params, limit, offset]);
 }
 // Handles 'createMediaAsset' workflow for this module.
-export async function createMediaAsset(input, db = pool) {
+export async function createMediaAsset(input: MediaAssetInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO media_assets (
         file_name,
@@ -795,11 +865,19 @@ export async function createMediaAsset(input, db = pool) {
     ]);
 }
 // Handles 'countThemeTokens' workflow for this module.
-export async function countThemeTokens(whereClause, params, db = pool) {
+export async function countThemeTokens(whereClause: string, params: unknown[], db: DbClient = pool) {
     return db.query(`SELECT COUNT(*)::int AS total FROM theme_tokens ${whereClause}`, params);
 }
 // Handles 'listThemeTokens' workflow for this module.
-export async function listThemeTokens(whereClause, sortBy, order, params, limit, offset, db = pool) {
+export async function listThemeTokens(
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT id, key, purpose, value, scope, updated_by, updated_at
       FROM theme_tokens
@@ -810,7 +888,14 @@ export async function listThemeTokens(whereClause, sortBy, order, params, limit,
     `, [...params, limit, offset]);
 }
 // Handles 'createThemeToken' workflow for this module.
-export async function createThemeToken(key, purpose, value, scope, adminId, db = pool) {
+export async function createThemeToken(
+    key: string,
+    purpose: string | null,
+    value: string,
+    scope: string,
+    adminId: number | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       INSERT INTO theme_tokens (key, purpose, value, scope, updated_by, updated_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
@@ -818,7 +903,13 @@ export async function createThemeToken(key, purpose, value, scope, adminId, db =
     `, [key, purpose, value, scope, adminId]);
 }
 // Handles 'updateThemeToken' workflow for this module.
-export async function updateThemeToken(id, setClause, values, adminId, db = pool) {
+export async function updateThemeToken(
+    id: number,
+    setClause: string,
+    values: unknown[],
+    adminId: number | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       UPDATE theme_tokens
       SET ${setClause}, updated_by = $${values.length + 1}, updated_at = NOW()

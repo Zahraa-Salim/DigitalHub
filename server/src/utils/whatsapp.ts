@@ -35,7 +35,7 @@ function normalizePhone(value: string): string {
 
 // Handles 'readConfig' workflow for this module.
 function readConfig(): WhatsAppConfig {
-  const provider = (process.env.WHATSAPP_PROVIDER || "twilio").trim().toLowerCase();
+  const provider = (process.env.WHATSAPP_PROVIDER || "meta").trim().toLowerCase();
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || "";
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim() || "";
   const fromRaw = process.env.TWILIO_WHATSAPP_FROM?.trim() || "";
@@ -88,14 +88,14 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
   if (!isConfigured(config)) {
     if (!warnedMockMode) {
       warnedMockMode = true;
-      console.warn("[whatsapp] Provider is not fully configured. WhatsApp sends are running in mock mode.");
+      console.error("[whatsapp] Provider is not fully configured. Check META_WA_TOKEN and META_PHONE_NUMBER_ID in your .env file.");
     }
-    return {
-      mode: "mock",
-      provider: config.provider,
-      from: config.from || null,
-      to: destination,
-    };
+    throw new AppError(
+      503,
+      "WHATSAPP_NOT_CONFIGURED",
+      "WhatsApp is not configured. Set WHATSAPP_PROVIDER, META_WA_TOKEN, and META_PHONE_NUMBER_ID in your environment.",
+      undefined,
+    );
   }
 
   if (config.provider === "meta") {
@@ -103,7 +103,8 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
       throw new AppError(400, "VALIDATION_ERROR", "WhatsApp destination phone is required.", undefined);
     }
 
-    const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(config.metaPhoneNumberId)}/messages`;
+    const metaApiVersion = (process.env.META_WA_API_VERSION || "v19.0").trim();
+    const url = `https://graph.facebook.com/${metaApiVersion}/${encodeURIComponent(config.metaPhoneNumberId)}/messages`;
     const payload = {
       messaging_product: "whatsapp",
       to: metaDestination,

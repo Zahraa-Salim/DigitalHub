@@ -50,6 +50,7 @@ type EventListQuery = Record<string, unknown>;
 
 type EventRecord = {
     id: number;
+    slug?: string | null;
     title?: string | null;
     location?: string | null;
     starts_at?: string | null;
@@ -86,12 +87,15 @@ function isEventUpcoming(event: EventRecord | null | undefined): boolean {
 }
 
 // Handles 'buildEventAnnouncementContent' workflow for this module.
-function buildEventAnnouncementContent(event: EventRecord) {
-    const eventTitle = event?.title || `Event #${event.id}`;
-    const location = event?.location ? ` at ${event.location}` : "";
+function buildEventAnnouncementContent(event: EventRecord, siteUrl = "") {
+    const base = siteUrl ? siteUrl.replace(/\/$/, "") : "";
+    const slug = event?.slug || "";
+    const ctaUrl = slug ? `${base}/events/${slug}` : null;
     return {
-        title: `${eventTitle} is coming up`,
-        body: `Join us for ${eventTitle}${location}. Save the date and review the event details before it starts.`,
+        title: `${event?.title || `Event #${event.id}`} is coming up`,
+        body: `Join us for ${event?.title}${event?.location ? ` at ${event.location}` : ""}. Save the date and review the event details before it starts.`,
+        cta_label: "View Event",
+        cta_url: ctaUrl,
     };
 }
 
@@ -116,12 +120,12 @@ async function syncEventAnnouncement(adminId: number, event: EventRecord | null 
         return;
     }
 
-    const content = buildEventAnnouncementContent(event);
+    const content = buildEventAnnouncementContent(event, process.env.PUBLIC_SITE_URL || "");
     if (existing) {
         await updateAnnouncement(
             existing.id,
-            "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, cohort_id = NULL, cta_label = NULL, cta_url = NULL, cta_open_in_new_tab = FALSE",
-            [content.title, content.body, "website", true, new Date().toISOString()],
+            "title = $1, body = $2, target_audience = $3, is_published = $4, publish_at = $5, cohort_id = NULL, cta_label = $6, cta_url = $7, cta_open_in_new_tab = TRUE",
+            [content.title, content.body, "website", true, new Date().toISOString(), content.cta_label, content.cta_url],
             dbClient,
         );
         return;
@@ -136,6 +140,9 @@ async function syncEventAnnouncement(adminId: number, event: EventRecord | null 
         is_auto: true,
         is_published: true,
         publish_at: new Date().toISOString(),
+        cta_label: content.cta_label,
+        cta_url: content.cta_url,
+        cta_open_in_new_tab: true,
         created_by: adminId,
     }, dbClient);
 }

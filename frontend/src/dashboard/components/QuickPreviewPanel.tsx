@@ -18,6 +18,7 @@ interface QuickPreviewPanelProps {
   onClose: () => void;
   externalLink?: string;
   isLoading?: boolean;
+  children?: React.ReactNode;
 }
 
 export const QuickPreviewPanel: React.FC<QuickPreviewPanelProps> = ({
@@ -27,6 +28,7 @@ export const QuickPreviewPanel: React.FC<QuickPreviewPanelProps> = ({
   onClose,
   externalLink,
   isLoading = false,
+  children,
 }) => {
   if (!isOpen) {
     return null;
@@ -107,16 +109,19 @@ export const QuickPreviewPanel: React.FC<QuickPreviewPanelProps> = ({
               <p>Loading preview...</p>
             </div>
           ) : (
-            <div className="preview-fields">
-              {fields.map((field, index) => (
-                <div key={index} className="preview-field">
-                  <dt className="preview-field__label">{field.label}</dt>
-                  <dd className="preview-field__value">
-                    {renderFieldValue(field)}
-                  </dd>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="preview-fields">
+                {fields.map((field, index) => (
+                  <div key={index} className="preview-field">
+                    <dt className="preview-field__label">{field.label}</dt>
+                    <dd className="preview-field__value">
+                      {renderFieldValue(field)}
+                    </dd>
+                  </div>
+                ))}
+              </div>
+              {children}
+            </>
           )}
         </div>
 

@@ -1,537 +1,377 @@
-﻿// File: frontend/src/forms/GeneralApplyForm.tsx
-// Purpose: Renders the general apply form form used in the frontend.
-// It owns the form fields, local state, and submission flow for this UI.
-
 "use client";
 
-import BtnArrow from "@/svg/BtnArrow";
+import { useEffect, useMemo, useState } from "react";
+import DynamicApplicationForm from "@/components/DynamicApplicationForm";
 import { notifyError, notifySuccess } from "@/lib/feedbackToast";
 import {
-  getPublicApplyForm,
+  getPublicGeneralForm,
+  getPublicProgramForm,
   listPublicCohorts,
   listPublicPrograms,
   submitPublicApply,
-  type PublicApplyFormData,
   type PublicCohort,
-  type PublicFormField,
+  type PublicProgramFormResolution,
   type PublicProgramOption,
 } from "@/lib/publicApi";
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 type GeneralApplyFormProps = {
   defaultProgramId?: number;
   defaultProgramTitle?: string;
 };
 
-type AnswersMap = Record<string, unknown>;
-
-type SelectOption = {
-  label: string;
-  value: string;
-};
-
-const inputTypeByField: Record<string, string> = {
-  email: "email",
-  phone: "tel",
-  date: "date",
-  file: "file",
-  text: "text",
-};
-
-const parseSelectOptions = (options: unknown): SelectOption[] => {
-  if (!Array.isArray(options)) return [];
-
-  return options
-    .map((option) => {
-      if (typeof option === "string") {
-        return { label: option, value: option };
-      }
-
-      if (option && typeof option === "object") {
-        const source = option as { label?: unknown; value?: unknown };
-        const label = typeof source.label === "string" ? source.label : "";
-        const value = typeof source.value === "string" ? source.value : "";
-        if (label && value) {
-          return { label, value };
-        }
-      }
-
-      return null;
-    })
-    .filter((option): option is SelectOption => Boolean(option));
-};
-
-const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
-
-const FALLBACK_GENERAL_FIELDS: PublicFormField[] = [
-  {
-    id: -1,
-    form_id: -1,
-    name: "full_name",
-    label: "Full Name",
-    type: "text",
-    required: true,
-    options: null,
-    placeholder: "Enter your full name",
-    min_length: null,
-    max_length: null,
-    sort_order: 0,
-    is_enabled: true,
-  },
-  {
-    id: -2,
-    form_id: -1,
-    name: "email",
-    label: "Email Address",
-    type: "email",
-    required: true,
-    options: null,
-    placeholder: "you@example.com",
-    min_length: null,
-    max_length: null,
-    sort_order: 1,
-    is_enabled: true,
-  },
-  {
-    id: -3,
-    form_id: -1,
-    name: "phone",
-    label: "Phone Number",
-    type: "phone",
-    required: true,
-    options: null,
-    placeholder: "+1 555 000 0000",
-    min_length: null,
-    max_length: null,
-    sort_order: 2,
-    is_enabled: true,
-  },
-  {
-    id: -4,
-    form_id: -1,
-    name: "motivation",
-    label: "Why do you want to join?",
-    type: "textarea",
-    required: true,
-    options: null,
-    placeholder: "Tell us about your goals.",
-    min_length: null,
-    max_length: null,
-    sort_order: 3,
-    is_enabled: true,
-  },
-];
-
-const buildFallbackApplyFormData = (programs: PublicProgramOption[]): PublicApplyFormData => ({
-  form: {
-    id: -1,
-    key: "general_apply_fallback",
-    title: "General Program Application",
-    description: "Fallback form loaded because general apply endpoint is temporarily unavailable.",
-    is_active: true,
-    updated_at: new Date().toISOString(),
-  },
-  fields: FALLBACK_GENERAL_FIELDS,
-  programs,
-});
+const normalize = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const resolveDefaultProgramId = (
   programs: PublicProgramOption[],
   defaultProgramId?: number,
-  defaultProgramTitle?: string
+  defaultProgramTitle?: string,
 ) => {
-  const selectedFromId =
-    defaultProgramId && programs.some((program) => Number(program.id) === defaultProgramId)
-      ? defaultProgramId
-      : null;
+  if (defaultProgramId && programs.some((program) => Number(program.id) === defaultProgramId)) {
+    return defaultProgramId;
+  }
 
-  const selectedFromTitle =
-    !selectedFromId && defaultProgramTitle
-      ? programs.find((program) => normalize(program.title) === normalize(defaultProgramTitle))?.id ?? null
-      : null;
+  if (defaultProgramTitle) {
+    const normalizedQuery = normalize(defaultProgramTitle);
+    const matchedProgram = programs.find((program) => {
+      const normalizedTitle = normalize(program.title);
+      const normalizedSlug = normalize(program.slug || "");
+      return (
+        normalizedTitle === normalizedQuery ||
+        normalizedSlug === normalizedQuery ||
+        normalizedTitle.includes(normalizedQuery) ||
+        normalizedQuery.includes(normalizedTitle)
+      );
+    });
+    return matchedProgram ? Number(matchedProgram.id) : null;
+  }
 
-  return selectedFromId ?? selectedFromTitle ?? null;
+  return null;
 };
 
-const buildDefaultAnswers = (fields: PublicFormField[], selectedProgramId: number | null): AnswersMap => {
-  const defaults: AnswersMap = {};
-  fields.forEach((field) => {
-    if (field.type === "checkbox") {
-      defaults[field.name] = false;
-      return;
-    }
-
-    if (field.name === "program_id") {
-      defaults[field.name] = selectedProgramId ? String(selectedProgramId) : "";
-      return;
-    }
-
-    defaults[field.name] = "";
-  });
-  return defaults;
-};
-
-const GeneralApplyForm = ({ defaultProgramId, defaultProgramTitle }: GeneralApplyFormProps) => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [formData, setFormData] = useState<PublicApplyFormData | null>(null);
-  const [programCatalog, setProgramCatalog] = useState<PublicProgramOption[]>([]);
-  const [cohortCatalog, setCohortCatalog] = useState<PublicCohort[]>([]);
+export default function GeneralApplyForm({
+  defaultProgramId,
+  defaultProgramTitle,
+}: GeneralApplyFormProps) {
+  const [programs, setPrograms] = useState<PublicProgramOption[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [programsError, setProgramsError] = useState("");
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(defaultProgramId ?? null);
-  const [answers, setAnswers] = useState<AnswersMap>({});
+  const [cohorts, setCohorts] = useState<PublicCohort[]>([]);
+  const [formResolution, setFormResolution] = useState<PublicProgramFormResolution | null>(null);
+  const [loadingForm, setLoadingForm] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const navigateBackAfterSuccess = () => {
-    navigate("/");
-  };
-
-  const enabledFields = useMemo(
+  const selectedProgram = useMemo(
+    () => programs.find((program) => Number(program.id) === selectedProgramId) ?? null,
+    [programs, selectedProgramId],
+  );
+  const initialAnswers = useMemo(
+    () => (selectedProgram ? { program_id: String(selectedProgram.id) } : undefined),
+    [selectedProgram],
+  );
+  const selectedProgramCohorts = useMemo(
     () =>
-      (formData?.fields || [])
-        .filter((field) => field.is_enabled && field.name !== "program_id")
-        .sort((a, b) => a.sort_order - b.sort_order),
-    [formData]
+      cohorts
+        .filter((cohort) => Number(cohort.program_id) === Number(selectedProgramId))
+        .sort((left, right) => {
+          const leftDate = left.start_date || left.updated_at || "";
+          const rightDate = right.start_date || right.updated_at || "";
+          return rightDate.localeCompare(leftDate);
+        }),
+    [cohorts, selectedProgramId],
   );
 
-  const selectedProgramDetails = useMemo(() => {
-    if (!selectedProgramId) return null;
-    return (
-      programCatalog.find((program) => Number(program.id) === selectedProgramId) ||
-      formData?.programs.find((program) => Number(program.id) === selectedProgramId) ||
-      null
-    );
-  }, [formData?.programs, programCatalog, selectedProgramId]);
-
-  const selectedProgramCohorts = useMemo(() => {
-    if (!selectedProgramId) return [];
-
-    const cohorts = cohortCatalog.filter((cohort) => Number(cohort.program_id) === selectedProgramId);
-    return cohorts
-      .slice()
-      .sort((a, b) => {
-        const aDate = a.start_date || a.updated_at || "";
-        const bDate = b.start_date || b.updated_at || "";
-        return bDate.localeCompare(aDate);
-      })
-      .slice(0, 6);
-  }, [cohortCatalog, selectedProgramId]);
+  const formatDate = (value?: string | null) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleDateString();
+  };
 
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
-      setLoading(true);
+    const loadPrograms = async () => {
+      setLoadingPrograms(true);
+      setProgramsError("");
       try {
-        let data: PublicApplyFormData;
-        let catalog: PublicProgramOption[] = [];
-        let cohorts: PublicCohort[] = [];
-
-        try {
-          const [applyData, publicPrograms, publicCohorts] = await Promise.all([
-            getPublicApplyForm(),
-            listPublicPrograms().catch(() => []),
-            listPublicCohorts({
-              page: 1,
-              limit: 300,
-              sortBy: "start_date",
-              order: "desc",
-            }).catch(() => []),
-          ]);
-          data = applyData;
-          catalog = publicPrograms;
-          cohorts = publicCohorts;
-        } catch (error) {
-          const [programs, publicCohorts] = await Promise.all([
-            listPublicPrograms(),
-            listPublicCohorts({
-              page: 1,
-              limit: 300,
-              sortBy: "start_date",
-              order: "desc",
-            }).catch(() => []),
-          ]);
-          if (!programs.length) {
-            throw error;
-          }
-
-          data = buildFallbackApplyFormData(programs);
-          catalog = programs;
-          cohorts = publicCohorts;
-        }
-
+        const [rows, cohortRows] = await Promise.all([
+          listPublicPrograms(),
+          listPublicCohorts({
+            page: 1,
+            limit: 200,
+            sortBy: "start_date",
+            order: "desc",
+          }).catch(() => []),
+        ]);
         if (!active) return;
-        setFormData(data);
-        setProgramCatalog(catalog.length ? catalog : data.programs);
-        setCohortCatalog(cohorts);
-
-        const resolvedProgramId = resolveDefaultProgramId(data.programs, defaultProgramId, defaultProgramTitle);
-        setSelectedProgramId(resolvedProgramId);
-        setAnswers(buildDefaultAnswers(data.fields || [], resolvedProgramId));
+        setPrograms(rows);
+        setCohorts(cohortRows);
+        setSelectedProgramId((current) => {
+          if (current && rows.some((program) => Number(program.id) === Number(current))) {
+            return current;
+          }
+          return resolveDefaultProgramId(rows, defaultProgramId, defaultProgramTitle);
+        });
       } catch (error) {
         if (!active) return;
-        console.error("Unable to load apply form.", error);
+        setPrograms([]);
+        setCohorts([]);
+        setProgramsError(
+          error instanceof Error ? error.message : "Unable to load programs right now.",
+        );
       } finally {
         if (active) {
-          setLoading(false);
+          setLoadingPrograms(false);
         }
       }
     };
 
-    void load();
+    void loadPrograms();
     return () => {
       active = false;
     };
   }, [defaultProgramId, defaultProgramTitle]);
 
-  const onFieldValueChange = (fieldName: string, value: unknown) => {
-    setAnswers((prev) => ({ ...prev, [fieldName]: value }));
-  };
+  useEffect(() => {
+    if (!selectedProgramId) {
+      setFormResolution(null);
+      setFormError("");
+      setSubmitError("");
+      setSubmitted(false);
+      return;
+    }
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setPending(true);
+    let active = true;
 
-    try {
-      if (!selectedProgramId) {
-        throw new Error("Please select a program first.");
+    const loadForm = async () => {
+      setLoadingForm(true);
+      setFormError("");
+      try {
+        const data = await getPublicProgramForm(selectedProgramId);
+        if (!active) return;
+        setFormResolution(data);
+      } catch (error) {
+        try {
+          const generalForm = await getPublicGeneralForm();
+          if (!active) return;
+          setFormResolution({
+            program: {
+              id: selectedProgramId,
+              title: selectedProgram?.title || "Program",
+              slug: selectedProgram?.slug ?? null,
+              is_published: true,
+              use_general_form: true,
+              application_form_id: null,
+            },
+            resolved_form: generalForm,
+            form_source: "general",
+          });
+          setFormError("");
+        } catch (fallbackError) {
+          if (!active) return;
+          setFormResolution(null);
+          setFormError(
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : error instanceof Error
+                ? error.message
+                : "Unable to load this application form right now.",
+          );
+        }
+      } finally {
+        if (active) {
+          setLoadingForm(false);
+        }
       }
+    };
 
-      const payloadAnswers: Record<string, unknown> = {
-        ...answers,
-        program_id: String(selectedProgramId),
-      };
+    void loadForm();
+    return () => {
+      active = false;
+    };
+  }, [selectedProgram, selectedProgramId]);
 
+  const handleSubmit = async (answers: Record<string, unknown>) => {
+    if (!selectedProgram) {
+      throw new Error("Select a program first.");
+    }
+
+    setSubmitting(true);
+    setSubmitError("");
+    try {
       await submitPublicApply({
-        program_id: selectedProgramId,
-        answers: payloadAnswers,
+        program_id: Number(selectedProgram.id),
+        answers,
       });
-
-      notifySuccess("Application submitted successfully.", { id: "general-apply-success" });
-      setAnswers(buildDefaultAnswers(formData?.fields || [], selectedProgramId));
-      navigateBackAfterSuccess();
+      setSubmitted(true);
+      notifySuccess("Application submitted successfully.", { id: "public-program-apply-success" });
     } catch (error) {
-      notifyError(
-        error instanceof Error ? error.message : "Unable to submit your application right now. Please try again.",
-        { id: "general-apply-submit-error" }
-      );
+      const message =
+        error instanceof Error ? error.message : "Unable to submit your application right now.";
+      setSubmitError(message);
+      notifyError(message, { id: "public-program-apply-error" });
+      throw error;
     } finally {
-      setPending(false);
+      setSubmitting(false);
     }
   };
 
-  if (loading) {
+  if (loadingPrograms) {
+    return <div className="apply-shell__loading">Loading programs...</div>;
+  }
+
+  if (programsError) {
+    return <p className="apply-form__status apply-form__status--error">{programsError}</p>;
+  }
+
+  if (!programs.length) {
+    return <p className="apply-shell__empty">No programs are available right now.</p>;
+  }
+
+  if (submitted) {
     return (
-      <div className="application-form__skeleton" aria-hidden>
-        <div className="application-form__skeleton-line" />
-        <div className="application-form__skeleton-line application-form__skeleton-line--lg" />
-        <div className="application-form__skeleton-line" />
-        <div className="application-form__skeleton-line application-form__skeleton-line--sm" />
+      <div className="apply-shell__success">
+        <h5>Application Received</h5>
+        <p>Your application for {selectedProgram.title} was submitted successfully.</p>
+        {programs.length > 1 ? (
+          <button
+            className="apply-shell__back"
+            type="button"
+            onClick={() => {
+              setSelectedProgramId(null);
+              setFormResolution(null);
+              setSubmitted(false);
+              setSubmitError("");
+            }}
+          >
+            ← Back to Programs
+          </button>
+        ) : null}
       </div>
     );
   }
 
-  if (!formData) {
-    return <p>Apply form is temporarily unavailable. Please refresh and try again.</p>;
-  }
-
   return (
-    <form onSubmit={onSubmit} id="general-apply-form">
-      <div className="form-grp">
-        <label htmlFor="general-apply-program-select" className="application-form__field-label">
-          <span className="application-form__field-label-text">
-            Program <span className="application-form__required-mark" aria-hidden="true">*</span>
-          </span>
-        </label>
-        <select
-          id="general-apply-program-select"
-          name="program_id"
-          required
-          className="application-form__select"
-          disabled={pending}
-          value={selectedProgramId ?? ""}
-          onChange={(e) => {
-            const nextProgramId = e.target.value ? Number(e.target.value) : null;
-            setSelectedProgramId(nextProgramId);
-            onFieldValueChange("program_id", nextProgramId ? String(nextProgramId) : "");
-          }}
-        >
-          <option value="" disabled>
-            Select program
-          </option>
-          {formData.programs.map((program) => (
-            <option key={program.id} value={program.id}>
-              {program.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className={`application-form__program-drawer ${selectedProgramDetails ? "is-open" : ""}`}>
-        {selectedProgramDetails ? (
-          <div className="application-form__program-drawer-inner">
-            <h6>{selectedProgramDetails.title}</h6>
-            {selectedProgramDetails.summary ? <p>{selectedProgramDetails.summary}</p> : null}
-            {selectedProgramDetails.description ? <p>{selectedProgramDetails.description}</p> : null}
-            {!selectedProgramDetails.summary && !selectedProgramDetails.description ? (
-              <p>Program details will appear here when available.</p>
-            ) : null}
-            <ul className="list-wrap">
-              {selectedProgramDetails.requirements ? (
-                <li>
-                  <strong>Requirements:</strong> {selectedProgramDetails.requirements}
-                </li>
-              ) : null}
-            </ul>
-            {selectedProgramCohorts.length ? (
-              <div className="application-form__program-cohorts">
-                <strong>Program Cohorts</strong>
-                <ul>
-                  {selectedProgramCohorts.map((cohort) => (
-                    <li key={cohort.id}>
-                      <span>{cohort.name}</span>
-                      <em className={`is-${cohort.status}`}>{cohort.status.replace("_", " ")}</em>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {enabledFields.map((field) => {
-        const fieldId = `general-apply-field-${field.id}`;
-        const fieldLabel = field.label || field.name;
-
-        if (field.type === "textarea") {
-          return (
-            <div className="form-grp" key={field.id}>
-              <label htmlFor={fieldId} className="application-form__field-label">
-                <span className="application-form__field-label-text">
-                  {fieldLabel}
-                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
-                </span>
-              </label>
-              <textarea
-                id={fieldId}
-                name={field.name}
-                placeholder={field.placeholder || field.label}
-                required={field.required}
-                aria-required={field.required || undefined}
-                value={String(answers[field.name] ?? "")}
-                onChange={(e) => onFieldValueChange(field.name, e.target.value)}
-              ></textarea>
-            </div>
-          );
-        }
-
-        if (field.type === "select") {
-          const options = parseSelectOptions(field.options);
-          return (
-            <div className="form-grp" key={field.id}>
-              <label htmlFor={fieldId} className="application-form__field-label">
-                <span className="application-form__field-label-text">
-                  {fieldLabel}
-                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
-                </span>
-              </label>
-              <select
-                id={fieldId}
-                name={field.name}
-                className="application-form__select"
-                required={field.required}
-                aria-required={field.required || undefined}
-                value={String(answers[field.name] ?? "")}
-                onChange={(e) => onFieldValueChange(field.name, e.target.value)}
-              >
-                <option value="" disabled>
-                  {field.placeholder || `Select ${field.label}`}
+    <div className="apply-shell">
+      <div className="prog-select">
+        <div className="prog-select__head">
+          <h5>Choose a Program</h5>
+          <p>Select a program to view its details and application form.</p>
+        </div>
+        <div className="apply-form__group">
+          <label className="apply-form__label" htmlFor="program-apply-select">
+            Program<span className="apply-form__required">*</span>
+          </label>
+          <div className="apply-form__select-wrap">
+            <select
+              id="program-apply-select"
+              className="apply-form__control"
+              value={selectedProgramId ?? ""}
+              onChange={(event) => {
+                const nextValue = event.target.value ? Number(event.target.value) : null;
+                setSelectedProgramId(nextValue);
+                setSubmitError("");
+                setFormError("");
+                setSubmitted(false);
+              }}
+            >
+              <option value="">Select a program</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.title}
                 </option>
-                {options.map((option) => (
-                  <option key={`${field.id}-${option.value}`} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          );
-        }
-
-        if (field.type === "file") {
-          return (
-            <div className="form-grp" key={field.id}>
-              <label htmlFor={fieldId} className="application-form__field-label">
-                <span className="application-form__field-label-text">
-                  {fieldLabel}
-                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
-                </span>
-              </label>
-              <input
-                id={fieldId}
-                name={field.name}
-                type="file"
-                required={field.required}
-                aria-required={field.required || undefined}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  onFieldValueChange(field.name, file?.name || "");
-                }}
-              />
-            </div>
-          );
-        }
-
-        if (field.type === "checkbox") {
-          return (
-            <div className="form-grp" key={field.id}>
-              <label className="people-filter-check application-form__check-label" htmlFor={fieldId}>
-                <input
-                  id={fieldId}
-                  name={field.name}
-                  type="checkbox"
-                  required={field.required}
-                  aria-required={field.required || undefined}
-                  checked={Boolean(answers[field.name])}
-                  onChange={(e) => onFieldValueChange(field.name, e.target.checked)}
-                />
-                <span className="application-form__field-label-text">
-                  {fieldLabel}
-                  {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
-                </span>
-              </label>
-            </div>
-          );
-        }
-
-        return (
-          <div className="form-grp" key={field.id}>
-            <label htmlFor={fieldId} className="application-form__field-label">
-              <span className="application-form__field-label-text">
-                {fieldLabel}
-                {field.required ? <span className="application-form__required-mark" aria-hidden="true">*</span> : null}
-              </span>
-            </label>
-            <input
-              id={fieldId}
-              name={field.name}
-              type={inputTypeByField[field.type] || "text"}
-              placeholder={field.placeholder || field.label}
-              required={field.required}
-              aria-required={field.required || undefined}
-              value={String(answers[field.name] ?? "")}
-              onChange={(e) => onFieldValueChange(field.name, e.target.value)}
-            />
+              ))}
+            </select>
           </div>
-        );
-      })}
+        </div>
+      </div>
 
-      <button type="submit" className="btn btn-two arrow-btn" disabled={pending || !selectedProgramId}>
-        {pending ? "Submitting..." : "Submit Application"} <BtnArrow />
-      </button>
-    </form>
+      {selectedProgram ? (
+        <div className="apply-shell__hero">
+          <div className="apply-shell__hero-copy">
+            <p className="apply-shell__eyebrow">Program Application</p>
+            <h5>{selectedProgram.title}</h5>
+            <p>{selectedProgram.summary || "Complete the form below to submit your application."}</p>
+          </div>
+          {selectedProgram.image_url ? (
+            <div className="apply-shell__hero-media">
+              <img src={selectedProgram.image_url} alt={selectedProgram.title} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {selectedProgram ? (
+        <section className="apply-program-details">
+          <div className="apply-program-details__section">
+            <h6>Description</h6>
+            <p>{selectedProgram.description || selectedProgram.summary || "Program details will appear here."}</p>
+          </div>
+          {selectedProgram.requirements ? (
+            <div className="apply-program-details__section">
+              <h6>Requirements</h6>
+              <p>{selectedProgram.requirements}</p>
+            </div>
+          ) : null}
+          <div className="apply-program-details__section">
+            <h6>Cohorts</h6>
+            {selectedProgramCohorts.length ? (
+              <ul className="apply-program-details__cohorts">
+                {selectedProgramCohorts.map((cohort) => (
+                  <li key={cohort.id}>
+                    <div>
+                      <strong>{cohort.name}</strong>
+                      <p>
+                        {formatDate(cohort.start_date) && formatDate(cohort.end_date)
+                          ? `${formatDate(cohort.start_date)} - ${formatDate(cohort.end_date)}`
+                          : formatDate(cohort.start_date) || "Dates to be announced"}
+                      </p>
+                    </div>
+                    <span className={`apply-program-details__status apply-program-details__status--${cohort.status}`}>
+                      {String(cohort.status).replace(/_/g, " ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No cohorts available yet for this program.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {loadingForm ? <div className="apply-shell__loading">Loading application form...</div> : null}
+      {formError ? <p className="apply-form__status apply-form__status--error">{formError}</p> : null}
+
+      {!selectedProgramId ? (
+        <div className="apply-shell__empty">Select a program to see its application form.</div>
+      ) : null}
+
+      {!loadingForm && selectedProgram && formResolution ? (
+        <DynamicApplicationForm
+          key={`program-${Number(selectedProgram.id)}-${formResolution.resolved_form.id}-${formResolution.resolved_form.updated_at}`}
+          formKey={`program-${Number(selectedProgram.id)}-${formResolution.resolved_form.updated_at}`}
+          fields={formResolution.resolved_form.fields}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          error={submitError}
+          submitLabel="Submit Application"
+          hiddenFieldNames={["program_id"]}
+          initialAnswers={initialAnswers}
+        />
+      ) : null}
+    </div>
   );
-};
-
-export default GeneralApplyForm;
-
+}

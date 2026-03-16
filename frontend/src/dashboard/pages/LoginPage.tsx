@@ -5,7 +5,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { setToken, setUser } from "../utils/auth";
+import { useAuthStore } from "../stores/useAuthStore";
 import { ApiError, api } from "../utils/api";
 
 type LoginLocationState = {
@@ -56,8 +56,7 @@ export function LoginPage() {
         false,
       );
 
-      setToken(payload.token);
-      setUser(payload.user);
+      useAuthStore.getState().setAuth(payload.token, payload.user);
 
       navigate(state?.from || "/admin", { replace: true });
     } catch (err) {

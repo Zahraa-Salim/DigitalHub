@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for CMS.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { createTheme, getHomeSections, getMedia, getPages, getSiteSettings, getTheme, patchHomeSection, patchPage, patchSiteSettings, patchTheme, postMedia, } from "../controllers/cms.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";

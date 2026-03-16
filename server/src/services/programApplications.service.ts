@@ -59,8 +59,19 @@ const STAGES = [
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
+  "participation_confirmed",
+];
+
+const STAGE_ORDER = [
+  "applied",
+  "reviewing",
+  "invited_to_interview",
+  "interview_confirmed",
+  "interview_completed",
+  "accepted",
   "participation_confirmed",
 ];
 
@@ -73,17 +84,36 @@ function normalizeReviewMessage(value: unknown) {
 
 // Handles 'buildInterviewLinks' workflow for this module.
 function buildInterviewLinks(token: string) {
-  const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
+  const base = (
+    process.env.PUBLIC_SITE_URL ||
+    process.env.PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    "http://localhost:5000"
+  ).replace(/\/$/, "");
+  const hasSiteUrl = Boolean(process.env.PUBLIC_SITE_URL);
   return {
-    confirm_url: `${baseApi}/public/interviews/${token}/confirm`,
-    reschedule_url: `${baseApi}/public/interviews/${token}/reschedule`,
+    confirm_url: hasSiteUrl
+      ? `${base}/interview/confirm?token=${token}`
+      : `${base}/public/interviews/${token}/confirm`,
+    reschedule_url: hasSiteUrl
+      ? `${base}/interview/reschedule?token=${token}`
+      : `${base}/public/interviews/${token}/reschedule`,
   };
 }
 
 // Handles 'buildParticipationConfirmLink' workflow for this module.
 function buildParticipationConfirmLink(token: string) {
-  const baseApi = (process.env.PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
-  return `${baseApi}/public/participation/${token}/confirm`;
+  const base = (
+    process.env.PUBLIC_SITE_URL ||
+    process.env.PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    "http://localhost:5000"
+  ).replace(/\/$/, "");
+  const hasSiteUrl = Boolean(process.env.PUBLIC_SITE_URL);
+
+  return hasSiteUrl
+    ? `${base}/confirm-participation?token=${token}`
+    : `${base}/public/participation/${token}/confirm`;
 }
 
 // Handles 'buildLearnerSignInUrl' workflow for this module.
@@ -612,6 +642,26 @@ export async function patchProgramApplicationStageService(
       throw new AppError(404, "PROGRAM_APPLICATION_NOT_FOUND", "Program application not found.");
     }
 
+    const currentStage = String(currentResult.rows[0].stage || "").trim();
+    const currentIndex = STAGE_ORDER.indexOf(currentStage);
+    const targetIndex = STAGE_ORDER.indexOf(nextStage);
+    const forceTransition = payload.force_transition === true;
+
+    if (
+      !forceTransition &&
+      currentStage !== "rejected" &&
+      currentIndex >= 0 &&
+      targetIndex >= 0 &&
+      targetIndex > currentIndex + 1 &&
+      nextStage !== "rejected"
+    ) {
+      throw new AppError(
+        409,
+        "INVALID_STAGE_TRANSITION",
+        `Cannot move from '${currentStage}' directly to '${nextStage}'. Follow the pipeline.`,
+      );
+    }
+
     const reviewMessage = normalizeReviewMessage(payload.review_message);
     const updated = await updateProgramApplicationStage(
       programApplicationId,
@@ -804,7 +854,7 @@ export async function markProgramApplicationInterviewCompletedService(programApp
 
     const stageResult = await updateProgramApplicationStage(
       programApplicationId,
-      "interview_confirmed",
+      "interview_completed",
       actorUserId,
       null,
       client,

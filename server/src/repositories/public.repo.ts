@@ -2,16 +2,42 @@
 // Purpose: Runs the database queries used for public.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
+
+type PublicListConfig = {
+    selectFields: string;
+    tableExpression: string;
+    sortPrefix: string;
+};
+
+type ProgramApplicationUpsertInput = {
+    program_id: number;
+    applicant_id?: number | null;
+    applicant_email_norm?: string | null;
+    applicant_phone_norm?: string | null;
+    submission_answers?: unknown;
+};
 // Handles 'countPublicResources' workflow for this module.
-export async function countPublicResources(tableExpression, whereClause, params, db: DbClient = pool) {
+export async function countPublicResources(
+    tableExpression: string,
+    whereClause: string,
+    params: unknown[],
+    db: DbClient = pool,
+) {
     return db.query(`SELECT COUNT(*)::int AS total FROM ${tableExpression} ${whereClause}`, params);
 }
 // Handles 'listPublicResources' workflow for this module.
-export async function listPublicResources(config, whereClause, sortBy, order, params, limit, offset, db: DbClient = pool) {
+export async function listPublicResources(
+    config: PublicListConfig,
+    whereClause: string,
+    sortBy: string,
+    order: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    db: DbClient = pool,
+) {
     return db.query(`
       SELECT ${config.selectFields}
       FROM ${config.tableExpression}
@@ -39,7 +65,7 @@ export async function listPublicHomeSections(db: DbClient = pool) {
     `);
 }
 // Handles 'getPublicPageByKey' workflow for this module.
-export async function getPublicPageByKey(pageKey, db: DbClient = pool) {
+export async function getPublicPageByKey(pageKey: string, db: DbClient = pool) {
     return db.query(`
       SELECT id, key, title, content, is_published, updated_at
       FROM pages
@@ -57,7 +83,7 @@ export async function getPublicSiteSettings(db: DbClient = pool) {
     `);
 }
 // Handles 'getPublicStudentBySlug' workflow for this module.
-export async function getPublicStudentBySlug(publicSlug, db: DbClient = pool) {
+export async function getPublicStudentBySlug(publicSlug: string, db: DbClient = pool) {
     return db.query(`
       SELECT
         sp.user_id,
@@ -180,7 +206,7 @@ export async function getPublicStudentBySlug(publicSlug, db: DbClient = pool) {
 }
 
 // Handles 'getPublicEventBySlug' workflow for this module.
-export async function getPublicEventBySlug(slug, db: DbClient = pool) {
+export async function getPublicEventBySlug(slug: string, db: DbClient = pool) {
     return db.query(`
       SELECT e.id, e.slug, e.title, e.description, e.post_body, e.location, e.starts_at, e.ends_at, e.is_done, e.done_at, e.completion_image_urls, e.created_at, e.updated_at
       FROM events e
@@ -192,7 +218,7 @@ export async function getPublicEventBySlug(slug, db: DbClient = pool) {
 }
 
 // Handles 'getPublicCohortById' workflow for this module.
-export async function getPublicCohortById(cohortId, db: DbClient = pool) {
+export async function getPublicCohortById(cohortId: number, db: DbClient = pool) {
     return db.query(`
       SELECT
         c.id,
@@ -227,7 +253,7 @@ export async function getPublicCohortById(cohortId, db: DbClient = pool) {
 }
 
 // Handles 'listPublicCohortInstructors' workflow for this module.
-export async function listPublicCohortInstructors(cohortId, db: DbClient = pool) {
+export async function listPublicCohortInstructors(cohortId: number, db: DbClient = pool) {
     return db.query(`
       SELECT
         ip.user_id,
@@ -251,7 +277,7 @@ export async function listPublicCohortInstructors(cohortId, db: DbClient = pool)
 }
 
 // Handles 'listPublicCohortStudents' workflow for this module.
-export async function listPublicCohortStudents(cohortId, db: DbClient = pool) {
+export async function listPublicCohortStudents(cohortId: number, db: DbClient = pool) {
     return db.query(`
       SELECT
         sp.user_id,
@@ -322,7 +348,7 @@ export async function listPublishedProgramOptions(db: DbClient = pool) {
 }
 
 // Handles 'listEnabledFormFieldsByFormId' workflow for this module.
-export async function listEnabledFormFieldsByFormId(formId, db: DbClient = pool) {
+export async function listEnabledFormFieldsByFormId(formId: number, db: DbClient = pool) {
     return db.query(`
       SELECT id, form_id, name, label, type, required, options, placeholder, sort_order, is_enabled
       FROM form_fields
@@ -333,7 +359,7 @@ export async function listEnabledFormFieldsByFormId(formId, db: DbClient = pool)
 }
 
 // Handles 'getPublishedProgramById' workflow for this module.
-export async function getPublishedProgramById(programId, db: DbClient = pool) {
+export async function getPublishedProgramById(programId: number, db: DbClient = pool) {
     return db.query(`
       SELECT id, title
       FROM programs
@@ -345,7 +371,7 @@ export async function getPublishedProgramById(programId, db: DbClient = pool) {
 }
 
 // Handles 'findApplicantByEmailNorm' workflow for this module.
-export async function findApplicantByEmailNorm(emailNorm, db: DbClient = pool) {
+export async function findApplicantByEmailNorm(emailNorm: string | null, db: DbClient = pool) {
     return db.query(`
       SELECT id, full_name, email, phone
       FROM applicants
@@ -356,7 +382,7 @@ export async function findApplicantByEmailNorm(emailNorm, db: DbClient = pool) {
 }
 
 // Handles 'findApplicantByPhoneNorm' workflow for this module.
-export async function findApplicantByPhoneNorm(phoneNorm, db: DbClient = pool) {
+export async function findApplicantByPhoneNorm(phoneNorm: string | null, db: DbClient = pool) {
     return db.query(`
       SELECT id, full_name, email, phone
       FROM applicants
@@ -367,7 +393,12 @@ export async function findApplicantByPhoneNorm(phoneNorm, db: DbClient = pool) {
 }
 
 // Handles 'createApplicantForPublicApply' workflow for this module.
-export async function createApplicantForPublicApply(fullName, email, phone, db: DbClient = pool) {
+export async function createApplicantForPublicApply(
+    fullName: string | null,
+    email: string | null,
+    phone: string | null,
+    db: DbClient = pool,
+) {
     return db.query(`
       INSERT INTO applicants (full_name, email, phone, created_at)
       VALUES ($1, $2, $3, NOW())
@@ -376,7 +407,7 @@ export async function createApplicantForPublicApply(fullName, email, phone, db: 
 }
 
 // Handles 'upsertProgramApplication' workflow for this module.
-export async function upsertProgramApplication(input, db: DbClient = pool) {
+export async function upsertProgramApplication(input: ProgramApplicationUpsertInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO program_applications (
         program_id,
@@ -408,7 +439,7 @@ export async function upsertProgramApplication(input, db: DbClient = pool) {
 }
 
 // Handles 'upsertProgramApplicationByPhone' workflow for this module.
-export async function upsertProgramApplicationByPhone(input, db: DbClient = pool) {
+export async function upsertProgramApplicationByPhone(input: ProgramApplicationUpsertInput, db: DbClient = pool) {
     return db.query(`
       INSERT INTO program_applications (
         program_id,

@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for applications.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 
 export const applicationStageSchema = z.enum([
@@ -11,6 +9,7 @@ export const applicationStageSchema = z.enum([
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
   "participation_confirmed",
@@ -20,6 +19,7 @@ export const applicationStatusSchema = z.enum([
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
   "participation_confirmed",
@@ -65,6 +65,7 @@ export const stagePatchBodySchema = z
     stage: applicationStageSchema.optional(),
     status: applicationStatusSchema.optional(),
     message: z.string().trim().min(1).optional(),
+    force_transition: z.boolean().optional(),
   })
   .refine((value) => Boolean(value.stage || value.status), {
     message: "stage or status is required",
@@ -115,7 +116,9 @@ export const decisionBodySchema = z
   })
   .strict();
 
-export const participationConfirmBodySchema = z.object({}).strict();
+export const participationConfirmBodySchema = z.object({
+  note: z.string().trim().min(1).max(500).optional(),
+}).strict();
 export const createUserBodySchema = z
   .object({
     channels: z
@@ -166,13 +169,19 @@ export const publicInterviewRescheduleBodySchema = z
 
 export const publicParticipationConfirmBodySchema = z
   .object({
-    note: z.string().trim().max(2000).optional(),
+    note: z.string().trim().min(1).max(500).optional(),
   })
   .strict();
 
 export const publicApplyBodySchema = z
   .object({
     program_id: z.coerce.number().int().positive(),
+    answers: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export const publicCohortApplyBodySchema = z
+  .object({
     answers: z.record(z.string(), z.unknown()),
   })
   .strict();

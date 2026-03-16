@@ -138,12 +138,14 @@ export async function forgotPasswordService(input: ForgotPasswordInput) {
     }
     const baseUrl = getPasswordResetBaseUrl();
     const resetLink = `${baseUrl}/reset-password/${rawToken}`;
-    await sendDigitalHubEmail({
-        to: email,
-        subject: "Reset your password",
-        body: `We received a password reset request for your account.\n\nReset your password: ${resetLink}\n\nThis link expires in 1 hour.\nIf you did not request this, you can ignore this email.`,
-    });
-    if (isDevResetDebugEnabled()) {
+    if (canStoreTokenForUser) {
+        await sendDigitalHubEmail({
+            to: email,
+            subject: "Reset your password",
+            body: `We received a password reset request for your account.\n\nReset your password: ${resetLink}\n\nThis link expires in 1 hour.\nIf you did not request this, you can ignore this email.`,
+        });
+    }
+    if (canStoreTokenForUser && isDevResetDebugEnabled()) {
         return {
             message: genericMessage,
             debug: {

@@ -2,8 +2,6 @@
 // Purpose: Runs the seed events demo script for the backend.
 // It performs a one-off setup, seeding, or maintenance task outside the request cycle.
 
-// @ts-nocheck
-
 import dotenv from "dotenv";
 import { pool } from "../db/index.js";
 

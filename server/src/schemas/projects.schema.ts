@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for projects.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 
 const nullableUrlSchema = z.string().trim().url().nullable();

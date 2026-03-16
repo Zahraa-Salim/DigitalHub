@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for events.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { createEvent, deleteEvent, getEvents, markEventDone, patchEvent, postEventImage, } from "../controllers/events.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";

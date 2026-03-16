@@ -5,19 +5,22 @@
 import { lazy, type ReactNode } from "react";
 import type { AdminRole } from "../utils/auth";
 import { RequireSuperAdmin } from "./RequireSuperAdmin";
+import { OverviewPage } from "../pages/OverviewPage";
 
 const ActivityLogsPage = lazy(() => import("../pages/admin/ActivityLogsPage").then((module) => ({ default: module.ActivityLogsPage })));
 const AnnouncementsPage = lazy(() => import("../pages/admin/AnnouncementsPage").then((module) => ({ default: module.AnnouncementsPage })));
 const AdmissionsPage = lazy(() => import("../pages/admin/AdmissionsPage").then((module) => ({ default: module.AdmissionsPage })));
 const GeneralApplyPage = lazy(() => import("../pages/admin/GeneralApplyPage").then((module) => ({ default: module.GeneralApplyPage })));
-const CmsHomeSectionsPage = lazy(() => import("../pages/admin/CmsHomeSectionsPage").then((module) => ({ default: module.CmsHomeSectionsPage })));
-const CmsPagesPage = lazy(() => import("../pages/admin/CmsPagesPage").then((module) => ({ default: module.CmsPagesPage })));
-const CmsSiteSettingsPage = lazy(() => import("../pages/admin/CmsSiteSettingsPage").then((module) => ({ default: module.CmsSiteSettingsPage })));
-const CmsThemeTokensPage = lazy(() => import("../pages/admin/CmsThemeTokensPage").then((module) => ({ default: module.CmsThemeTokensPage })));
+const CmsHomeSectionsPage = lazy(() => import("../pages/admin/cms/HomeSectionsPage").then((module) => ({ default: module.CmsHomeSectionsPage })));
+const CmsPagesPage = lazy(() => import("../pages/admin/cms/PagesPage").then((module) => ({ default: module.CmsPagesPage })));
+const CmsSiteSettingsPage = lazy(() => import("../pages/admin/cms/SiteSettingsPage").then((module) => ({ default: module.CmsSiteSettingsPage })));
+const CmsThemeTokensPage = lazy(() => import("../pages/admin/cms/ThemeTokensPage").then((module) => ({ default: module.CmsThemeTokensPage })));
+const CmsVisualEditorPage = lazy(() => import("../pages/admin/cms/VisualEditorPage").then((module) => ({ default: module.CmsVisualEditorPage })));
+const CsvImportPage = lazy(() => import("../pages/admin/CsvImportPage").then((module) => ({ default: module.CsvImportPage })));
 const CohortsPage = lazy(() => import("../pages/admin/CohortsPage").then((module) => ({ default: module.CohortsPage })));
 const ContactInboxPage = lazy(() => import("../pages/admin/ContactInboxPage").then((module) => ({ default: module.ContactInboxPage })));
 const EventsPage = lazy(() => import("../pages/admin/EventsPage").then((module) => ({ default: module.EventsPage })));
-const FormsPage = lazy(() => import("../pages/admin/FormsPage").then((module) => ({ default: module.FormsPage })));
+const FormsPage = lazy(() => import("../pages/admin/FormsPage").then((module) => ({ default: module.ApplicationFormsPage })));
 const AttendancePage = lazy(() => import("../pages/admin/AttendancePage").then((module) => ({ default: module.AttendancePage })));
 const AdminManagementPage = lazy(() => import("../pages/admin/AdminManagementPage").then((module) => ({ default: module.AdminManagementPage })));
 const MyProfilePage = lazy(() => import("../pages/admin/MyProfilePage").then((module) => ({ default: module.MyProfilePage })));
@@ -28,8 +31,7 @@ const ProfilesInstructorsPage = lazy(() => import("../pages/admin/ProfilesInstru
 const ProfilesManagersPage = lazy(() => import("../pages/admin/ProfilesManagersPage").then((module) => ({ default: module.ProfilesManagersPage })));
 const ProfilesStudentsPage = lazy(() => import("../pages/admin/ProfilesStudentsPage").then((module) => ({ default: module.ProfilesStudentsPage })));
 const ProgramsPage = lazy(() => import("../pages/admin/ProgramsPage").then((module) => ({ default: module.ProgramsPage })));
-const OverviewPage = lazy(() => import("../pages/OverviewPage").then((module) => ({ default: module.OverviewPage })));
-
+const SubscribersPage = lazy(() => import("../pages/admin/SubscribersPage").then((module) => ({ default: module.SubscribersPage })));
 export type NavLeaf = {
   label: string;
   path: string;
@@ -69,6 +71,7 @@ export const navConfig: NavItem[] = [
   {
     label: "CMS",
     children: [
+      { label: "Visual Editor", path: "/admin/cms/visual-editor" },
       { label: "Site Settings", path: "/admin/cms/site-settings" },
       { label: "Pages", path: "/admin/cms/pages" },
       { label: "Home Sections", path: "/admin/cms/home-sections" },
@@ -81,8 +84,10 @@ export const navConfig: NavItem[] = [
       { label: "Instructors", path: "/admin/profiles/instructors" },
       { label: "Managers", path: "/admin/profiles/managers" },
       { label: "Students", path: "/admin/profiles/students" },
+      { label: "Subscribers", path: "/admin/subscribers" },
     ],
   },
+  { label: "Data Transfer", path: "/admin/import-csv" },
   { label: "Contact Inbox", path: "/admin/contact" },
   { label: "Activity Logs", path: "/admin/logs" },
   { label: "Admin Management", path: "/admin/admins", requiresSuperAdmin: true },
@@ -122,6 +127,7 @@ export const adminRoutes: AdminRoute[] = [
   { path: "attendance", element: <AttendancePage /> },
   { path: "cohorts", element: <CohortsPage /> },
   { path: "programs", element: <ProgramsPage /> },
+  { path: "cms/visual-editor", element: <CmsVisualEditorPage /> },
   { path: "cms/site-settings", element: <CmsSiteSettingsPage /> },
   { path: "cms/pages", element: <CmsPagesPage /> },
   { path: "cms/home-sections", element: <CmsHomeSectionsPage /> },
@@ -131,6 +137,8 @@ export const adminRoutes: AdminRoute[] = [
   { path: "profiles/students", element: <ProfilesStudentsPage /> },
   { path: "profiles/instructors", element: <ProfilesInstructorsPage /> },
   { path: "profiles/managers", element: <ProfilesManagersPage /> },
+  { path: "subscribers", element: <SubscribersPage /> },
+  { path: "import-csv", element: <CsvImportPage /> },
   { path: "contact", element: <ContactInboxPage /> },
   { path: "notifications", element: <NotificationsPage /> },
   { path: "logs", element: <ActivityLogsPage /> },

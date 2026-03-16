@@ -4,13 +4,20 @@
 
 "use client";
 
+import { AnnouncementCard, resolveAnnouncementCardProps } from "@/components/common/AnnouncementCard";
 import Image from "@/components/common/Image";
-import { API_BASE_URL, listPublicEvents, type PublicEvent } from "@/lib/publicApi";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import ReactPaginate from "react-paginate";
 import { useCmsPage } from "@/hooks/useCmsPage";
-import { getCmsString } from "@/lib/cmsContent";
+import { getCmsBoolean, getCmsNumber, getCmsString } from "@/lib/cmsContent";
+import {
+  API_BASE_URL,
+  listPublicAnnouncementsPage,
+  listPublicEvents,
+  type PublicAnnouncement,
+  type PublicEvent,
+} from "@/lib/publicApi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ReactPaginate from "react-paginate";
+import { useSearchParams } from "react-router-dom";
 
 const toAbsolutePublicUrl = (value?: string | null) => {
   if (!value) return null;
@@ -52,6 +59,7 @@ const applyTemplate = (template: string, values: Record<string, string | number>
 
 const MODAL_SLIDE_AUTOPLAY_MS = 3200;
 const EVENTS_PER_PAGE = 6;
+const DEFAULT_ANNOUNCEMENTS_PER_PAGE = 6;
 
 type EventStatusFilter = "all" | "upcoming" | "live" | "completed";
 
@@ -96,19 +104,25 @@ const deriveEventStatus = (event: PublicEvent, nowTs: number): Exclude<EventStat
 const EventsArea = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<PublicEvent[]>([]);
+  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [announcementsError, setAnnouncementsError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<PublicEvent | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isModalClosing, setIsModalClosing] = useState(false);
   const [isAutoSlidePaused, setIsAutoSlidePaused] = useState(false);
   const [statusFilter, setStatusFilter] = useState<EventStatusFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [announcementsPage, setAnnouncementsPage] = useState(1);
+  const [announcementTotalPages, setAnnouncementTotalPages] = useState(1);
   const [loadedImageMap, setLoadedImageMap] = useState<Record<string, boolean>>({});
   const [previousMainImage, setPreviousMainImage] = useState<string | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const imageTransitionTimerRef = useRef<number | null>(null);
   const previousMainImageRef = useRef<string | null>(null);
+  const announcementsRef = useRef<HTMLDivElement | null>(null);
   const page = useCmsPage("events");
   const pageContent = page?.content ?? null;
   const sectionSubtitle = getCmsString(pageContent, ["subtitle", "sub_title"], "Events");
@@ -135,6 +149,40 @@ const EventsArea = () => {
   const photosSuffix = getCmsString(pageContent, ["photos_suffix", "photosSuffix"], "photos");
   const emptyStateText = getCmsString(pageContent, ["empty_state_text", "emptyStateText"], "No events match the selected filters.");
   const errorText = getCmsString(pageContent, ["error_text", "errorText"], "Unable to load events right now.");
+  const announcementsSubtitle = getCmsString(
+    pageContent,
+    ["announcements_subtitle", "announcementsSubtitle"],
+    "Updates",
+  );
+  const announcementsTitle = getCmsString(
+    pageContent,
+    ["announcements_title", "announcementsTitle"],
+    "Latest Announcements",
+  );
+  const announcementsDescription = getCmsString(
+    pageContent,
+    ["announcements_description", "announcementsDescription"],
+    "Stay up to date with the latest news, cohort openings, and upcoming events.",
+  );
+  const announcementsLoadErrorText = getCmsString(
+    pageContent,
+    ["announcements_error_text", "announcementsErrorText"],
+    "Unable to load announcements right now.",
+  );
+  const announcementsShowSection = getCmsBoolean(
+    pageContent,
+    ["announcements_show_section", "announcementsShowSection"],
+    true,
+  );
+  const announcementsPerPage = Math.trunc(
+    getCmsNumber(
+      pageContent,
+      ["announcements_per_page", "announcementsPerPage"],
+      DEFAULT_ANNOUNCEMENTS_PER_PAGE,
+      1,
+      12,
+    ),
+  );
   const closeLabel = getCmsString(pageContent, ["close_label", "closeLabel"], "Close details");
   const previousImageLabel = getCmsString(pageContent, ["previous_image_label", "previousImageLabel"], "Previous image");
   const nextImageLabel = getCmsString(pageContent, ["next_image_label", "nextImageLabel"], "Next image");
@@ -181,6 +229,46 @@ const EventsArea = () => {
   }, [errorText]);
 
   useEffect(() => {
+    if (!announcementsShowSection) {
+      setAnnouncements([]);
+      setAnnouncementTotalPages(1);
+      setAnnouncementsLoading(false);
+      setAnnouncementsError(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadAnnouncements = async () => {
+      setAnnouncementsLoading(true);
+      try {
+        const response = await listPublicAnnouncementsPage({
+          page: announcementsPage,
+          limit: announcementsPerPage,
+          sortBy: "created_at",
+          order: "desc",
+        });
+        if (!active) return;
+        setAnnouncements(response.data);
+        setAnnouncementTotalPages(Math.max(1, response.pagination.totalPages));
+        setAnnouncementsError(null);
+      } catch {
+        if (!active) return;
+        setAnnouncements([]);
+        setAnnouncementTotalPages(1);
+        setAnnouncementsError(announcementsLoadErrorText);
+      } finally {
+        if (active) setAnnouncementsLoading(false);
+      }
+    };
+
+    void loadAnnouncements();
+    return () => {
+      active = false;
+    };
+  }, [announcementsLoadErrorText, announcementsPage, announcementsPerPage, announcementsShowSection]);
+
+  useEffect(() => {
     const statusFromQuery = searchParams.get("status");
     const parsedStatus: EventStatusFilter = EVENT_STATUS_ORDER.includes(statusFromQuery as EventStatusFilter)
       ? (statusFromQuery as EventStatusFilter)
@@ -188,9 +276,13 @@ const EventsArea = () => {
 
     const pageFromQuery = Number.parseInt(searchParams.get("page") || "1", 10);
     const parsedPage = Number.isFinite(pageFromQuery) && pageFromQuery > 0 ? pageFromQuery : 1;
+    const announcementPageFromQuery = Number.parseInt(searchParams.get("apage") || "1", 10);
+    const parsedAnnouncementPage =
+      Number.isFinite(announcementPageFromQuery) && announcementPageFromQuery > 0 ? announcementPageFromQuery : 1;
 
     setStatusFilter((current) => (current === parsedStatus ? current : parsedStatus));
     setCurrentPage((current) => (current === parsedPage ? current : parsedPage));
+    setAnnouncementsPage((current) => (current === parsedAnnouncementPage ? current : parsedAnnouncementPage));
   }, [searchParams]);
 
   const eventRows = useMemo(() => {
@@ -239,15 +331,31 @@ const EventsArea = () => {
   }, [currentPage, totalPages]);
 
   useEffect(() => {
+    if (announcementsPage > announcementTotalPages) {
+      setAnnouncementsPage(announcementTotalPages);
+    }
+  }, [announcementTotalPages, announcementsPage]);
+
+  useEffect(() => {
     const next = new URLSearchParams();
     if (statusFilter !== "all") next.set("status", statusFilter);
     if (currentPage > 1) next.set("page", String(currentPage));
+    if (announcementsPage > 1) next.set("apage", String(announcementsPage));
 
     const nextString = next.toString();
     if (nextString !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [statusFilter, currentPage, searchParams, setSearchParams]);
+  }, [announcementsPage, currentPage, searchParams, setSearchParams, statusFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#announcements") return;
+    if (!announcementsRef.current) return;
+    window.requestAnimationFrame(() => {
+      announcementsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [announcementsLoading, announcements.length]);
 
   const toggleStatusFilter = (value: EventStatusFilter) => {
     setStatusFilter(value);
@@ -412,9 +520,93 @@ const EventsArea = () => {
     setCurrentPage(event.selected + 1);
   };
 
+  const handleAnnouncementsPageClick = (event: { selected: number }) => {
+    setAnnouncementsPage(event.selected + 1);
+  };
+
+  const showAnnouncementsSection =
+    announcementsShowSection && (announcementsLoading || Boolean(announcements.length) || Boolean(announcementsError));
+
   return (
     <section className="event__area section-py-120">
       <div className="container">
+        {showAnnouncementsSection ? (
+          <div className="events-announcements" id="announcements" ref={announcementsRef}>
+            <div className="section__title-wrap mb-35">
+              <div className="row align-items-end">
+                <div className="col-lg-8">
+                  <div className="section__title">
+                    <span className="sub-title">{announcementsSubtitle}</span>
+                    <h2 className="title">{announcementsTitle}</h2>
+                  </div>
+                </div>
+                <div className="col-lg-4">
+                  <div className="section__content">
+                    <p>{announcementsDescription}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="home-announcements__list">
+                {announcementsLoading
+                  ? Array.from({ length: announcementsPerPage }).map((_, index) => (
+                      <article
+                        className="home-announcements__banner home-announcements__card--skeleton"
+                        key={`announcement-skeleton-${index}`}
+                        aria-hidden
+                      >
+                        <div className="home-announcements__banner-main">
+                          <div className="home-announcements__banner-top">
+                            <span className="home-announcements__pill">&nbsp;</span>
+                            <span className="home-announcements__date">&nbsp;</span>
+                          </div>
+                          <span className="home-announcements__eyebrow">&nbsp;</span>
+                          <h3 className="home-announcements__banner-title">&nbsp;</h3>
+                          <p className="home-announcements__banner-body">&nbsp;</p>
+                        </div>
+                        <div className="home-announcements__banner-side">
+                          <span className="home-announcements__banner-date">&nbsp;</span>
+                        </div>
+                      </article>
+                    ))
+                  : announcements.map((item, index) => (
+                      <div key={item.id} data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
+                        <AnnouncementCard {...resolveAnnouncementCardProps(item)} />
+                      </div>
+                    ))}
+            </div>
+
+            {!announcementsLoading && !announcementsError && announcementTotalPages > 1 ? (
+              <nav className="pagination__wrap mt-30" aria-label="Announcements pagination">
+                <ReactPaginate
+                  breakLabel="..."
+                  onPageChange={handleAnnouncementsPageClick}
+                  pageRangeDisplayed={3}
+                  pageCount={announcementTotalPages}
+                  forcePage={Math.max(0, announcementsPage - 1)}
+                  className="list-wrap"
+                  previousLabel={
+                    <i
+                      className="flaticon-arrow-right"
+                      style={{ transform: "rotate(180deg)", display: "inline-block" }}
+                    ></i>
+                  }
+                  nextLabel={<i className="flaticon-arrow-right"></i>}
+                  previousAriaLabel="Previous announcements page"
+                  nextAriaLabel="Next announcements page"
+                  previousClassName="previous pagination__arrow"
+                  nextClassName="next pagination__arrow"
+                />
+              </nav>
+            ) : null}
+
+            {!announcementsLoading && announcementsError ? (
+              <p className="dh-live-note dh-live-note--center">{announcementsError}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="section__title-wrap mb-35">
           <div className="row align-items-end">
             <div className="col-lg-8">

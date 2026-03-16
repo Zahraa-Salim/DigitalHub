@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Badge } from "../../components/Badge";
+import { BroadcastModal } from "../../components/BroadcastModal";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
@@ -114,6 +115,9 @@ export function AnnouncementsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AnnouncementRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [broadcastTarget, setBroadcastTarget] = useState<AnnouncementRow | null>(null);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [broadcastSentIds, setBroadcastSentIds] = useState<Set<number>>(new Set());
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
@@ -384,6 +388,50 @@ export function AnnouncementsPage() {
     }
   };
 
+  const confirmBroadcast = async (payload: {
+    channel: "email" | "whatsapp" | "both";
+    recipient_type: "all_contacts" | "manual";
+    manual_recipients?: string[];
+    include_subscribers?: boolean;
+  }) => {
+    if (!broadcastTarget) return;
+
+    setIsBroadcasting(true);
+    setError("");
+
+    try {
+      await api<{
+        announcement_id: number;
+        channel: string;
+        user_sent: number;
+        user_skipped: number;
+        user_failed: number;
+        subscriber_sent: number;
+        subscriber_failed: number;
+        include_subscribers: boolean;
+      }>(
+        `/announcements/${broadcastTarget.id}/broadcast`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+      setBroadcastSentIds((current) => {
+        const next = new Set(current);
+        next.add(broadcastTarget.id);
+        return next;
+      });
+      showToast("success", "Broadcast sent successfully.");
+      setBroadcastTarget(null);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message || "Failed to send broadcast." : "Failed to send broadcast.";
+      setError(message);
+      showToast("error", message);
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
+
   const openMobileFilters = () => {
     setShowFiltersMobile(true);
     setFilterSheetOffset(0);
@@ -551,9 +599,12 @@ export function AnnouncementsPage() {
                   label: "Title",
                   className: "table-cell-strong",
                   render: (row) => (
-                    <button className="program-title-btn" type="button" onClick={() => setSelected(row)}>
-                      {row.title}
-                    </button>
+                    <div className="ann-title-cell">
+                      <button className="program-title-btn" type="button" onClick={() => setSelected(row)}>
+                        {row.title}
+                      </button>
+                      {broadcastSentIds.has(row.id) ? <span className="ann-badge-broadcast">Broadcast sent</span> : null}
+                    </div>
                   ),
                 },
                 {
@@ -573,6 +624,9 @@ export function AnnouncementsPage() {
                     <div className="table-actions dh-table-actions">
                       <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => void togglePublished(row)}>
                         {row.is_published ? "Unpublish" : "Publish"}
+                      </button>
+                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setBroadcastTarget(row)}>
+                        Broadcast
                       </button>
                       <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                       <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
@@ -599,11 +653,15 @@ export function AnnouncementsPage() {
               filteredRows.map((row) => (
                 <article className="program-mobile-item announcement-mobile-item" key={row.id}>
                   <button className="program-mobile-item__title" type="button" onClick={() => setSelected(row)}>{row.title}</button>
+                  {broadcastSentIds.has(row.id) ? <span className="ann-badge-broadcast">Broadcast sent</span> : null}
                   <p className="info-text announcement-mobile-item__meta"><strong>Published:</strong> {row.is_published ? "Yes" : "No"}</p>
                   <p className="info-text announcement-mobile-item__meta"><strong>Publish At:</strong> {row.publish_at ? formatDateTime(row.publish_at) : "N/A"}</p>
                   <div className="table-actions program-mobile-item__actions announcement-mobile-item__actions">
                     <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => void togglePublished(row)}>
                       {row.is_published ? "Unpublish" : "Publish"}
+                    </button>
+                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setBroadcastTarget(row)}>
+                      Broadcast
                     </button>
                     <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                     <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
@@ -657,11 +715,15 @@ export function AnnouncementsPage() {
               <p className="post-details__line"><strong>CTA Label:</strong> {selected.cta_label || "N/A"}</p>
               <p className="post-details__line"><strong>CTA Link:</strong> {selected.cta_url || "N/A"}</p>
               <p className="post-details__line"><strong>Open CTA in new tab:</strong> {selected.cta_open_in_new_tab ? "Yes" : "No"}</p>
+              <p className="post-details__line"><strong>Broadcast:</strong> {broadcastSentIds.has(selected.id) ? "Sent" : "Not sent"}</p>
               <p className="post-details__line"><strong>Body:</strong> {selected.body}</p>
             </div>
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={() => void togglePublished(selected)}>
                 {selected.is_published ? "Unpublish" : "Publish"}
+              </button>
+              <button className="btn btn--secondary" type="button" onClick={() => { setBroadcastTarget(selected); setSelected(null); }}>
+                Broadcast
               </button>
               <button className="btn btn--secondary" type="button" onClick={() => { openEdit(selected); setSelected(null); }}>Edit</button>
               <button className="btn btn--danger" type="button" onClick={() => { setDeleteTarget(selected); setSelected(null); }}>Delete</button>
@@ -714,6 +776,20 @@ export function AnnouncementsPage() {
           </div>
         </div>
       ) : null}
+
+      <BroadcastModal
+        open={Boolean(broadcastTarget)}
+        title={broadcastTarget?.title || ""}
+        body={broadcastTarget?.body || ""}
+        announcementId={broadcastTarget?.id ?? 0}
+        ctaLabel={broadcastTarget?.cta_label || null}
+        ctaUrl={broadcastTarget?.cta_url || null}
+        sending={isBroadcasting}
+        onClose={() => {
+          if (!isBroadcasting) setBroadcastTarget(null);
+        }}
+        onConfirm={confirmBroadcast}
+      />
 
       {showFiltersMobile ? (
         <div className="dh-filter-modal" role="presentation" onClick={closeMobileFilters}>

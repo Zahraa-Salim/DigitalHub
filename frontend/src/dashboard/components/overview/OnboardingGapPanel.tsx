@@ -1,52 +1,83 @@
-﻿// File: frontend/src/dashboard/components/overview/OnboardingGapPanel.tsx
-// Purpose: Renders the overview onboarding gap panel panel in the dashboard.
-// It presents one focused slice of overview data, actions, or health signals.
+﻿// File: frontend/src/dashboard/components/overview-mock/OnboardingGapPanel.tsx
+// Purpose: Renders the mock overview onboarding gap panel panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
 
-import { Card } from "../Card";
-import type { AdminOverviewData } from "../../lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import type { AdminOverviewData } from '../../lib/api';
 
 type OnboardingGapPanelProps = {
-  data: AdminOverviewData["onboardingGaps"];
+  onboardingGaps: AdminOverviewData['onboardingGaps'];
 };
 
-function toRate(numerator: number, denominator: number): string {
-  if (denominator <= 0) return "0%";
-  return `${Math.round((numerator / denominator) * 100)}%`;
-}
-
-export function OnboardingGapPanel({ data }: OnboardingGapPanelProps) {
+export function OnboardingGapPanel({ onboardingGaps }: OnboardingGapPanelProps) {
+  const acceptedBase = onboardingGaps.accepted > 0 ? onboardingGaps.accepted : 1;
+  const steps = [
+    {
+      label: 'Accepted',
+      count: onboardingGaps.accepted,
+      total: onboardingGaps.accepted,
+      color: 'bg-blue-500',
+    },
+    {
+      label: 'Participation Confirmed',
+      count: onboardingGaps.participationConfirmed,
+      total: onboardingGaps.accepted,
+      color: 'bg-indigo-500',
+    },
+    {
+      label: 'User Created',
+      count: onboardingGaps.userCreated,
+      total: onboardingGaps.participationConfirmed > 0 ? onboardingGaps.participationConfirmed : 1,
+      color: 'bg-purple-500',
+    },
+    {
+      label: 'Enrollment Created',
+      count: onboardingGaps.enrollmentCreated,
+      total: onboardingGaps.userCreated > 0 ? onboardingGaps.userCreated : 1,
+      color: 'bg-green-500',
+    },
+  ];
   return (
-    <Card className="overview-panel">
-      <h3 className="section-title">Onboarding Gaps</h3>
-      <div className="list-stack overview-metric-list">
-        <div className="list-row overview-metric-row">
-          <div>
-            <p className="list-row__title">Accepted</p>
-          </div>
-          <p className="list-row__title">{data.accepted}</p>
+    <Card className="h-full">
+      <CardHeader className="border-b border-gray-100 pb-4">
+        <CardTitle>Onboarding Gaps</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <div className="space-y-6">
+          {steps.map((step, index) => {
+            const percentage =
+              index === 0
+                ? 100
+                : Math.round((step.count / acceptedBase) * 100);
+            const conversionRate =
+              index === 0 ? null : Math.round((step.count / step.total) * 100);
+            return (
+              <div key={step.label} className="relative">
+                {index > 0 && (
+                  <div className="absolute -top-5 left-2 text-[10px] font-bold text-gray-400 flex items-center">
+                    <div className="h-4 w-px bg-gray-300 mr-2"></div>
+                    {conversionRate}% conversion
+                  </div>
+                )}
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium text-gray-700">
+                    {step.label}
+                  </span>
+                  <span className="font-bold text-gray-900">{step.count}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                  <div
+                    className={`${step.color} h-2.5 rounded-full transition-all duration-500`}
+                    style={{
+                      width: `${percentage}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <div className="list-row overview-metric-row">
-          <div>
-            <p className="list-row__title">Participation Confirmed</p>
-            <p className="list-row__meta">{toRate(data.participationConfirmed, data.accepted)} conversion</p>
-          </div>
-          <p className="list-row__title">{data.participationConfirmed}</p>
-        </div>
-        <div className="list-row overview-metric-row">
-          <div>
-            <p className="list-row__title">User Created</p>
-            <p className="list-row__meta">{toRate(data.userCreated, data.participationConfirmed)} conversion</p>
-          </div>
-          <p className="list-row__title">{data.userCreated}</p>
-        </div>
-        <div className="list-row overview-metric-row">
-          <div>
-            <p className="list-row__title">Enrollment Created</p>
-            <p className="list-row__meta">{toRate(data.enrollmentCreated, data.userCreated)} conversion</p>
-          </div>
-          <p className="list-row__title">{data.enrollmentCreated}</p>
-        </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }

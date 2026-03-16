@@ -1,48 +1,81 @@
-﻿// File: frontend/src/dashboard/components/overview/SuperAdminPanel.tsx
-// Purpose: Renders the overview super admin panel panel in the dashboard.
-// It presents one focused slice of overview data, actions, or health signals.
+﻿// File: frontend/src/dashboard/components/overview-mock/SuperAdminPanel.tsx
+// Purpose: Renders the mock overview super admin panel panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
 
-import { Badge } from "../Badge";
-import { Card } from "../Card";
-import { formatDateTime } from "../../utils/format";
-import type { AdminOverviewData } from "../../lib/api";
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Badge } from './ui/Badge';
+import { ShieldAlert } from 'lucide-react';
+import type { AdminOverviewData } from '../../lib/api';
 
 type SuperAdminPanelProps = {
-  admins: NonNullable<AdminOverviewData["superAdmin"]>["admins"];
+  admins: NonNullable<AdminOverviewData['superAdmin']>['admins'];
 };
+
+function relative(iso: string | null): string {
+  if (!iso) return 'Never';
+  const date = new Date(iso);
+  const diffMs = Date.now() - date.getTime();
+  if (Number.isNaN(diffMs) || diffMs < 0) return iso;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 export function SuperAdminPanel({ admins }: SuperAdminPanelProps) {
   return (
-    <Card className="overview-panel overview-panel--super">
-      <h3 className="section-title">Super Admin Panel</h3>
-      {admins.length === 0 ? (
-        <p className="info-text">No admin users found.</p>
-      ) : (
-        <div className="table-wrap overview-table-wrap">
-          <table className="table overview-table">
-            <thead>
+    <Card className="border-purple-200 shadow-sm">
+      <CardHeader className="border-b border-gray-100 pb-4 bg-purple-50/30 rounded-t-lg">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-purple-600" />
+          <CardTitle className="text-purple-900">
+            Super Admin Controls
+          </CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100">
               <tr>
-                <th>Admin Name</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Last Login</th>
+                <th className="px-6 py-3 font-medium">Admin Name</th>
+                <th className="px-6 py-3 font-medium">Role</th>
+                <th className="px-6 py-3 font-medium">Status</th>
+                <th className="px-6 py-3 font-medium text-right">Last Login</th>
               </tr>
             </thead>
-            <tbody>
-              {admins.map((admin) => (
-                <tr key={admin.user_id}>
-                  <td className="table-cell-strong">{admin.name}</td>
-                  <td>{admin.role}</td>
-                  <td>
-                    <Badge tone={admin.is_active ? "open" : "cancelled"}>{admin.is_active ? "active" : "disabled"}</Badge>
+            <tbody className="divide-y divide-gray-100">
+              {admins.length === 0 ? (
+                <tr className="hover:bg-gray-50">
+                  <td className="px-6 py-3 text-gray-500" colSpan={4}>
+                    No admin users found.
                   </td>
-                  <td>{admin.last_login_at ? formatDateTime(admin.last_login_at) : "-"}</td>
+                </tr>
+              ) : admins.map((admin) => (
+                <tr key={admin.user_id} className="hover:bg-gray-50">
+                  <td className="px-6 py-3 font-medium text-gray-900">
+                    {admin.name}
+                  </td>
+                  <td className="px-6 py-3 text-gray-600">{admin.role}</td>
+                  <td className="px-6 py-3">
+                    <Badge
+                      variant={admin.is_active ? 'green' : 'gray'}
+                    >
+                      {admin.is_active ? 'active' : 'disabled'}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-3 text-right text-gray-500">
+                    {relative(admin.last_login_at)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
+      </CardContent>
     </Card>
   );
 }

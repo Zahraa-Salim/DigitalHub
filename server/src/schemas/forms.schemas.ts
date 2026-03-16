@@ -2,8 +2,6 @@
 // Purpose: Defines the Zod schemas for forms.
 // It describes the request shapes and validation rules used before service logic runs.
 
-// @ts-nocheck
-
 import { z } from "zod";
 
 export const idParamsSchema = z
@@ -24,7 +22,7 @@ export const formsListQuerySchema = z
   })
   .strict();
 
-const formFieldTypeSchema = z.enum(["text", "textarea", "email", "phone", "select", "checkbox", "date", "file"]);
+const formFieldTypeSchema = z.enum(["text", "textarea", "email", "phone", "select", "checkbox", "radio", "date", "file", "number", "url"]);
 
 export const formFieldSchema = z
   .object({

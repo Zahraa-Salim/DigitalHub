@@ -3,6 +3,7 @@
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { AnnouncementPromptModal } from "../../components/AnnouncementPromptModal";
 import { Badge } from "../../components/Badge";
 import type { ChangeEvent } from "react";
 import { Card } from "../../components/Card";
@@ -11,6 +12,7 @@ import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
 import { Table } from "../../components/Table";
 import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { buildEventAnnouncementDefaults, type AnnouncementPromptDefaults } from "../../lib/announcementPrompts";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -18,6 +20,11 @@ import { buildQueryString } from "../../utils/query";
 type SortBy = "starts_at" | "title" | "created_at";
 type FormMode = "create" | "edit" | null;
 type ToastTone = "success" | "error";
+type AnnouncementPromptState = {
+  summary: string;
+  defaults: AnnouncementPromptDefaults;
+  eventId: number | null;
+};
 
 type EventRow = {
   id: number;
@@ -164,6 +171,8 @@ export function EventsPage() {
   const [markDoneTarget, setMarkDoneTarget] = useState<EventRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMarkingDone, setIsMarkingDone] = useState(false);
+  const [announcementPrompt, setAnnouncementPrompt] = useState<AnnouncementPromptState | null>(null);
+  const [isPublishingAnnouncement, setIsPublishingAnnouncement] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
@@ -325,11 +334,31 @@ export function EventsPage() {
 
     try {
       if (formMode === "create") {
-        await api<EventRow>("/events", { method: "POST", body: JSON.stringify(payload) });
+        const created = await api<EventRow>("/events", { method: "POST", body: JSON.stringify(payload) });
         showToast("success", "Event created successfully.");
+        setAnnouncementPrompt({
+          summary: `${created.title} has been created. Would you like to publish an announcement?`,
+          defaults: buildEventAnnouncementDefaults({
+            mode: "coming_up",
+            eventTitle: created.title,
+            eventSlug: created.slug,
+          }),
+          eventId: created.id,
+        });
       } else if (formMode === "edit" && editing) {
-        await api<EventRow>(`/events/${editing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+        const updated = await api<EventRow>(`/events/${editing.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         showToast("success", "Event updated successfully.");
+        if (!editing.is_published && updated.is_published) {
+          setAnnouncementPrompt({
+            summary: `${updated.title} has been published. Would you like to publish an announcement?`,
+            defaults: buildEventAnnouncementDefaults({
+              mode: "coming_up",
+              eventTitle: updated.title,
+              eventSlug: updated.slug,
+            }),
+            eventId: updated.id,
+          });
+        }
       }
       setFormMode(null);
       setEditing(null);
@@ -431,17 +460,56 @@ export function EventsPage() {
     setIsMarkingDone(true);
     setError("");
     try {
-      await api<EventRow>(`/events/${markDoneTarget.id}/mark-done`, { method: "PATCH" });
+      const updated = await api<EventRow>(`/events/${markDoneTarget.id}/mark-done`, { method: "PATCH" });
       showToast("success", "Event marked as done.");
       setMarkDoneTarget(null);
       setSelected(null);
       setRefreshKey((current) => current + 1);
+      setAnnouncementPrompt({
+        summary: `${updated.title} has been completed. Would you like to publish an announcement?`,
+        defaults: buildEventAnnouncementDefaults({
+          mode: "completed",
+          eventTitle: updated.title,
+          eventSlug: updated.slug,
+        }),
+        eventId: updated.id,
+      });
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to mark event done." : "Failed to mark event done.";
       setError(message);
       showToast("error", message);
     } finally {
       setIsMarkingDone(false);
+    }
+  };
+
+  const handleAnnouncementConfirm = async (payload: {
+    title: string;
+    body: string;
+    cta_label: string | null;
+    cta_url: string | null;
+    is_published: boolean;
+    publish_at: string | null;
+    target_audience: "all" | "website" | "admin";
+  }) => {
+    if (!announcementPrompt) return;
+
+    setIsPublishingAnnouncement(true);
+    try {
+      await api("/announcements", {
+        method: "POST",
+        body: JSON.stringify({
+          ...payload,
+          event_id: announcementPrompt.eventId,
+        }),
+      });
+      showToast("success", "Announcement published successfully.");
+      setAnnouncementPrompt(null);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message || "Failed to publish announcement." : "Failed to publish announcement.";
+      showToast("error", message);
+    } finally {
+      setIsPublishingAnnouncement(false);
     }
   };
 
@@ -741,6 +809,19 @@ export function EventsPage() {
           </div>
         </div>
       ) : null}
+
+      <AnnouncementPromptModal
+        open={Boolean(announcementPrompt)}
+        defaultTitle={announcementPrompt?.defaults.title || ""}
+        defaultBody={announcementPrompt?.defaults.body || ""}
+        defaultCtaLabel={announcementPrompt?.defaults.ctaLabel || ""}
+        defaultCtaUrl={announcementPrompt?.defaults.ctaUrl || ""}
+        defaultTargetAudience={announcementPrompt?.defaults.targetAudience || "website"}
+        summary={announcementPrompt?.summary || ""}
+        saving={isPublishingAnnouncement}
+        onConfirm={handleAnnouncementConfirm}
+        onSkip={() => setAnnouncementPrompt(null)}
+      />
 
       {showFiltersMobile ? (
         <div className="dh-filter-modal" role="presentation" onClick={closeMobileFilters}>

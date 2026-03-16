@@ -1,26 +1,30 @@
-﻿// File: frontend/src/dashboard/components/overview/OverviewTab.tsx
-// Purpose: Renders the overview overview tab panel in the dashboard.
-// It presents one focused slice of overview data, actions, or health signals.
+﻿// File: frontend/src/dashboard/components/overview-mock/OverviewTab.tsx
+// Purpose: Renders the mock overview overview tab panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { getAdminOverview, type AdminOverviewData } from "../../lib/api";
-import { ApiError } from "../../utils/api";
-import { getUser, isSuperAdminUser } from "../../utils/auth";
-import { Card } from "../Card";
-import { ActivityFeedPanel } from "./ActivityFeedPanel";
-import { CohortCapacityPanel } from "./CohortCapacityPanel";
-import { CohortConfigPanel } from "./CohortConfigPanel";
-import { GeneralApplyPanel } from "./GeneralApplyPanel";
-import { InterviewOpsPanel } from "./InterviewOpsPanel";
-import { MessagingHealthPanel } from "./MessagingHealthPanel";
-import { OnboardingGapPanel } from "./OnboardingGapPanel";
-import { PipelineHealthPanel } from "./PipelineHealthPanel";
-import { QuickActionsBar } from "./QuickActionsBar";
-import { SuperAdminPanel } from "./SuperAdminPanel";
-import { WeeklySnapshotPanel } from "./WeeklySnapshotPanel";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { QuickActionsBar } from './QuickActionsBar';
+import { PipelineHealthPanel } from './PipelineHealthPanel';
+import { InterviewOpsPanel } from './InterviewOpsPanel';
+import { OnboardingGapPanel } from './OnboardingGapPanel';
+import { MessagingHealthPanel } from './MessagingHealthPanel';
+import { CohortConfigPanel } from './CohortConfigPanel';
+import { GeneralApplyPanel } from './GeneralApplyPanel';
+import { ActivityFeedPanel } from './ActivityFeedPanel';
+import { CohortCapacityPanel } from './CohortCapacityPanel';
+import { WeeklySnapshotPanel } from './WeeklySnapshotPanel';
+import { SuperAdminPanel } from './SuperAdminPanel';
+import {
+  getAdminOverview,
+  retryAdminOverviewFailedMessages,
+  type AdminOverviewData,
+} from '../../lib/api';
+import { ApiError } from '../../utils/api';
+import { isSuperAdminUser } from '../../utils/auth';
+import { useAuthStore } from '../../stores/useAuthStore';
 
-const LAST_ADMISSIONS_COHORT_KEY = "dh:lastAdmissionsCohortId";
+const LAST_ADMISSIONS_COHORT_KEY = 'dh:lastAdmissionsCohortId';
 
 function toPositiveInt(value: string | null): number | null {
   if (!value) return null;
@@ -29,62 +33,38 @@ function toPositiveInt(value: string | null): number | null {
   return parsed;
 }
 
-type OverviewTabState = {
-  loading: boolean;
-  error: string;
-  data: AdminOverviewData | null;
-};
-
-const initialState: OverviewTabState = {
-  loading: true,
-  error: "",
-  data: null,
-};
-
 export function OverviewTab() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [state, setState] = useState<OverviewTabState>(initialState);
+  const [data, setData] = useState<AdminOverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryingChannel, setRetryingChannel] = useState<'all' | 'email' | 'whatsapp' | null>(null);
+  const [messagingActionError, setMessagingActionError] = useState('');
+  const [messagingActionSuccess, setMessagingActionSuccess] = useState('');
 
-  const fetchOverview = useCallback(async () => {
-    return getAdminOverview();
+  const loadOverview = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await getAdminOverview();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load overview.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const load = useCallback(async () => {
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    try {
-      const data = await fetchOverview();
-      setState({ loading: false, error: "", data });
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Failed to load overview data.";
-      setState({ loading: false, error: message, data: null });
-    }
-  }, [fetchOverview]);
-
   useEffect(() => {
-    let active = true;
-    const loadInitial = async () => {
-      try {
-        const data = await fetchOverview();
-        if (!active) return;
-        setState({ loading: false, error: "", data });
-      } catch (error) {
-        if (!active) return;
-        const message = error instanceof ApiError ? error.message : "Failed to load overview data.";
-        setState({ loading: false, error: message, data: null });
-      }
-    };
-    void loadInitial();
-    return () => {
-      active = false;
-    };
-  }, [fetchOverview]);
+    void loadOverview();
+  }, [loadOverview]);
 
-  const currentUser = getUser();
+  const currentUser = useAuthStore((state) => state.user);
   const isSuperAdmin = isSuperAdminUser(currentUser);
 
   const weeklySnapshot = useMemo(() => {
-    if (!state.data) {
+    if (!data) {
       return {
         applicationsReceived: 0,
         interviewsCompleted: 0,
@@ -93,131 +73,179 @@ export function OverviewTab() {
       };
     }
     return {
-      applicationsReceived: state.data.pipelineHealth.newApplications,
-      interviewsCompleted: state.data.pipelineHealth.interviewDoneNoDecision,
-      usersCreated: state.data.onboardingGaps.userCreated,
-      messagesSent: state.data.messagingHealth.email.sent + state.data.messagingHealth.whatsapp.sent,
+      applicationsReceived: data.pipelineHealth.newApplications,
+      interviewsCompleted: data.pipelineHealth.interviewDoneNoDecision,
+      usersCreated: data.onboardingGaps.userCreated,
+      messagesSent: data.messagingHealth.email.sent + data.messagingHealth.whatsapp.sent,
     };
-  }, [state.data]);
+  }, [data]);
 
   const admissionsCohortId = useMemo(() => {
-    const fromQuery = toPositiveInt(searchParams.get("cohort_id"));
+    const fromQuery = toPositiveInt(searchParams.get('cohort_id'));
     if (fromQuery) return fromQuery;
 
     const fromStorage = toPositiveInt(localStorage.getItem(LAST_ADMISSIONS_COHORT_KEY));
     if (fromStorage) return fromStorage;
 
-    const fromCapacity = state.data?.capacityAlerts?.[0]?.cohort_id ?? null;
+    const fromCapacity = data?.capacityAlerts?.[0]?.cohort_id ?? null;
     if (fromCapacity && Number.isFinite(fromCapacity) && fromCapacity > 0) return fromCapacity;
 
     return null;
-  }, [searchParams, state.data]);
+  }, [data, searchParams]);
 
-  const onPipelineAction = useCallback(
-    (key: keyof AdminOverviewData["pipelineHealth"]) => {
-      const params = new URLSearchParams();
-      params.set("source", "overview");
-      if (admissionsCohortId) {
-        params.set("cohort_id", String(admissionsCohortId));
+  const openMessagesPage = (channel: 'all' | 'email' | 'whatsapp', status: 'draft' | 'sent' | 'failed') => {
+    const params = new URLSearchParams();
+    params.set('channel', channel);
+    params.set('status', status);
+    navigate(`/admin/messages?${params.toString()}`);
+  };
+
+  const retryFailedMessages = useCallback(
+    async (channel: 'all' | 'email' | 'whatsapp') => {
+      setRetryingChannel(channel);
+      setMessagingActionError('');
+      setMessagingActionSuccess('');
+      try {
+        const result = await retryAdminOverviewFailedMessages({ channel, limit: 200 });
+        setMessagingActionSuccess(
+          `Resend completed for ${channel}: retried ${result.retried}, failed ${result.failed}, skipped ${result.skipped}.`,
+        );
+        await loadOverview();
+      } catch (err) {
+        setMessagingActionError(err instanceof ApiError ? err.message : 'Failed to resend failed messages.');
+      } finally {
+        setRetryingChannel(null);
       }
-
-      if (key === "newApplications") {
-        params.set("stage", "applied");
-        params.set("focus", "review_now");
-      } else if (key === "reviewingOver3Days") {
-        params.set("stage", "reviewing");
-        params.set("focus", "reviewing_over_3_days");
-      } else if (key === "invitedNoInterviewConfirm") {
-        params.set("stage", "invited_to_interview");
-        params.set("focus", "pending_interview_confirmation");
-      } else if (key === "interviewDoneNoDecision") {
-        params.set("stage", "interview_confirmed");
-        params.set("focus", "decision_pending_after_interview");
-      } else if (key === "acceptedNoParticipation") {
-        params.set("stage", "accepted");
-        params.set("focus", "participation_pending");
-      } else if (key === "confirmedNoUser") {
-        params.set("stage", "participation_confirmed");
-        params.set("focus", "create_user");
-      }
-
-      navigate(`/admin/admissions?${params.toString()}`);
     },
-    [admissionsCohortId, navigate],
+    [loadOverview],
   );
 
-  const onMessagingRetry = useCallback(
-    () => {
-      navigate("/admin/message-templates");
-    },
-    [navigate],
-  );
+  const handlePipelineAction = (key: keyof AdminOverviewData['pipelineHealth']) => {
+    const params = new URLSearchParams();
+    params.set('source', 'overview');
+    if (admissionsCohortId) {
+      params.set('cohort_id', String(admissionsCohortId));
+    }
 
-  if (state.loading) {
+    if (key === 'newApplications') {
+      params.set('stage', 'applied');
+      params.set('focus', 'review_now');
+    } else if (key === 'reviewingOver3Days') {
+      params.set('stage', 'reviewing');
+      params.set('focus', 'reviewing_over_3_days');
+    } else if (key === 'invitedNoInterviewConfirm') {
+      params.set('stage', 'invited_to_interview');
+      params.set('focus', 'pending_interview_confirmation');
+    } else if (key === 'interviewDoneNoDecision') {
+      params.set('stage', 'interview_confirmed');
+      params.set('focus', 'decision_pending_after_interview');
+    } else if (key === 'acceptedNoParticipation') {
+      params.set('stage', 'accepted');
+      params.set('focus', 'participation_pending');
+    } else if (key === 'confirmedNoUser') {
+      params.set('stage', 'participation_confirmed');
+      params.set('focus', 'create_user');
+    }
+
+    navigate(`/admin/admissions?${params.toString()}`);
+  };
+
+  if (loading) {
     return (
-      <Card className="overview-state-card">
-        <div className="spinner">Loading overview data...</div>
-      </Card>
+      <div className="flex flex-col gap-6 px-6 pb-20">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 text-gray-500">Loading overview...</div>
+      </div>
     );
   }
 
-  if (state.error) {
+  if (error || !data) {
     return (
-      <Card className="overview-state-card">
-        <p className="alert alert--error">{state.error}</p>
-        <div className="table-actions overview-state-actions">
-          <button className="btn btn--secondary btn--sm" type="button" onClick={() => void load()}>
-            Retry
-          </button>
+      <div className="flex flex-col gap-6 px-6 pb-20">
+        <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6 text-red-600">
+          {error || 'Overview data unavailable.'}
         </div>
-      </Card>
+      </div>
     );
-  }
-
-  if (!state.data) {
-    return null;
   }
 
   return (
-    <div className="dh-page overview-tab">
-      <section className="overview-header">
+    <div className="flex flex-col gap-6 px-6 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
-          <h2 className="overview-header__title">Operations Command Center</h2>
-          <p className="overview-header__subtitle">Monitor admissions pipeline and resolve operational bottlenecks.</p>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Operations Command Center
+          </h2>
+          <p className="text-gray-500 mt-1">
+            Monitor admissions pipeline and resolve operational bottlenecks.
+          </p>
         </div>
-        <QuickActionsBar cohortId={admissionsCohortId} />
+        <div className="self-stretch md:self-auto">
+          <QuickActionsBar cohortId={admissionsCohortId} />
+        </div>
+      </div>
+      <section>
+        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">
+          Pipeline Health
+        </h3>
+        <PipelineHealthPanel
+          pipelineHealth={data.pipelineHealth}
+          onAction={handlePipelineAction}
+        />
       </section>
 
-      <section className="overview-section">
-        <h3 className="section-title overview-section__title">Pipeline Health</h3>
-        <PipelineHealthPanel data={state.data.pipelineHealth} onAction={onPipelineAction} />
-      </section>
-
-      <div className="two-col-grid two-col-grid--uneven overview-grid">
-        <InterviewOpsPanel data={state.data.interviews} />
-        <OnboardingGapPanel data={state.data.onboardingGaps} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7">
+          <InterviewOpsPanel interviews={data.interviews} />
+        </div>
+        <div className="lg:col-span-5">
+          <OnboardingGapPanel onboardingGaps={data.onboardingGaps} />
+        </div>
       </div>
 
-      <div className="two-col-grid overview-grid">
-        <MessagingHealthPanel data={state.data.messagingHealth} onRetry={onMessagingRetry} />
-        <CohortConfigPanel issues={state.data.cohortConfigIssues} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          {messagingActionError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {messagingActionError}
+            </div>
+          ) : null}
+          {messagingActionSuccess ? (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {messagingActionSuccess}
+            </div>
+          ) : null}
+          <MessagingHealthPanel
+            messagingHealth={data.messagingHealth}
+            onOpenMessages={openMessagesPage}
+            onRetryFailed={retryFailedMessages}
+            retryingChannel={retryingChannel}
+          />
+        </div>
+        <CohortConfigPanel cohortConfigIssues={data.cohortConfigIssues} />
       </div>
 
-      <div className="two-col-grid two-col-grid--uneven overview-grid">
-        <GeneralApplyPanel summary={state.data.generalApplySummary} conversion={state.data.conversion} />
-        <ActivityFeedPanel items={state.data.activityFeed} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7">
+          <GeneralApplyPanel
+            generalApplySummary={data.generalApplySummary}
+            conversion={data.conversion}
+          />
+        </div>
+        <div className="lg:col-span-5">
+          <ActivityFeedPanel activityFeed={data.activityFeed} />
+        </div>
       </div>
 
-      <div className="two-col-grid overview-grid">
-        <CohortCapacityPanel items={state.data.capacityAlerts} />
-        <WeeklySnapshotPanel values={weeklySnapshot} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CohortCapacityPanel capacityAlerts={data.capacityAlerts} />
+        <WeeklySnapshotPanel weeklySnapshot={weeklySnapshot} />
       </div>
 
-      {isSuperAdmin && state.data.superAdmin ? (
-        <section className="overview-section">
-          <SuperAdminPanel admins={state.data.superAdmin.admins} />
+      {isSuperAdmin && (
+        <section className="mt-4">
+          <SuperAdminPanel admins={data.superAdmin?.admins || []} />
         </section>
-      ) : null}
+      )}
     </div>
   );
 }

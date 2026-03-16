@@ -48,3 +48,26 @@ ADD COLUMN IF NOT EXISTS auto_announce BOOLEAN NOT NULL DEFAULT FALSE;
 COMMIT;
 
 ---
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id             SERIAL PRIMARY KEY,
+  phone          TEXT NOT NULL,
+  name           TEXT,
+  preferences    TEXT[] NOT NULL DEFAULT '{}',
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  opted_out_at   TIMESTAMPTZ,
+  source         TEXT NOT NULL DEFAULT 'website',
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS subscribers_phone_unique
+  ON subscribers (phone);
+
+CREATE TABLE IF NOT EXISTS subscriber_messages (
+  id              SERIAL PRIMARY KEY,
+  subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+  announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+  sent_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (subscriber_id, announcement_id)
+);

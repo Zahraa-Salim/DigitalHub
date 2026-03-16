@@ -2,9 +2,8 @@
 // Purpose: Runs the database queries used for overview.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
 import { buildPagination } from "../utils/pagination.js";
 
 const PROGRAM_STAGES = [
@@ -12,13 +11,14 @@ const PROGRAM_STAGES = [
   "reviewing",
   "invited_to_interview",
   "interview_confirmed",
+  "interview_completed",
   "accepted",
   "rejected",
   "participation_confirmed",
 ];
 
 // Handles 'tableExists' workflow for this module.
-async function tableExists(tableName, db = pool) {
+async function tableExists(tableName: string, db: DbClient = pool) {
   const result = await db.query(
     `
       SELECT to_regclass($1) IS NOT NULL AS exists
@@ -29,7 +29,7 @@ async function tableExists(tableName, db = pool) {
 }
 
 // Handles 'columnExists' workflow for this module.
-async function columnExists(tableName, columnName, db = pool) {
+async function columnExists(tableName: string, columnName: string, db: DbClient = pool) {
   const result = await db.query(
     `
       SELECT EXISTS (
@@ -46,12 +46,12 @@ async function columnExists(tableName, columnName, db = pool) {
 }
 
 // Handles 'countValue' workflow for this module.
-function countValue(result) {
+function countValue(result: { rows: Array<{ count?: unknown }> }) {
   return Number(result.rows[0]?.count ?? 0);
 }
 
 // Handles 'statusBuckets' workflow for this module.
-async function statusBuckets(whereClause, params, db = pool) {
+async function statusBuckets(whereClause: string, params: unknown[], db: DbClient = pool) {
   const result = await db.query(
     `
       SELECT
@@ -71,7 +71,7 @@ async function statusBuckets(whereClause, params, db = pool) {
 }
 
 // Handles 'getGeneralApplySummary' workflow for this module.
-async function getGeneralApplySummary(db = pool) {
+async function getGeneralApplySummary(db: DbClient = pool) {
   const exists = await tableExists("program_applications", db);
   if (!exists) {
     return Object.fromEntries(PROGRAM_STAGES.map((stage) => [stage, 0]));
@@ -95,7 +95,7 @@ async function getGeneralApplySummary(db = pool) {
 }
 
 // Handles 'getConversionMetrics' workflow for this module.
-async function getConversionMetrics(applicationsHasCreatedUserId, db = pool) {
+async function getConversionMetrics(applicationsHasCreatedUserId: boolean, db: DbClient = pool) {
   const exists = await tableExists("program_applications", db);
   if (!exists) {
     return {
@@ -177,7 +177,7 @@ async function getConversionMetrics(applicationsHasCreatedUserId, db = pool) {
 }
 
 // Handles 'getAdminOverviewAggregates' workflow for this module.
-export async function getAdminOverviewAggregates(includeSuperAdmin = false, db = pool) {
+export async function getAdminOverviewAggregates(includeSuperAdmin = false, db: DbClient = pool) {
   const applicationsHasCreatedUserId = await columnExists("applications", "created_user_id", db);
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
 
@@ -429,7 +429,7 @@ export async function getAdminOverviewAggregates(includeSuperAdmin = false, db =
 }
 
 // Handles 'listFailedMessagesForOverviewRetry' workflow for this module.
-export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db = pool) {
+export async function listFailedMessagesForOverviewRetry(channel: string, limit = 50, db: DbClient = pool) {
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
 
@@ -532,7 +532,7 @@ export async function listFailedMessagesForOverviewRetry(channel, limit = 50, db
 }
 
 // Handles 'listOverviewMessages' workflow for this module.
-export async function listOverviewMessages(filters, db = pool) {
+export async function listOverviewMessages(filters: Record<string, unknown> | null | undefined, db: DbClient = pool) {
   const page = Math.max(1, Number(filters?.page ?? 1));
   const limit = Math.max(1, Math.min(100, Number(filters?.limit ?? 20)));
   const offset = (page - 1) * limit;
@@ -543,13 +543,13 @@ export async function listOverviewMessages(filters, db = pool) {
         ? "draft"
         : "sent";
   const channel = ["all", "email", "whatsapp"].includes(String(filters?.channel || ""))
-    ? String(filters.channel)
+    ? String(filters?.channel)
     : "all";
   const search = typeof filters?.search === "string" ? filters.search.trim() : "";
 
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
 
-  const params = [status];
+  const params: unknown[] = [status];
   const where = ["am.status = $1"];
 
   if (channel === "email") {
@@ -618,7 +618,7 @@ export async function listOverviewMessages(filters, db = pool) {
 }
 
 // Handles 'getOverviewMessageById' workflow for this module.
-export async function getOverviewMessageById(messageId, db = pool) {
+export async function getOverviewMessageById(messageId: number, db: DbClient = pool) {
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
   const channelSelect = applicationMessagesHasMetadata
     ? `CASE
@@ -646,7 +646,7 @@ export async function getOverviewMessageById(messageId, db = pool) {
 }
 
 // Handles 'deleteOverviewMessageById' workflow for this module.
-export async function deleteOverviewMessageById(messageId, db = pool) {
+export async function deleteOverviewMessageById(messageId: number, db: DbClient = pool) {
   const applicationMessagesHasMetadata = await columnExists("application_messages", "metadata", db);
   const channelSelect = applicationMessagesHasMetadata
     ? `CASE

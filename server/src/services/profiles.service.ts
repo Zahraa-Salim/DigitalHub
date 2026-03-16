@@ -83,7 +83,7 @@ export async function listProfilesService(tableName: ProfileTableName, sortColum
     }
     const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const countResult = await countProfiles(tableName, whereClause, params);
-    const total = Number(countResult.rows[0]?.total ?? 0);
+    const total = Number((countResult.rows[0] as { total?: number | string } | undefined)?.total ?? 0);
     const dataResult = await listProfiles(tableName, whereClause, list.sortBy, list.order, params, list.limit, list.offset);
     return {
         data: dataResult.rows,

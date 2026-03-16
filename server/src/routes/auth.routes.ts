@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for auth.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { forgotPassword, getAdmins, getMe, getUsers, login, patchAdmin, patchMe, postUsersMessage, resetPassword } from "../controllers/auth.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";

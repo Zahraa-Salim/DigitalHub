@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for logs.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { getLogs } from "../controllers/logs.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";

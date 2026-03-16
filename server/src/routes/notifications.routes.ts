@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for notifications.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, } from "../controllers/notifications.controller.js";
 import { clearReadNotifications } from "../controllers/notifications.controller.js";

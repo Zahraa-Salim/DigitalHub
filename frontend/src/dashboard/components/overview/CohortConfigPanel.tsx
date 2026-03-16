@@ -1,49 +1,71 @@
-﻿// File: frontend/src/dashboard/components/overview/CohortConfigPanel.tsx
-// Purpose: Renders the overview cohort config panel panel in the dashboard.
-// It presents one focused slice of overview data, actions, or health signals.
+﻿// File: frontend/src/dashboard/components/overview-mock/CohortConfigPanel.tsx
+// Purpose: Renders the mock overview cohort config panel panel for the dashboard.
+// It exists to prototype overview layouts and states without live data wiring.
 
-import { useNavigate } from "react-router-dom";
-import { Card } from "../Card";
-import type { AdminOverviewData } from "../../lib/api";
+import { Card, CardContent } from './ui/Card';
+import { Button } from './ui/Button';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, Settings } from 'lucide-react';
+import type { AdminOverviewData } from '../../lib/api';
 
 type CohortConfigPanelProps = {
-  issues: AdminOverviewData["cohortConfigIssues"];
+  cohortConfigIssues: AdminOverviewData['cohortConfigIssues'];
 };
 
-export function CohortConfigPanel({ issues }: CohortConfigPanelProps) {
+export function CohortConfigPanel({ cohortConfigIssues }: CohortConfigPanelProps) {
   const navigate = useNavigate();
-  const firstIssue = issues[0] ?? null;
+  const issue = cohortConfigIssues[0] || null;
 
   const handleFix = () => {
-    if (firstIssue?.cohort_id) {
-      navigate(`/admin/forms?cohort_id=${firstIssue.cohort_id}`);
+    if (issue?.cohort_id) {
+      navigate(`/admin/forms?cohort_id=${issue.cohort_id}`);
       return;
     }
-    navigate("/admin/cohorts");
+    navigate('/admin/cohorts');
   };
 
   return (
-    <Card className="overview-panel overview-panel--warning">
-      <h3 className="section-title">Cohort Form Configuration</h3>
-      {issues.length === 0 ? (
-        <p className="info-text">No open cohort form issues detected.</p>
-      ) : (
-        <div className="list-stack overview-metric-list">
-          {issues.map((issue) => (
-            <div className="list-row overview-metric-row" key={`${issue.cohort_id}-${issue.issue}`}>
-              <div>
-                <p className="list-row__title">{issue.cohort_name}</p>
-                <p className="list-row__meta">{issue.issue}</p>
-              </div>
-            </div>
-          ))}
+    <Card className="h-full border-amber-200 bg-amber-50/30">
+      <CardContent className="p-6 flex flex-col h-full justify-center">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-100 text-amber-600 rounded-full shrink-0">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-amber-900 mb-1">
+              {issue ? 'Configuration Issues Detected' : 'Configuration Healthy'}
+            </h3>
+            <p className="text-sm text-amber-700 mb-4">
+              {issue ? (
+                <>
+                  <span className="font-semibold text-amber-900">
+                    {issue.cohort_name}
+                  </span>{' '}
+                  has{' '}
+                  <code className="bg-amber-100 px-1 py-0.5 rounded text-xs">
+                    allow_applications = TRUE
+                  </code>{' '}
+                  but no application form is assigned.
+                </>
+              ) : (
+                'All cohorts with applications enabled have valid form assignments.'
+              )}
+            </p>
+            <p className="text-xs text-amber-600 mb-4 font-medium uppercase tracking-wider">
+              {issue ? 'Cohorts open but no application form assigned' : 'No issues detected'}
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white border-none"
+              onClick={handleFix}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              {issue ? 'Fix Configuration Now' : 'Open Cohorts'}
+            </Button>
+          </div>
         </div>
-      )}
-      <div className="table-actions">
-        <button className="btn btn--primary btn--sm" type="button" onClick={handleFix}>
-          Fix Configuration Now
-        </button>
-      </div>
+      </CardContent>
     </Card>
   );
 }

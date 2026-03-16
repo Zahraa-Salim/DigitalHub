@@ -2,16 +2,17 @@
 // Purpose: Creates the Express app, applies core middleware, and mounts the server routes.
 // It is the main backend entry point used to start the API.
 
-// @ts-nocheck
-
 import cors from "cors";
+import type { CorsOptions, CorsOptionsDelegate } from "cors";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import express from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pool } from "./db/index.js";
+import type { DbClient } from "./db/index.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { validatePagination } from "./middleware/validatePagination.js";
 import { announcementsRouter } from "./routes/announcements.routes.js";
@@ -33,6 +34,7 @@ import { projectsRouter } from "./routes/projects.routes.js";
 import { programApplicationsRouter } from "./routes/programApplications.routes.js";
 import { programsRouter } from "./routes/programs.routes.js";
 import { publicRouter } from "./routes/public.routes.js";
+import { subscribersRouter } from "./routes/subscribers.routes.js";
 import { whatsappRouter } from "./routes/whatsapp.routes.js";
 import { AppError } from "./utils/appError.js";
 import { sendSuccess } from "./utils/httpResponse.js";
@@ -48,13 +50,24 @@ const frontendDistDir = process.env.FRONTEND_DIST_DIR
     ? path.resolve(process.env.FRONTEND_DIST_DIR)
     : defaultFrontendDistDir;
 const frontendIndexFile = path.join(frontendDistDir, "index.html");
+type RouteLayer = {
+    route?: {
+        path?: string;
+        methods?: Record<string, boolean>;
+    };
+    name?: string;
+    handle?: {
+        stack?: RouteLayer[];
+    };
+    regexp?: RegExp | string;
+};
 
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Handles 'normalizeOrigin' workflow for this module.
-const normalizeOrigin = (value) => String(value || "").trim().replace(/\/+$/g, "");
+const normalizeOrigin = (value: unknown): string => String(value || "").trim().replace(/\/+$/g, "");
 const configuredCorsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN
         .split(",")
@@ -62,11 +75,11 @@ const configuredCorsOrigins = process.env.CORS_ORIGIN
         .filter(Boolean)
     : [];
 // Handles 'isPrivateDevOrigin' workflow for this module.
-const isPrivateDevOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/i.test(String(origin || ""));
+const isPrivateDevOrigin = (origin: unknown): boolean => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/i.test(String(origin || ""));
 // Handles 'parseForwardedPart' workflow for this module.
-const parseForwardedPart = (value) => String(value || "").split(",")[0]?.trim() || "";
+const parseForwardedPart = (value: unknown): string => String(value || "").split(",")[0]?.trim() || "";
 // Handles 'getRequestOriginCandidates' workflow for this module.
-const getRequestOriginCandidates = (req) => {
+const getRequestOriginCandidates = (req: Request): string[] => {
     const host = parseForwardedPart(req.headers["x-forwarded-host"]) || req.get("host") || "";
     const proto = parseForwardedPart(req.headers["x-forwarded-proto"]) || req.protocol || "http";
     if (!host) {
@@ -78,7 +91,7 @@ const getRequestOriginCandidates = (req) => {
         .filter(Boolean);
 };
 // Handles 'isAllowedCorsOrigin' workflow for this module.
-const isAllowedCorsOrigin = (origin, req) => {
+const isAllowedCorsOrigin = (origin: string | undefined, req: Request): boolean => {
     if (!origin) {
         return true;
     }
@@ -95,23 +108,32 @@ const isAllowedCorsOrigin = (origin, req) => {
     return false;
 };
 // Handles 'corsOptionsDelegate' workflow for this module.
-const corsOptionsDelegate = (req, callback) => {
-    const requestOrigin = req.headers.origin;
-    const corsOptions = {
+const corsOptionsDelegate: CorsOptionsDelegate<Request> = (req, callback) => {
+    const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+    const corsOptions: CorsOptions = {
         origin: false,
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"],
         methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     };
-    if (isAllowedCorsOrigin(requestOrigin, req)) {
-        corsOptions.origin = true;
+    const originCallback = (origin: string | undefined, originResult: (err: Error | null, allow?: boolean) => void): void => {
+        if (isAllowedCorsOrigin(origin, req)) {
+            originResult(null, true);
+            return;
+        }
+        originResult(new AppError(403, "FORBIDDEN", `CORS origin not allowed: ${origin}`));
+    };
+    originCallback(requestOrigin, (error: Error | null, allow?: boolean) => {
+        if (error) {
+            callback(error, corsOptions);
+            return;
+        }
+        corsOptions.origin = Boolean(allow);
         callback(null, corsOptions);
-        return;
-    }
-    callback(new AppError(403, "FORBIDDEN", `CORS origin not allowed: ${requestOrigin}`), corsOptions);
+    });
 };
 app.use(cors(corsOptionsDelegate));
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.headers.origin) {
         res.header("Access-Control-Allow-Credentials", "true");
     }
@@ -122,7 +144,7 @@ app.use("/uploads", express.static(uploadsDir));
 app.use(validatePagination);
 if (fs.existsSync(frontendIndexFile)) {
     app.use(express.static(frontendDistDir));
-    app.use((req, res, next) => {
+    app.use((req: Request, res: Response, next: NextFunction) => {
         if (req.method !== "GET" && req.method !== "HEAD") {
             return next();
         }
@@ -163,7 +185,7 @@ if (fs.existsSync(frontendIndexFile)) {
 app.get("/", (_req, res) => {
     sendSuccess(res, { status: "ok" }, "Digital Hub API is running.");
 });
-app.get("/health", async (_req, res, next) => {
+app.get("/health", async (_req: Request, res: Response, next: NextFunction) => {
     try {
         await pool.query("SELECT 1");
         sendSuccess(res, { status: "ok" });
@@ -175,8 +197,10 @@ app.get("/health", async (_req, res, next) => {
 app.use("/auth", authRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/whatsapp", whatsappRouter);
+app.use("/api", subscribersRouter);
 app.use("/cms", cmsRouter);
 app.use(programsRouter);
+app.use(subscribersRouter);
 app.use("/profiles", profilesRouter);
 app.use("/applications", applicationsRouter);
 app.use("/program-applications", programApplicationsRouter);
@@ -201,7 +225,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Handles 'slugifyValue' workflow for this module.
-function slugifyValue(value) {
+function slugifyValue(value: unknown): string {
     return String(value || "")
         .trim()
         .toLowerCase()
@@ -216,6 +240,8 @@ async function ensureSoftDeleteColumns() {
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE programs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE programs ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE programs ADD COLUMN IF NOT EXISTS application_form_id BIGINT REFERENCES forms(id) ON DELETE SET NULL;
+      ALTER TABLE programs ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS use_general_form BOOLEAN NOT NULL DEFAULT TRUE;
       ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS application_form_id BIGINT;
@@ -357,13 +383,14 @@ async function ensureSoftDeleteColumns() {
         WHEN stage = 'reviewed' THEN 'reviewing'
         WHEN stage = 'shortlisted' THEN 'reviewing'
         WHEN stage = 'interview_scheduled' THEN 'invited_to_interview'
-        WHEN stage = 'interview_completed' THEN 'interview_confirmed'
+        WHEN stage = 'interview_completed' THEN 'interview_completed'
         WHEN stage = 'user_created' THEN 'participation_confirmed'
         WHEN stage IS NULL OR stage = '' THEN CASE
           WHEN status = 'applied' THEN 'applied'
           WHEN status = 'reviewing' THEN 'reviewing'
           WHEN status = 'invited_to_interview' THEN 'invited_to_interview'
           WHEN status = 'interview_confirmed' THEN 'interview_confirmed'
+          WHEN status = 'interview_completed' THEN 'interview_completed'
           WHEN status = 'accepted' THEN 'accepted'
           WHEN status = 'rejected' THEN 'rejected'
           WHEN status = 'participation_confirmed' THEN 'participation_confirmed'
@@ -388,6 +415,7 @@ async function ensureSoftDeleteColumns() {
                 'reviewing',
                 'invited_to_interview',
                 'interview_confirmed',
+                'interview_completed',
                 'accepted',
                 'rejected',
                 'participation_confirmed'
@@ -412,6 +440,7 @@ async function ensureSoftDeleteColumns() {
                 'reviewing',
                 'invited_to_interview',
                 'interview_confirmed',
+                'interview_completed',
                 'accepted',
                 'rejected',
                 'participation_confirmed'
@@ -430,6 +459,47 @@ async function ensureSoftDeleteColumns() {
 
       ALTER TABLE IF EXISTS events
         ADD COLUMN IF NOT EXISTS auto_announce BOOLEAN NOT NULL DEFAULT FALSE;
+
+      DO $$
+      BEGIN
+        ALTER TABLE form_fields DROP CONSTRAINT IF EXISTS form_fields_type_check;
+        ALTER TABLE form_fields ADD CONSTRAINT form_fields_type_check
+          CHECK (type IN (
+            'text', 'textarea', 'email', 'phone', 'select',
+            'checkbox', 'radio', 'date', 'file', 'number', 'url'
+          ));
+      EXCEPTION WHEN others THEN
+        NULL;
+      END $$;
+    `);
+}
+
+// Handles 'ensureSubscribersTable' workflow for this module.
+async function ensureSubscribersTable(client: DbClient) {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscribers (
+        id             SERIAL PRIMARY KEY,
+        phone          TEXT NOT NULL,
+        name           TEXT,
+        preferences    TEXT[] NOT NULL DEFAULT '{}',
+        is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+        opted_out_at   TIMESTAMPTZ,
+        source         TEXT NOT NULL DEFAULT 'website',
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS subscribers_phone_unique ON subscribers (phone)
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscriber_messages (
+        id              SERIAL PRIMARY KEY,
+        subscriber_id   INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+        announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+        sent_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (subscriber_id, announcement_id)
+      )
     `);
 }
 
@@ -481,6 +551,7 @@ async function startServer() {
     try {
         await pool.query("SELECT 1");
         await ensureSoftDeleteColumns();
+        await ensureSubscribersTable(pool);
         await ensureStudentProfileUserLinks();
         const port = Number(process.env.PORT || 5000);
         app.listen(port, () => {
@@ -499,15 +570,15 @@ async function startServer() {
 }
 startServer();
 // Handles 'collectRoutes' workflow for this module.
-function collectRoutes(application) {
-    const routes = [];
-    const stack = application?.router?.stack || [];
+function collectRoutes(application: Express): string[] {
+    const routes: string[] = [];
+    const stack = ((application as Express & { router?: { stack?: RouteLayer[]; }; }).router?.stack || []) as RouteLayer[];
     // Handles 'walk' workflow for this module.
-    const walk = (layerStack, prefix = "") => {
+    const walk = (layerStack: RouteLayer[], prefix = ""): void => {
         for (const layer of layerStack) {
             if (layer.route?.path) {
                 const methods = Object.keys(layer.route.methods || {})
-                    .filter((method) => layer.route.methods[method])
+                    .filter((method) => layer.route?.methods?.[method])
                     .map((method) => method.toUpperCase())
                     .join(",");
                 routes.push(`${methods} ${prefix}${layer.route.path}`);

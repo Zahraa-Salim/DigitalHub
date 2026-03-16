@@ -5,13 +5,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
+import { ConfirmActionModal } from "../../components/ConfirmActionModal";
 import { useGlobalMessagingContext } from "../../components/GlobalMessagingContext";
 import { PageShell } from "../../components/PageShell";
 import {
   createApplicationMessage,
   markApplicationInterviewCompleted,
   createUserFromApplication,
+  listMessagingUsers,
   listMessageTemplates,
+  resendAcceptanceMessage,
   scheduleApplicationInterview,
   sendApplicationMessage,
   type MessageTemplate,
@@ -23,6 +26,7 @@ import {
 } from "../../lib/messageTemplates";
 import {
   buildInterviewScheduleFeedback,
+  getSkippedStageTransitionWarning,
   toFriendlyCreateUserError,
   toFriendlyDeliveryFailure,
   workflowStatusLabel,
@@ -30,7 +34,8 @@ import {
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
 import { ApiError, api, apiList } from "../../utils/api";
 import { buildQueryString } from "../../utils/query";
-import "./GeneralApplyPage.css";
+import "../../styles/general-apply.css";
+import "../../styles/admissions-overrides.css";
 
 type ApplicationStatus =
   | "applied"
@@ -45,6 +50,10 @@ type SortDirection = "asc" | "desc";
 type RecipientGroup = "individual" | "all" | "selected" | ApplicationStatus;
 type TabId = "All" | ApplicationStatus;
 type InterviewLocationType = "online" | "in_person" | "phone";
+type ConfirmState = {
+  title: string;
+  message: string;
+};
 
 type FilterState = {
   stages: ApplicationStatus[];
@@ -76,6 +85,7 @@ type ApiApplicationRow = {
   email: string | null;
   phone: string | null;
   interview_status?: string | null;
+  interview_scheduled_at?: string | null;
 };
 
 type ApplicationPipelineResponse = {
@@ -100,6 +110,7 @@ type Applicant = {
   reviewedBy: number | null;
   reviewMessage: string | null;
   interviewStatus: string | null;
+  interviewScheduledAt: string | null;
 };
 
 type CreateUserDeliveryChannels = {
@@ -186,6 +197,14 @@ function hasDeliverableEmail(value: string): boolean {
   return Boolean(trimmed) && trimmed !== "No email" && !trimmed.endsWith("@digitalhub.local");
 }
 
+function normalizeEmail(value: string | null | undefined): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function applicantHasUser(applicant: Applicant, existingUserEmails: Set<string>): boolean {
+  return Boolean(applicant.createdUserId) || existingUserEmails.has(normalizeEmail(applicant.email));
+}
+
 function normalizeStatus(value: string | null | undefined): ApplicationStatus {
   const status = String(value ?? "").toLowerCase();
   if (status === "pending") return "applied";
@@ -224,6 +243,7 @@ function mapRowToApplicant(row: ApiApplicationRow): Applicant {
     reviewedBy: row.reviewed_by,
     reviewMessage: row.review_message,
     interviewStatus: typeof row.interview_status === "string" ? row.interview_status : null,
+    interviewScheduledAt: typeof row.interview_scheduled_at === "string" ? row.interview_scheduled_at : null,
   };
 }
 
@@ -319,6 +339,15 @@ function ApplicantRow({
   onCreateUser,
   onOpenDetails,
 }: RowProps) {
+  const canCreateUser =
+    (applicant.status === "accepted" || applicant.status === "participation_confirmed") &&
+    !applicant.createdUserId;
+  const shouldShowCreateUser =
+    applicant.status === "accepted" ||
+    applicant.status === "participation_confirmed" ||
+    applicant.createdUserId !== null ||
+    isUserCreated;
+
   return (
     <tr className={isSelected ? "admx-table-row admx-table-row--selected" : "admx-table-row"}>
       <td>
@@ -353,19 +382,30 @@ function ApplicantRow({
             </select>
             <span className="admx-caret">▾</span>
           </label>
+          {applicant.interviewScheduledAt &&
+          (applicant.status === "invited_to_interview" || applicant.status === "interview_confirmed") ? (
+            <span className="admx-subtext" title="Interview scheduled">
+              {`📅 ${formatDate(applicant.interviewScheduledAt)}`}
+              {applicant.interviewStatus === "reschedule_requested" ? " ⚠️ Reschedule requested" : ""}
+              {applicant.interviewStatus === "confirmed" ? " ✓ Confirmed" : ""}
+            </span>
+          ) : null}
         </div>
       </td>
       <td>
-        <div className="admx-row-actions">
-          <button
-            className="btn btn--secondary btn--sm admx-create-user-btn"
-            type="button"
-            disabled={isCreatingUser || isUpdating || isUserCreated}
-            onClick={() => onCreateUser(applicant)}
-          >
-            {isUserCreated ? "User Created" : isCreatingUser ? "Creating..." : "Create User"}
-          </button>
-        </div>
+        {shouldShowCreateUser ? (
+          <div className="admx-row-actions">
+            <button
+              className="btn btn--secondary btn--sm admx-create-user-btn"
+              type="button"
+              disabled={isCreatingUser || isUpdating || isUserCreated || !canCreateUser}
+              onClick={() => onCreateUser(applicant)}
+              title={!canCreateUser && !isUserCreated ? "Create user is available after acceptance." : undefined}
+            >
+              {isUserCreated ? "User Created" : isCreatingUser ? "Creating..." : "Create User"}
+            </button>
+          </div>
+        ) : null}
       </td>
     </tr>
   );
@@ -691,11 +731,14 @@ type DetailsProps = {
   pipeline: ApplicationPipelineResponse | null;
   loading: boolean;
   savingReviewMessage: boolean;
+  actionBusy: boolean;
   reviewMessageDraft: string;
   error: string;
   onMessageApplicant: (applicant: Applicant) => void;
   onReviewMessageDraftChange: (value: string) => void;
   onSaveReviewMessage: (applicant: Applicant, message: string) => void;
+  onReopenApplication: (applicant: Applicant) => void;
+  onResendAcceptance: (applicant: Applicant) => void;
   onClose: () => void;
 };
 
@@ -705,11 +748,14 @@ function DetailsModal({
   pipeline,
   loading,
   savingReviewMessage,
+  actionBusy,
   reviewMessageDraft,
   error,
   onMessageApplicant,
   onReviewMessageDraftChange,
   onSaveReviewMessage,
+  onReopenApplication,
+  onResendAcceptance,
   onClose,
 }: DetailsProps) {
   const app = pipeline?.application;
@@ -737,6 +783,8 @@ function DetailsModal({
     "";
   const applicantPhone = String(app?.phone || applicant.phone || "").trim();
   const reviewedAt = app?.reviewed_at;
+  const showResendAcceptance = currentStatus === "accepted" || currentStatus === "participation_confirmed";
+  const showReopenAction = currentStatus === "rejected";
 
   const trimmedDraft = reviewMessageDraft.trim();
   const canSaveReviewMessage = !loading && !savingReviewMessage && trimmedDraft.length > 0 && trimmedDraft !== reviewMessage;
@@ -751,6 +799,26 @@ function DetailsModal({
             <p>{applicantEmail} • {cohortName}</p>
           </div>
           <div className="admx-modal__header-actions">
+            {showReopenAction ? (
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={() => onReopenApplication(applicant)}
+                disabled={loading || actionBusy}
+              >
+                {actionBusy ? "Working..." : "Reopen Application"}
+              </button>
+            ) : null}
+            {showResendAcceptance ? (
+              <button
+                className="btn btn--secondary btn--sm"
+                type="button"
+                onClick={() => onResendAcceptance(applicant)}
+                disabled={loading || actionBusy}
+              >
+                {actionBusy ? "Sending..." : "Resend Acceptance"}
+              </button>
+            ) : null}
             <button className="btn btn--secondary btn--sm" type="button" onClick={() => onMessageApplicant(applicant)}>
               Message Applicant
             </button>
@@ -828,9 +896,10 @@ export function AdmissionsPage() {
   const [composerError, setComposerError] = useState("");
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [existingUserEmails, setExistingUserEmails] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingCohorts, setLoadingCohorts] = useState(false);
-  const [loadingApplications, setLoadingApplications] = useState(false);
+  const [loadingApplications, setLoadingApplications] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loadSuccess, setLoadSuccess] = useState("");
   const [showRescheduleOnly, setShowRescheduleOnly] = useState(false);
@@ -862,11 +931,26 @@ export function AdmissionsPage() {
   const [detailsPipeline, setDetailsPipeline] = useState<ApplicationPipelineResponse | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [savingReviewMessage, setSavingReviewMessage] = useState(false);
+  const [detailsActionBusy, setDetailsActionBusy] = useState(false);
   const [detailsReviewMessageDraft, setDetailsReviewMessageDraft] = useState("");
   const [detailsError, setDetailsError] = useState("");
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const overviewNavigationRef = useRef(false);
   const overviewFallbackAttemptedRef = useRef(false);
   const overviewTargetStageRef = useRef<ApplicationStatus | null>(null);
+  const confirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const requestConfirmation = (title: string, message: string) =>
+    new Promise<boolean>((resolve) => {
+      confirmResolverRef.current = resolve;
+      setConfirmState({ title, message });
+    });
+
+  const closeConfirmation = (confirmed: boolean) => {
+    setConfirmState(null);
+    confirmResolverRef.current?.(confirmed);
+    confirmResolverRef.current = null;
+  };
 
   useEffect(() => {
     const stageParam = String(searchParams.get("stage") || "").trim().toLowerCase();
@@ -921,6 +1005,46 @@ export function AdmissionsPage() {
 
     return () => setGlobalMessagingPageData(null);
   }, [applicants, selectedIds, setGlobalMessagingPageData]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadExistingUsers = async () => {
+      try {
+        const emails = new Set<string>();
+        let page = 1;
+        let totalPages = 1;
+
+        while (page <= totalPages) {
+          const response = await listMessagingUsers({
+            page,
+            limit: 200,
+            sortBy: "created_at",
+            order: "desc",
+          });
+
+          response.data.forEach((user) => {
+            const normalized = normalizeEmail(user.email);
+            if (normalized) emails.add(normalized);
+          });
+
+          totalPages = Math.max(1, response.pagination?.totalPages ?? 1);
+          page += 1;
+        }
+
+        if (!active) return;
+        setExistingUserEmails(emails);
+      } catch {
+        if (!active) return;
+        setExistingUserEmails(new Set());
+      }
+    };
+
+    void loadExistingUsers();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -1090,8 +1214,13 @@ export function AdmissionsPage() {
     [applicants, selectedIds],
   );
   const selectedCreateEligibleCount = useMemo(
-    () => selectedApplicants.filter((entry) => !entry.createdUserId).length,
-    [selectedApplicants],
+    () =>
+      selectedApplicants.filter(
+        (entry) =>
+          !applicantHasUser(entry, existingUserEmails) &&
+          (entry.status === "accepted" || entry.status === "participation_confirmed"),
+      ).length,
+    [existingUserEmails, selectedApplicants],
   );
   const createUserModalBusy =
     bulkCreatingUsers || createUserTargets.some((entry) => creatingUserIds.has(entry.applicationId));
@@ -1175,7 +1304,14 @@ export function AdmissionsPage() {
 
       setApplicants((current) =>
         current.map((entry) =>
-          entry.id === schedulerTarget.id ? { ...entry, status: "invited_to_interview" } : entry,
+          entry.id === schedulerTarget.id
+            ? {
+                ...entry,
+                status: "invited_to_interview",
+                interviewScheduledAt: toIsoDateTime(input.scheduled_at),
+                interviewStatus: "pending_confirmation",
+              }
+            : entry,
         ),
       );
 
@@ -1192,7 +1328,24 @@ export function AdmissionsPage() {
     }
   };
 
-  const updateStatus = async (applicant: Applicant, status: ApplicationStatus): Promise<ApplicationStatus> => {
+  const updateStatus = async (
+    applicant: Applicant,
+    status: ApplicationStatus,
+    skipConfirmation = false,
+  ): Promise<ApplicationStatus> => {
+    const transitionWarning = getSkippedStageTransitionWarning(applicant.status, status, {
+      confirmedLabel: "Confirmed",
+    });
+    if (!skipConfirmation && transitionWarning) {
+      const confirmed = await requestConfirmation(
+        "Confirm Stage Skip",
+        `${transitionWarning}\n\nDo you want to continue?`,
+      );
+      if (!confirmed) {
+        return applicant.status;
+      }
+    }
+
     if (status === "invited_to_interview") {
       openScheduler(applicant);
       return applicant.status;
@@ -1201,7 +1354,10 @@ export function AdmissionsPage() {
       await markApplicationInterviewCompleted(applicant.applicationId);
       return "interview_confirmed";
     }
-    await api(`/applications/${applicant.applicationId}/stage`, { method: "PATCH", body: JSON.stringify({ status }) });
+    await api(`/applications/${applicant.applicationId}/stage`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, force_transition: Boolean(transitionWarning) }),
+    });
     return status;
   };
 
@@ -1213,6 +1369,10 @@ export function AdmissionsPage() {
     try {
       const nextStatus = await updateStatus(target, status);
       setApplicants((current) => current.map((a) => (a.id === id ? { ...a, status: nextStatus } : a)));
+      if (nextStatus !== target.status) {
+        setLoadError("");
+        setLoadSuccess(`${target.name} moved to ${workflowStatusLabel(nextStatus, { confirmedLabel: "Confirmed" })}.`);
+      }
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : "Failed to update status.");
     } finally {
@@ -1233,7 +1393,28 @@ export function AdmissionsPage() {
       return;
     }
 
-    const results = await Promise.allSettled(targets.map((a) => updateStatus(a, status)));
+    const skippedTargets = targets.filter((applicant) =>
+      Boolean(
+        getSkippedStageTransitionWarning(applicant.status, status, {
+          confirmedLabel: "Confirmed",
+        }),
+      ),
+    );
+    if (
+      skippedTargets.length > 0 &&
+      !(await requestConfirmation(
+        "Confirm Bulk Stage Skip",
+        `This will skip the normal pipeline for ${skippedTargets.length} selected applicant${
+          skippedTargets.length === 1 ? "" : "s"
+        } and move them directly to ${workflowStatusLabel(status, {
+          confirmedLabel: "Confirmed",
+        })}.\n\nDo you want to continue?`,
+      ))
+    ) {
+      return;
+    }
+
+    const results = await Promise.allSettled(targets.map((a) => updateStatus(a, status, skippedTargets.length > 0)));
     const successIds = targets.filter((_a, i) => results[i].status === "fulfilled").map((a) => a.id);
 
     if (successIds.length > 0) {
@@ -1243,6 +1424,11 @@ export function AdmissionsPage() {
         successIds.forEach((id) => next.delete(id));
         return next;
       });
+      setLoadSuccess(
+        `${successIds.length} applicant${successIds.length === 1 ? "" : "s"} moved to ${workflowStatusLabel(status, {
+          confirmedLabel: "Confirmed",
+        })}.`,
+      );
     }
 
     const firstFailed = results.find((result) => result.status === "rejected");
@@ -1264,9 +1450,13 @@ export function AdmissionsPage() {
   };
 
   const openCreateUserModal = (targets: Applicant[], label: string) => {
-    const eligibleTargets = targets.filter((entry) => !entry.createdUserId);
+    const eligibleTargets = targets.filter(
+      (entry) =>
+        !applicantHasUser(entry, existingUserEmails) &&
+        (entry.status === "accepted" || entry.status === "participation_confirmed"),
+    );
     if (!eligibleTargets.length) {
-      setLoadError("Selected applicant(s) already have user accounts.");
+      setLoadError("Create user is only available for accepted or participation-confirmed applicants without accounts.");
       return;
     }
     const emailAvailable = eligibleTargets.some((entry) => hasDeliverableEmail(entry.email));
@@ -1308,6 +1498,14 @@ export function AdmissionsPage() {
             entry.applicationId === applicant.applicationId ? { ...entry, createdUserId } : entry,
           ),
         );
+      }
+      const normalizedApplicantEmail = normalizeEmail(applicant.email);
+      if (normalizedApplicantEmail) {
+        setExistingUserEmails((current) => {
+          const next = new Set(current);
+          next.add(normalizedApplicantEmail);
+          return next;
+        });
       }
       const existingUser = Boolean((response as { existing_user?: unknown }).existing_user);
       const summary = summarizeOnboardingMessage(response);
@@ -1371,6 +1569,15 @@ export function AdmissionsPage() {
           })),
         );
       }
+      setExistingUserEmails((current) => {
+        const next = new Set(current);
+        results.forEach((result, index) => {
+          if (result.status !== "fulfilled") return;
+          const normalizedApplicantEmail = normalizeEmail(targets[index]?.email);
+          if (normalizedApplicantEmail) next.add(normalizedApplicantEmail);
+        });
+        return next;
+      });
       const successCount = results.filter((result) => result.status === "fulfilled").length;
       const failed = results.filter((result) => result.status === "rejected");
       const summaries = results
@@ -1547,6 +1754,7 @@ export function AdmissionsPage() {
     setDetailsPipeline(null);
     setDetailsError("");
     setSavingReviewMessage(false);
+    setDetailsActionBusy(false);
     setDetailsReviewMessageDraft(String(applicant.reviewMessage || "").trim());
     setDetailsLoading(true);
     try {
@@ -1559,6 +1767,68 @@ export function AdmissionsPage() {
       setDetailsError(err instanceof ApiError ? err.message : "Failed to load details.");
     } finally {
       setDetailsLoading(false);
+    }
+  };
+
+  const resendAcceptanceForApplicant = async (applicant: Applicant) => {
+    setDetailsActionBusy(true);
+    setDetailsError("");
+    setLoadError("");
+    setLoadSuccess("");
+    try {
+      await resendAcceptanceMessage(applicant.applicationId);
+      setLoadSuccess(`Acceptance message resent for ${applicant.name}.`);
+      if (detailsOpen && detailsTarget?.id === applicant.id) {
+        await openDetails(applicant);
+      }
+    } catch (error) {
+      setDetailsError(error instanceof ApiError ? error.message : "Failed to resend acceptance message.");
+    } finally {
+      setDetailsActionBusy(false);
+    }
+  };
+
+  const reopenApplication = async (applicant: Applicant) => {
+    setDetailsActionBusy(true);
+    setDetailsError("");
+    setLoadError("");
+    setLoadSuccess("");
+    try {
+      const updated = await api<ApiApplicationRow>(`/applications/${applicant.applicationId}/stage`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "reviewing" }),
+      });
+      const nextStatus = normalizeStatus(updated.status ?? updated.stage ?? "reviewing");
+      setApplicants((current) =>
+        current.map((entry) =>
+          entry.id === applicant.id
+            ? {
+                ...entry,
+                status: nextStatus,
+                reviewMessage: updated.review_message ?? entry.reviewMessage,
+                reviewedAt: updated.reviewed_at ?? entry.reviewedAt,
+                reviewedBy: updated.reviewed_by ?? entry.reviewedBy,
+              }
+            : entry,
+        ),
+      );
+      setDetailsPipeline((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          application: {
+            ...current.application,
+            ...updated,
+            status: updated.status ?? current.application.status,
+            stage: updated.stage ?? current.application.stage,
+          },
+        };
+      });
+      setLoadSuccess(`Application reopened for ${applicant.name}.`);
+    } catch (error) {
+      setDetailsError(error instanceof ApiError ? error.message : "Failed to reopen application.");
+    } finally {
+      setDetailsActionBusy(false);
     }
   };
 
@@ -1808,7 +2078,7 @@ export function AdmissionsPage() {
                         isSelected={selectedIds.has(a.id)}
                         isUpdating={updatingIds.has(a.applicationId)}
                         isCreatingUser={creatingUserIds.has(a.applicationId)}
-                        isUserCreated={Boolean(a.createdUserId)}
+                        isUserCreated={applicantHasUser(a, existingUserEmails)}
                         onSelect={(id) =>
                           setSelectedIds((current) => {
                             const next = new Set(current);
@@ -1849,6 +2119,7 @@ export function AdmissionsPage() {
           pipeline={detailsPipeline}
           loading={detailsLoading}
           savingReviewMessage={savingReviewMessage}
+          actionBusy={detailsActionBusy}
           reviewMessageDraft={detailsReviewMessageDraft}
           error={detailsError}
           onMessageApplicant={(target) => {
@@ -1856,6 +2127,7 @@ export function AdmissionsPage() {
             setDetailsPipeline(null);
             setDetailsError("");
             setSavingReviewMessage(false);
+            setDetailsActionBusy(false);
             setDetailsReviewMessageDraft("");
             openMessageComposer(target);
           }}
@@ -1863,12 +2135,19 @@ export function AdmissionsPage() {
           onSaveReviewMessage={(target, message) => {
             void saveReviewMessageForDetails(target, message);
           }}
+          onReopenApplication={(target) => {
+            void reopenApplication(target);
+          }}
+          onResendAcceptance={(target) => {
+            void resendAcceptanceForApplicant(target);
+          }}
           onClose={() => {
             setDetailsOpen(false);
             setDetailsTarget(null);
             setDetailsPipeline(null);
             setDetailsError("");
             setSavingReviewMessage(false);
+            setDetailsActionBusy(false);
             setDetailsReviewMessageDraft("");
           }}
         />
@@ -1894,6 +2173,15 @@ export function AdmissionsPage() {
             onSubmit={(input) => void submitScheduler(input)}
           />
         ) : null}
+        <ConfirmActionModal
+          open={Boolean(confirmState)}
+          title={confirmState?.title || ""}
+          message={confirmState?.message || ""}
+          confirmLabel="Continue"
+          cancelLabel="Cancel"
+          onConfirm={() => closeConfirmation(true)}
+          onClose={() => closeConfirmation(false)}
+        />
         {composerOpen ? (
           <MessageComposer
             onClose={() => {
@@ -1924,4 +2212,3 @@ export function AdmissionsPage() {
     </PageShell>
   );
 }
-

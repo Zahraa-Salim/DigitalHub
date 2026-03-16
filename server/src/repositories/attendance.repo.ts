@@ -2,12 +2,26 @@
 // Purpose: Runs the database queries used for attendance.
 // It keeps SQL reads and writes in one place so higher layers stay focused on application logic.
 
-// @ts-nocheck
-
 import { pool } from "../db/index.js";
+import type { DbClient } from "../db/index.js";
+
+type AttendanceSessionInput = {
+  cohort_id: number;
+  attendance_date: string;
+  location_type: string;
+  submitted_by: number;
+};
+
+type AttendanceRecordInput = {
+  session_id: number;
+  student_user_id: number;
+  attendance_status: string;
+  note?: string | null;
+  marked_by: number;
+};
 
 // Handles 'listRunningCohortsForAttendance' workflow for this module.
-export async function listRunningCohortsForAttendance(db = pool) {
+export async function listRunningCohortsForAttendance(db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -25,11 +39,10 @@ export async function listRunningCohortsForAttendance(db = pool) {
       JOIN programs p ON p.id = c.program_id
       WHERE c.deleted_at IS NULL
         AND p.deleted_at IS NULL
-        AND c.status IN ('running', 'open')
+        AND c.status = 'running'
       ORDER BY
         CASE c.status
           WHEN 'running' THEN 0
-          WHEN 'open' THEN 1
           ELSE 2
         END,
         c.start_date NULLS LAST,
@@ -39,7 +52,7 @@ export async function listRunningCohortsForAttendance(db = pool) {
 }
 
 // Handles 'getCohortForAttendance' workflow for this module.
-export async function getCohortForAttendance(cohortId, db = pool) {
+export async function getCohortForAttendance(cohortId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -65,7 +78,7 @@ export async function getCohortForAttendance(cohortId, db = pool) {
 }
 
 // Handles 'listCohortStudentsForAttendance' workflow for this module.
-export async function listCohortStudentsForAttendance(cohortId, db = pool) {
+export async function listCohortStudentsForAttendance(cohortId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT DISTINCT ON (e.student_user_id)
@@ -87,7 +100,7 @@ export async function listCohortStudentsForAttendance(cohortId, db = pool) {
 }
 
 // Handles 'getAttendanceSessionByCohortDate' workflow for this module.
-export async function getAttendanceSessionByCohortDate(cohortId, attendanceDate, db = pool) {
+export async function getAttendanceSessionByCohortDate(cohortId: number, attendanceDate: string, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -109,7 +122,7 @@ export async function getAttendanceSessionByCohortDate(cohortId, attendanceDate,
 }
 
 // Handles 'listAttendanceRecordsBySession' workflow for this module.
-export async function listAttendanceRecordsBySession(sessionId, db = pool) {
+export async function listAttendanceRecordsBySession(sessionId: number, db: DbClient = pool) {
   return db.query(
     `
       SELECT
@@ -131,7 +144,7 @@ export async function listAttendanceRecordsBySession(sessionId, db = pool) {
 }
 
 // Handles 'upsertAttendanceSession' workflow for this module.
-export async function upsertAttendanceSession(input, db = pool) {
+export async function upsertAttendanceSession(input: AttendanceSessionInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO attendance_sessions
@@ -151,7 +164,7 @@ export async function upsertAttendanceSession(input, db = pool) {
 }
 
 // Handles 'upsertAttendanceRecord' workflow for this module.
-export async function upsertAttendanceRecord(input, db = pool) {
+export async function upsertAttendanceRecord(input: AttendanceRecordInput, db: DbClient = pool) {
   return db.query(
     `
       INSERT INTO attendance_records
@@ -172,7 +185,7 @@ export async function upsertAttendanceRecord(input, db = pool) {
 }
 
 // Handles 'deleteAttendanceRecordsNotInStudentList' workflow for this module.
-export async function deleteAttendanceRecordsNotInStudentList(sessionId, studentIds, db = pool) {
+export async function deleteAttendanceRecordsNotInStudentList(sessionId: number, studentIds: number[], db: DbClient = pool) {
   return db.query(
     `
       DELETE FROM attendance_records
@@ -184,7 +197,7 @@ export async function deleteAttendanceRecordsNotInStudentList(sessionId, student
 }
 
 // Handles 'listStudentAttendanceHistory' workflow for this module.
-export async function listStudentAttendanceHistory(userId, limit = 30, db = pool) {
+export async function listStudentAttendanceHistory(userId: number, limit = 30, db: DbClient = pool) {
   return db.query(
     `
       SELECT

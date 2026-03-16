@@ -2,8 +2,6 @@
 // Purpose: Creates the PostgreSQL pool and exposes the transaction helper used by the server.
 // It centralizes connection setup, SSL handling, and shared DB access.
 
-// @ts-nocheck
-
 import pkg from "pg";
 import type { Pool as PgPool, PoolClient } from "pg";
 import dns from "node:dns";
@@ -83,7 +81,7 @@ pool.on("error", (error) => {
     console.error("Unexpected idle PostgreSQL client error:", error);
 });
 // Handles 'withTransaction' workflow for this module.
-export async function withTransaction(handler) {
+export async function withTransaction<T>(handler: (client: PoolClient) => Promise<T> | T): Promise<T> {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");

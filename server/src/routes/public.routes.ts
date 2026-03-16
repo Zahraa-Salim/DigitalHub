@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for public.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import {
   confirmInterviewByToken,
@@ -16,6 +14,7 @@ import {
 import {
   getPublicAnnouncements,
   getPublicApplyForm,
+  getPublicGeneralForm,
   getPublicCohortApplicationForm,
   getPublicCohortById,
   getPublicCohorts,
@@ -25,9 +24,11 @@ import {
   getPublicInstructors,
   getPublicManagers,
   getPublicPageByKey,
+  getPublicProgramApplicationForm,
   getPublicPrograms,
   getPublicStudentBySlug,
   getPublicStudents,
+  submitPublicCohortApply,
   getPublicTheme,
   submitPublicApply,
 } from "../controllers/public.controller.js";
@@ -37,6 +38,7 @@ import { eventSlugParamsSchema } from "../schemas/events.schemas.js";
 import {
   interviewTokenParamsSchema,
   publicApplyBodySchema,
+  publicCohortApplyBodySchema,
   publicInterviewConfirmBodySchema,
   publicInterviewRescheduleBodySchema,
   publicParticipationConfirmBodySchema,
@@ -47,9 +49,17 @@ publicRouter.get("/theme", asyncHandler(getPublicTheme));
 publicRouter.get("/home", asyncHandler(getPublicHome));
 publicRouter.get("/pages/:slug", validateRequest({ params: eventSlugParamsSchema }), asyncHandler(getPublicPageByKey));
 publicRouter.get("/apply/form", asyncHandler(getPublicApplyForm));
+publicRouter.get("/forms/general", asyncHandler(getPublicGeneralForm));
+publicRouter.get("/forms/program/:id", validateRequest({ params: idParamsSchema }), asyncHandler(getPublicProgramApplicationForm));
+publicRouter.get("/forms/programs/:id", validateRequest({ params: idParamsSchema }), asyncHandler(getPublicProgramApplicationForm));
 publicRouter.post("/apply", validateRequest({ body: publicApplyBodySchema }), asyncHandler(submitPublicApply));
 publicRouter.get("/programs", asyncHandler(getPublicPrograms));
 publicRouter.get("/cohorts", asyncHandler(getPublicCohorts));
+publicRouter.post(
+  "/cohorts/:id/apply",
+  validateRequest({ params: idParamsSchema, body: publicCohortApplyBodySchema }),
+  asyncHandler(submitPublicCohortApply),
+);
 publicRouter.get(
   "/cohorts/:id",
   validateRequest({ params: idParamsSchema }),

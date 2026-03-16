@@ -4,7 +4,8 @@
 
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { getUser, isSuperAdminUser } from "../utils/auth";
+import { isSuperAdminUser } from "../utils/auth";
+import { useAuthStore } from "../stores/useAuthStore";
 
 type RequireSuperAdminProps = {
   children: ReactNode;
@@ -12,7 +13,7 @@ type RequireSuperAdminProps = {
 
 export function RequireSuperAdmin({ children }: RequireSuperAdminProps) {
   const location = useLocation();
-  const user = getUser();
+  const user = useAuthStore((state) => state.user);
 
   if (!isSuperAdminUser(user)) {
     return <Navigate to="/admin" replace state={{ from: location.pathname }} />;

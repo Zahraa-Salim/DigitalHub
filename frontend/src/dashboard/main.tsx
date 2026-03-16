@@ -6,6 +6,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouter } from "./app/AppRouter";
 import "./styles/global.css";
+import "./styles/overview.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

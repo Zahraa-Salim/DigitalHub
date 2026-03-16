@@ -12,16 +12,19 @@ import {
   findFormByKey,
   getFormFieldById,
   getCohortFormConfigById,
+  getProgramFormConfigById,
   getFormById,
   listForms,
   listCohortFormOptions,
   listFormFields,
+  listProgramFormOptions,
   listPublishedProgramOptions,
   reorderFormFields,
   renameFormKey,
   replaceFormFields,
   updateFormField,
   updateCohortFormConfig,
+  updateProgramFormConfig,
   updateForm,
 } from "../repositories/forms.repo.js";
 import { AppError } from "../utils/appError.js";
@@ -700,6 +703,132 @@ export async function saveCohortFormService(cohortId: number, adminId: number, p
     );
 
     return buildCohortFormResponse(cohortId, client, generalForm);
+  });
+}
+
+// Handles 'buildProgramFormResponse' workflow for this module.
+async function buildProgramFormResponse(programId: number, client: any, cachedGeneralForm: FormDto | null = null) {
+  const generalForm = cachedGeneralForm ?? (await ensureGeneralForm(client));
+  const programResult = await getProgramFormConfigById(programId, client);
+
+  if (!programResult.rowCount) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+  }
+
+  const program = programResult.rows[0];
+  let customForm = null;
+
+  if (program.application_form_id) {
+    const customFormResult = await getFormById(program.application_form_id, client);
+    if (customFormResult.rowCount) {
+      const fieldsResult = await listFormFields(customFormResult.rows[0].id, client);
+      customForm = toFormDto(customFormResult.rows[0], fieldsResult.rows);
+    }
+  }
+
+  const resolvedForm = program.use_general_form || !customForm ? generalForm : customForm;
+
+  return {
+    program,
+    general_form: generalForm,
+    custom_form: customForm,
+    suggested_custom_form: customForm
+      ? customForm
+      : {
+          ...generalForm,
+          id: null,
+          key: `program_application_program_${program.id}`,
+          title: `${program.title} Application Form`,
+        },
+    resolved_form: resolvedForm,
+  };
+}
+
+// Handles 'listProgramFormOptionsService' workflow for this module.
+export async function listProgramFormOptionsService() {
+  const result = await listProgramFormOptions();
+  return result.rows;
+}
+
+// Handles 'getProgramFormService' workflow for this module.
+export async function getProgramFormService(programId: number) {
+  return withTransaction(async (client: any) => buildProgramFormResponse(programId, client));
+}
+
+// Handles 'saveProgramFormService' workflow for this module.
+export async function saveProgramFormService(programId: number, adminId: number, payload: FormPayload) {
+  return withTransaction(async (client: any) => {
+    const generalForm = await ensureGeneralForm(client);
+    const programResult = await getProgramFormConfigById(programId, client);
+
+    if (!programResult.rowCount) {
+      throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+    }
+
+    const program = programResult.rows[0];
+
+    if (payload.mode === "general") {
+      const updateResult = await updateProgramFormConfig(programId, true, null, client);
+      if (!updateResult.rowCount) {
+        throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+      }
+
+      await logAdminAction(
+        {
+          actorUserId: adminId,
+          action: ADMIN_ACTIONS.FORM_UPDATED,
+          entityType: "programs",
+          entityId: programId,
+          message: `Program ${programId} now uses the general application form.`,
+          metadata: { mode: "general", form_id: generalForm.id },
+          title: "Program Form Updated",
+          body: `Program ${program.title} switched to the general application form.`,
+        },
+        client,
+      );
+
+      return buildProgramFormResponse(programId, client, generalForm);
+    }
+
+    const customFormKey = `program_application_program_${programId}`;
+    const customInput = payload.form ?? {};
+    const customFields = Array.isArray(customInput.fields) && customInput.fields.length
+      ? customInput.fields
+      : cloneFields(generalForm.fields);
+
+    const customForm = await upsertFormByKey(
+      {
+        key: customFormKey,
+        title: customInput.title?.trim() || `${program.title} Application Form`,
+        description:
+          customInput.description?.trim() || `Custom application form for program ${program.title}.`,
+        is_active: customInput.is_active ?? true,
+        fields: customFields,
+        created_by: adminId,
+      },
+      client,
+    );
+
+    const updateResult = await updateProgramFormConfig(programId, false, customForm.id, client);
+    if (!updateResult.rowCount) {
+      throw new AppError(404, "PROGRAM_NOT_FOUND", "Program not found.");
+    }
+
+    await logAdminAction(
+      {
+        actorUserId: adminId,
+        action: ADMIN_ACTIONS.FORM_UPDATED,
+        entityType: "programs",
+        entityId: programId,
+        message: `Program ${programId} now uses a custom application form.`,
+        metadata: { mode: "custom", form_id: customForm.id },
+        title: "Program Form Updated",
+        body: `Custom application form saved for program ${program.title}.`,
+      },
+      client,
+    );
+
+    return buildProgramFormResponse(programId, client, generalForm);
   });
 }
 

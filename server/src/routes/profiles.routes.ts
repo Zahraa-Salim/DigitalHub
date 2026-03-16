@@ -2,8 +2,6 @@
 // Purpose: Registers the Express routes for profiles.
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
-// @ts-nocheck
-
 import { Router } from "express";
 import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile } from "../controllers/profiles.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";

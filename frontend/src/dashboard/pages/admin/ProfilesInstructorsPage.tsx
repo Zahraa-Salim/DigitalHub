@@ -12,9 +12,9 @@ import { ToastStack, type ToastItem } from "../../components/ToastStack";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
-import { Filters } from "./profiles-shared/Filters";
-import { SearchBar } from "./profiles-shared/SearchBar";
-import { StatusPanel } from "./profiles-shared/StatusPanel";
+import { Filters } from "./profiles/shared/Filters";
+import { SearchBar } from "./profiles/shared/SearchBar";
+import { StatusPanel } from "./profiles/shared/StatusPanel";
 
 type InstructorRow = {
   user_id: number;
