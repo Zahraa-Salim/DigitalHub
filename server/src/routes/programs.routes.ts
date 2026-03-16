@@ -4,7 +4,7 @@
 
 import { Router } from "express";
 import { assignCohortForm } from "../controllers/forms.controller.js";
-import { assignCohortInstructor, closeCohort, createCohort, createProgram, deleteCohort, deleteProgram, getCohortInstructors, getCohorts, getPrograms, openCohort, patchCohort, patchProgram, postProgramImage, unassignCohortInstructor, } from "../controllers/programs.controller.js";
+import { assignCohortInstructor, closeCohort, createCohort, createProgram, deleteCohort, deleteProgram, getCohortEnrollments, getCohortInstructors, getCohorts, getPrograms, openCohort, patchCohort, patchProgram, postProgramImage, unassignCohortInstructor, } from "../controllers/programs.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { cohortFormAssignBodySchema } from "../schemas/forms.schemas.js";
@@ -24,6 +24,7 @@ programsRouter.delete("/cohorts/:id", verifyAdminAuth, validateRequest({ params:
 programsRouter.post("/cohorts/:id/open", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(openCohort));
 programsRouter.post("/cohorts/:id/close", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(closeCohort));
 programsRouter.get("/cohorts/:id/instructors", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(getCohortInstructors));
+programsRouter.get("/cohorts/:id/enrollments", verifyAdminAuth, validateRequest({ params: idParamsSchema }), asyncHandler(getCohortEnrollments));
 programsRouter.post("/cohorts/:id/instructors", verifyAdminAuth, validateRequest({ params: idParamsSchema, body: cohortInstructorBodySchema }), asyncHandler(assignCohortInstructor));
 programsRouter.delete("/cohorts/:id/instructors/:instructorUserId", verifyAdminAuth, validateRequest({ params: cohortInstructorParamsSchema }), asyncHandler(unassignCohortInstructor));
 export { programsRouter };

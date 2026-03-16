@@ -123,14 +123,6 @@
   font-size: 0.82rem;
 }
 
-/* ── Error / success banners ────────────────────────────────────── */
-.admx-inline-error,
-.admx-inline-success {
-  font-size: 0.8rem;
-  padding: 9px 12px;
-  border-radius: 8px;
-}
-
 /* ── Admissions action emphasis ────────────────────────────────── */
 .admx-bulkbar p,
 .admx-bulkbar__left p {

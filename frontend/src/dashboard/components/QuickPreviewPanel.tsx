@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { X, ExternalLink } from 'lucide-react';
+import { PulseDots } from './PulseDots';
 
 export interface PreviewField {
   label: string;
@@ -106,7 +107,7 @@ export const QuickPreviewPanel: React.FC<QuickPreviewPanelProps> = ({
         <div className="quick-preview-panel__content">
           {isLoading ? (
             <div className="quick-preview-panel__loading">
-              <p>Loading preview...</p>
+              <PulseDots padding={40} label="Loading preview" />
             </div>
           ) : (
             <>

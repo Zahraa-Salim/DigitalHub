@@ -360,29 +360,6 @@
   cursor: not-allowed;
 }
 
-/* ── Status feedback banners ────────────────────────────────────── */
-.popapply-success {
-  margin: 0 0 10px;
-  padding: 9px 13px;
-  border-radius: 8px;
-  border: 1px solid #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.popapply-error-banner {
-  margin: 0 0 10px;
-  padding: 9px 13px;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
 /* ── Table ──────────────────────────────────────────────────────── */
 .popapply-table-wrap {
   border: 1px solid var(--border, #e2e8f0);
@@ -989,25 +966,6 @@
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
-}
-
-/* ── Floating error/success toasts (form management) ────────────── */
-.popapply-error {
-  margin: 0;
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 600;
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-  width: min(92vw, 380px);
-  padding: 10px 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(254, 202, 202, 0.5);
-  background: #dc2626;
-  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.3);
-  animation: dh-feedback-enter 0.2s ease;
 }
 
 /* FAB */

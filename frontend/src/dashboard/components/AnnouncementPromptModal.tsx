@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AnnouncementTargetAudience } from "../lib/announcementPrompts";
+import { useDashboardToasts } from "../hooks/useDashboardToasts";
+import { ToastStack } from "./ToastStack";
 
 type AnnouncementPromptPayload = {
   title: string;
@@ -56,7 +58,7 @@ export function AnnouncementPromptModal({
   const [targetAudience, setTargetAudience] = useState<AnnouncementTargetAudience>(defaultTargetAudience);
   const [publishMode, setPublishMode] = useState<"now" | "later">("now");
   const [publishAt, setPublishAt] = useState(toDateTimeInputValue(new Date()));
-  const [error, setError] = useState("");
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     if (!open) return;
@@ -67,7 +69,6 @@ export function AnnouncementPromptModal({
     setTargetAudience(defaultTargetAudience);
     setPublishMode("now");
     setPublishAt(toDateTimeInputValue(new Date()));
-    setError("");
   }, [defaultBody, defaultCtaLabel, defaultCtaUrl, defaultTargetAudience, defaultTitle, open]);
 
   const publishAtIso = useMemo(() => (publishMode === "later" ? toIsoDateTime(publishAt) : new Date().toISOString()), [publishAt, publishMode]);
@@ -83,23 +84,22 @@ export function AnnouncementPromptModal({
     const nextCtaUrl = ctaUrl.trim();
 
     if (!nextTitle) {
-      setError("Title is required.");
+      pushToast("error", "Title is required.");
       return;
     }
     if (!nextBody) {
-      setError("Body is required.");
+      pushToast("error", "Body is required.");
       return;
     }
     if (nextCtaLabel && !nextCtaUrl) {
-      setError("CTA URL is required when CTA label is provided.");
+      pushToast("error", "CTA URL is required when CTA label is provided.");
       return;
     }
     if (publishMode === "later" && !publishAtIso) {
-      setError("Choose a valid publish date and time.");
+      pushToast("error", "Choose a valid publish date and time.");
       return;
     }
 
-    setError("");
     await onConfirm({
       title: nextTitle,
       body: nextBody,
@@ -184,8 +184,6 @@ export function AnnouncementPromptModal({
           </label>
         </div>
 
-        {error ? <p className="alert alert--error">{error}</p> : null}
-
         <div className="modal-actions">
           <button className="btn btn--secondary" type="button" onClick={onSkip} disabled={saving}>
             Skip
@@ -194,6 +192,7 @@ export function AnnouncementPromptModal({
             {saving ? "Publishing..." : "Publish Announcement"}
           </button>
         </div>
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </div>
     </div>
   );

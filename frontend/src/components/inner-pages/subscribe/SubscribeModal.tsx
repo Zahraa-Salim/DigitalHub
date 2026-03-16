@@ -75,6 +75,13 @@ export default function SubscribeModal({ onClose, initialPhone = "" }: Props) {
       phoneRef.current?.focus();
       return;
     }
+    const normalizedForValidation = trimmedCountryCode.startsWith("+")
+      ? trimmedCountryCode
+      : `+${trimmedCountryCode}`;
+    if (!/^\+\d{1,4}$/.test(normalizedForValidation)) {
+      setErrorMsg("Country code must be + followed by 1-4 digits (e.g. +961, +1, +44).");
+      return;
+    }
     if (!trimmedPhone) {
       setErrorMsg("Please enter your phone number.");
       phoneRef.current?.focus();
@@ -87,9 +94,7 @@ export default function SubscribeModal({ onClose, initialPhone = "" }: Props) {
     setErrorMsg("");
     setStatus("loading");
     try {
-      const normalizedCountryCode = trimmedCountryCode.startsWith("+")
-        ? trimmedCountryCode
-        : `+${trimmedCountryCode}`;
+      const normalizedCountryCode = normalizedForValidation;
       const fullPhone = trimmedPhone.startsWith("+")
         ? trimmedPhone
         : `${normalizedCountryCode}${trimmedPhone}`;

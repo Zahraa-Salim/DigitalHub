@@ -8,8 +8,10 @@ import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { Table } from "../../components/Table";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { applyTemplateTokens } from "../../lib/messageTemplates";
@@ -19,7 +21,6 @@ import { WhatsAppMessageModal } from "@/components/WhatsAppMessageModal";
 type ContactKind = "question" | "feedback" | "visit_request";
 type ContactStatus = "new" | "in_progress" | "resolved";
 type SortBy = "created_at" | "status" | "last_replied_at";
-type ToastTone = "success" | "error";
 type ReplyRecipientGroup = "individual" | "all" | ContactKind;
 
 type ContactRow = {
@@ -113,7 +114,6 @@ export function ContactInboxPage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<ContactRow | null>(null);
   const [replyComposerOpen, setReplyComposerOpen] = useState(false);
@@ -125,7 +125,6 @@ export function ContactInboxPage() {
   const [replyBody, setReplyBody] = useState("");
   const [replyTemplateKey, setReplyTemplateKey] = useState<string>("");
   const [replyShowTemplates, setReplyShowTemplates] = useState(false);
-  const [replyError, setReplyError] = useState("");
   const [isReplying, setIsReplying] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [detailStatus, setDetailStatus] = useState<ContactStatus>("new");
@@ -134,22 +133,9 @@ export function ContactInboxPage() {
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
-
-  const pushToast = useCallback((tone: ToastTone, message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 5000);
-  }, []);
-
-  const dismissToast = (id: number) => {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -170,7 +156,6 @@ export function ContactInboxPage() {
 
     const load = async () => {
       setLoading(true);
-      setError("");
       try {
         const result = await apiList<ContactRow>(
           `/contact${buildQueryString({
@@ -196,7 +181,6 @@ export function ContactInboxPage() {
         }
 
         const message = err instanceof ApiError ? err.message || "Failed to load contact inbox." : "Failed to load contact inbox.";
-        setError(message);
         pushToast("error", message);
       } finally {
         if (active) {
@@ -281,7 +265,6 @@ export function ContactInboxPage() {
     setReplyBody("");
     setReplyTemplateKey("");
     setReplyShowTemplates(false);
-    setReplyError("");
   };
 
   const closeReplyComposer = () => {
@@ -290,7 +273,6 @@ export function ContactInboxPage() {
     setReplySearch("");
     setReplyTemplateKey("");
     setReplyShowTemplates(false);
-    setReplyError("");
   };
 
   const openWhatsAppComposer = (phone?: string | null) => {
@@ -335,12 +317,11 @@ export function ContactInboxPage() {
 
   const submitReply = async () => {
     if (!canSendReply) {
-      setReplyError("Recipient, subject, and reply body are required.");
+      pushToast("error", "Recipient, subject, and reply body are required.");
       return;
     }
 
     setIsReplying(true);
-    setReplyError("");
     try {
       await Promise.all(
         replyRecipients.map((recipient) =>
@@ -359,7 +340,6 @@ export function ContactInboxPage() {
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to send reply." : "Failed to send reply.";
-      setReplyError(message);
       pushToast("error", message);
     } finally {
       setIsReplying(false);
@@ -560,32 +540,8 @@ export function ContactInboxPage() {
           </button>
         </div>
 
-        {error ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{error}</p>
-          </Card>
-        ) : null}
-
         {loading ? (
-          <>
-            <Card className="card--table desktop-only dh-table-wrap">
-              <div className="program-skeleton-table" aria-hidden>
-                <div className="program-skeleton-line program-skeleton-line--lg" />
-                <div className="program-skeleton-line" />
-                <div className="program-skeleton-line program-skeleton-line--sm" />
-              </div>
-            </Card>
-            <div className="mobile-only programs-mobile-list">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Card key={index}>
-                  <div className="program-skeleton-card" aria-hidden>
-                    <div className="program-skeleton-line program-skeleton-line--md" />
-                    <div className="program-skeleton-line program-skeleton-line--sm" />
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         ) : null}
 
         {!loading ? (
@@ -785,8 +741,6 @@ export function ContactInboxPage() {
             </header>
 
             <div className="admx-modal__body">
-              {replyError ? <p className="admx-inline-error">{replyError}</p> : null}
-
               <label className="admx-label">Send To</label>
               <div className="admx-chip-row">
                 <button
@@ -949,7 +903,7 @@ export function ContactInboxPage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

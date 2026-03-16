@@ -2,6 +2,7 @@
 // Purpose: Application Forms — General form, per-Program custom forms, per-Cohort custom forms.
 
 import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { PulseDots } from "../../components/PulseDots";
 import { ToastStack } from "../../components/ToastStack";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { api } from "../../utils/api";
@@ -468,7 +469,7 @@ function StartModal({ entityLabel, onStart, onClose }: { entityLabel: string; on
 // ─── GeneralFormTab ───────────────────────────────────────────────────────────
 
 function GeneralFormTab() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [form, setForm] = useState<FormMeta | null>(null);
   const [fields, setFields] = useState<EditableField[]>([]);
   const [loading, setLoading] = useState(true);
@@ -505,11 +506,11 @@ function GeneralFormTab() {
     finally { setSaving(false); }
   };
 
-  if (loading) return <div className="afp-state"><div className="afp-spinner" />Loading general form…</div>;
+  if (loading) return <PulseDots padding={32} label="Loading" />;
 
   return (
     <div className="afp-tab-content">
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <div className="afp-tab-header">
         <div>
           <h2 className="afp-section-title">General Application Form</h2>
@@ -525,7 +526,7 @@ function GeneralFormTab() {
 // ─── ProgramFormTab ───────────────────────────────────────────────────────────
 
 function ProgramFormTab() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [programsError, setProgramsError] = useState("");
@@ -625,7 +626,7 @@ function ProgramFormTab() {
 
   return (
     <div className="afp-tab-content">
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <div className="afp-tab-header">
         <div>
           <h2 className="afp-section-title">Program Forms</h2>
@@ -633,7 +634,7 @@ function ProgramFormTab() {
         </div>
       </div>
       {loadingPrograms ? (
-        <div className="afp-state"><div className="afp-spinner" />Loading programs…</div>
+        <PulseDots padding={32} label="Loading" />
       ) : programs.length === 0 ? (
         <div className="afp-state">No programs found.</div>
       ) : (
@@ -652,7 +653,7 @@ function ProgramFormTab() {
             ))}
           </aside>
           <div className="afp-cohort-panel">
-            {loadingForm && <div className="afp-state"><div className="afp-spinner" />Loading…</div>}
+            {loadingForm && <PulseDots padding={32} label="Loading" />}
             {programForm && activeProgram && !loadingForm && (
               <>
                 <div className="afp-cohort-header">
@@ -696,7 +697,7 @@ function ProgramFormTab() {
 // ─── CohortFormTab ────────────────────────────────────────────────────────────
 
 function CohortFormTab() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [loadingCohorts, setLoadingCohorts] = useState(true);
   const [cohortsError, setCohortsError] = useState("");
@@ -796,7 +797,7 @@ function CohortFormTab() {
 
   return (
     <div className="afp-tab-content">
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <div className="afp-tab-header">
         <div>
           <h2 className="afp-section-title">Cohort Forms</h2>
@@ -804,7 +805,7 @@ function CohortFormTab() {
         </div>
       </div>
       {loadingCohorts ? (
-        <div className="afp-state"><div className="afp-spinner" />Loading cohorts…</div>
+        <PulseDots padding={32} label="Loading" />
       ) : cohorts.length === 0 ? (
         <div className="afp-state">No cohorts found.</div>
       ) : (
@@ -824,7 +825,7 @@ function CohortFormTab() {
             ))}
           </aside>
           <div className="afp-cohort-panel">
-            {loadingForm && <div className="afp-state"><div className="afp-spinner" />Loading…</div>}
+            {loadingForm && <PulseDots padding={32} label="Loading" />}
             {cohortForm && activeCohort && !loadingForm && (
               <>
                 <div className="afp-cohort-header">

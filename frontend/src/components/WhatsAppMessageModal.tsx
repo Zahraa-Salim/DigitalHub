@@ -4,6 +4,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { sendWhatsApp } from "@/services/whatsappService";
+import { useDashboardToasts } from "../dashboard/hooks/useDashboardToasts";
+import { ToastStack } from "../dashboard/components/ToastStack";
 
 export type WhatsAppMessageModalProps = {
   isOpen: boolean;
@@ -17,15 +19,12 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     if (!isOpen) return;
     setPhone(normalizePhone(prefillPhone || ""));
     setMessage("");
-    setError("");
-    setSuccess("");
     setSending(false);
   }, [isOpen, prefillPhone]);
 
@@ -36,20 +35,24 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
     if (!canSend) return;
 
     setSending(true);
-    setError("");
-    setSuccess("");
 
     const result = await sendWhatsApp(normalizedPhone, message.trim());
 
     if (!result.success) {
-      setError("error" in result ? result.error.message || "Failed to send WhatsApp message." : "Failed to send WhatsApp message.");
+      pushToast(
+        "error",
+        "error" in result
+          ? result.error.message || "Failed to send WhatsApp message."
+          : "Failed to send WhatsApp message.",
+      );
       setSending(false);
       return;
     }
 
-    setSuccess("WhatsApp message sent successfully.");
+    pushToast("success", "WhatsApp message sent successfully.");
     setMessage("");
     setSending(false);
+    window.setTimeout(() => onClose(), 800);
   };
 
   if (!isOpen) return null;
@@ -66,9 +69,6 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
         </header>
 
         <div className="admx-modal__body">
-          {error ? <p className="admx-inline-error">{error}</p> : null}
-          {success ? <p className="admx-inline-success">{success}</p> : null}
-
           <label className="field">
             <span className="field__label">Phone Number</span>
             <input
@@ -79,7 +79,6 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
               value={phone}
               onChange={(event) => {
                 setPhone(event.target.value);
-                if (error) setError("");
               }}
             />
             <small className="field__hint">Use international format, digits only.</small>
@@ -93,7 +92,6 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
               value={message}
               onChange={(event) => {
                 setMessage(event.target.value);
-                if (error) setError("");
               }}
               placeholder="Write the WhatsApp message here."
             />
@@ -108,6 +106,7 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
             {sending ? "Sending..." : "Send WhatsApp"}
           </button>
         </footer>
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </div>
     </div>
   );

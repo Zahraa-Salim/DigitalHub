@@ -5,7 +5,6 @@
 import { lazy, type ReactNode } from "react";
 import type { AdminRole } from "../utils/auth";
 import { RequireSuperAdmin } from "./RequireSuperAdmin";
-import { OverviewPage } from "../pages/OverviewPage";
 
 const ActivityLogsPage = lazy(() => import("../pages/admin/ActivityLogsPage").then((module) => ({ default: module.ActivityLogsPage })));
 const AnnouncementsPage = lazy(() => import("../pages/admin/AnnouncementsPage").then((module) => ({ default: module.AnnouncementsPage })));
@@ -13,6 +12,7 @@ const AdmissionsPage = lazy(() => import("../pages/admin/AdmissionsPage").then((
 const GeneralApplyPage = lazy(() => import("../pages/admin/GeneralApplyPage").then((module) => ({ default: module.GeneralApplyPage })));
 const CmsHomeSectionsPage = lazy(() => import("../pages/admin/cms/HomeSectionsPage").then((module) => ({ default: module.CmsHomeSectionsPage })));
 const CmsPagesPage = lazy(() => import("../pages/admin/cms/PagesPage").then((module) => ({ default: module.CmsPagesPage })));
+const AboutBuilderPage = lazy(() => import("../pages/admin/cms/AboutBuilderPage").then((module) => ({ default: module.AboutBuilderPage })));
 const CmsSiteSettingsPage = lazy(() => import("../pages/admin/cms/SiteSettingsPage").then((module) => ({ default: module.CmsSiteSettingsPage })));
 const CmsThemeTokensPage = lazy(() => import("../pages/admin/cms/ThemeTokensPage").then((module) => ({ default: module.CmsThemeTokensPage })));
 const CmsVisualEditorPage = lazy(() => import("../pages/admin/cms/VisualEditorPage").then((module) => ({ default: module.CmsVisualEditorPage })));
@@ -32,6 +32,7 @@ const ProfilesManagersPage = lazy(() => import("../pages/admin/ProfilesManagersP
 const ProfilesStudentsPage = lazy(() => import("../pages/admin/ProfilesStudentsPage").then((module) => ({ default: module.ProfilesStudentsPage })));
 const ProgramsPage = lazy(() => import("../pages/admin/ProgramsPage").then((module) => ({ default: module.ProgramsPage })));
 const SubscribersPage = lazy(() => import("../pages/admin/SubscribersPage").then((module) => ({ default: module.SubscribersPage })));
+const OverviewPage = lazy(() => import("../pages/OverviewPage").then((module) => ({ default: module.OverviewPage })));
 export type NavLeaf = {
   label: string;
   path: string;
@@ -72,6 +73,7 @@ export const navConfig: NavItem[] = [
     label: "CMS",
     children: [
       { label: "Visual Editor", path: "/admin/cms/visual-editor" },
+      { label: "About Builder", path: "/admin/cms/about-builder" },
       { label: "Site Settings", path: "/admin/cms/site-settings" },
       { label: "Pages", path: "/admin/cms/pages" },
       { label: "Home Sections", path: "/admin/cms/home-sections" },
@@ -128,6 +130,7 @@ export const adminRoutes: AdminRoute[] = [
   { path: "cohorts", element: <CohortsPage /> },
   { path: "programs", element: <ProgramsPage /> },
   { path: "cms/visual-editor", element: <CmsVisualEditorPage /> },
+  { path: "cms/about-builder", element: <AboutBuilderPage /> },
   { path: "cms/site-settings", element: <CmsSiteSettingsPage /> },
   { path: "cms/pages", element: <CmsPagesPage /> },
   { path: "cms/home-sections", element: <CmsHomeSectionsPage /> },

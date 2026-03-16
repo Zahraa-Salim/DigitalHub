@@ -4,6 +4,7 @@
 
 
 import { withTransaction } from "../db/index.js";
+import { listCohortStudentsForAttendance } from "../repositories/attendance.repo.js";
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -741,6 +742,26 @@ export async function listCohortInstructorsService(id: number, query: QueryParam
   return {
     data: result.rows,
     pagination: buildPagination(list.page, list.limit, total),
+  };
+}
+
+export async function getCohortEnrollmentsService(cohortId: number) {
+  const cohortCheck = await getCohortStatusById(cohortId);
+  if (!cohortCheck.rowCount) {
+    throw new AppError(404, "NOT_FOUND", "Cohort not found.");
+  }
+
+  const result = await listCohortStudentsForAttendance(cohortId);
+  return {
+    cohort_id: cohortId,
+    students: result.rows.map((row: any) => ({
+      student_user_id: Number(row.student_user_id),
+      full_name: String(row.full_name || "").trim() || "Student",
+      email: row.email ?? null,
+      phone: row.phone ?? null,
+      enrollment_status: row.enrollment_status ?? "active",
+    })),
+    total: result.rowCount ?? 0,
   };
 }
 

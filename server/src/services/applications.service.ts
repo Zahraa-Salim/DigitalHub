@@ -1028,6 +1028,9 @@ export async function patchApplicationStageService(applicationId: number, actorU
     let updated;
     const reviewMessage = normalizeReviewMessage(payload.message);
 
+    const stageUpdateSavepoint = "application_stage_update";
+    await client.query(`SAVEPOINT ${stageUpdateSavepoint}`);
+
     try {
       updated = await updateApplicationStageAndStatus(
         applicationId,
@@ -1037,6 +1040,7 @@ export async function patchApplicationStageService(applicationId: number, actorU
         reviewMessage,
         client,
       );
+      await client.query(`RELEASE SAVEPOINT ${stageUpdateSavepoint}`);
     } catch (error: any) {
       // Backward compatibility for databases that don't support stage writes.
       if (
@@ -1045,6 +1049,7 @@ export async function patchApplicationStageService(applicationId: number, actorU
         "code" in error &&
         (error.code === "42703" || error.code === "23514")
       ) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${stageUpdateSavepoint}`);
         updated = await updateApplicationStatusOnly(
           applicationId,
           requestedStatus,
@@ -1052,7 +1057,10 @@ export async function patchApplicationStageService(applicationId: number, actorU
           reviewMessage,
           client,
         );
+        await client.query(`RELEASE SAVEPOINT ${stageUpdateSavepoint}`);
       } else {
+        await client.query(`ROLLBACK TO SAVEPOINT ${stageUpdateSavepoint}`);
+        await client.query(`RELEASE SAVEPOINT ${stageUpdateSavepoint}`);
         throw error;
       }
     }

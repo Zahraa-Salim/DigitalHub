@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { Card } from "../../../components/Card";
 import { CmsMediaPickerModal, type CmsMediaAsset } from "../../../components/CmsMediaPickerModal";
 import { PageShell } from "../../../components/PageShell";
+import { PulseDots } from "../../../components/PulseDots";
 import { ToastStack } from "../../../components/ToastStack";
 import { useDashboardToasts } from "../../../hooks/useDashboardToasts";
 import { ApiError, api, apiList } from "../../../utils/api";
@@ -441,7 +442,7 @@ const reorderRows = (items: HomeSectionRow[], sourceId: number, targetId: number
 };
 
 export function CmsHomeSectionsPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [rows, setRows] = useState<HomeSectionRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editor, setEditor] = useState<HomeSectionEditor | null>(null);
@@ -829,7 +830,7 @@ export function CmsHomeSectionsPage() {
 
   return (
     <PageShell title="Home Sections" subtitle="Edit homepage section order, visibility, and content with structured fields.">
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <Card>
         <div className="cms-home-sections-toolbar">
           <div className="cms-home-sections-tabs" role="tablist" aria-label="Home sections">
@@ -865,7 +866,11 @@ export function CmsHomeSectionsPage() {
         </div>
         {!editor ? (
           <div className="empty-state">
-            <p className="empty-state__title">{loading ? "Loading sections..." : "No section selected"}</p>
+            {loading ? (
+              <PulseDots padding={20} label="Loading sections" />
+            ) : (
+              <p className="empty-state__title">No section selected</p>
+            )}
             <p className="empty-state__description">Select a section from the top tabs to start editing.</p>
           </div>
         ) : (

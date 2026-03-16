@@ -1,7 +1,6 @@
 import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
 import BtnArrow from "@/svg/BtnArrow";
-import SvgAnimation from "@/hooks/SvgAnimation";
 import InjectableSvg from "@/hooks/InjectableSvg";
 import { EditableImage } from "../EditableImage";
 import { EditableSpan } from "../EditableSpan";
@@ -12,23 +11,17 @@ type InstructorTwoEditorProps = {
 };
 
 const InstructorTwoEditor = ({ sectionId }: InstructorTwoEditorProps) => {
-  const svgIconRef = SvgAnimation("/assets/img/instructor/instructor_shape02.svg");
-  const svgIconRef2 = SvgAnimation("/assets/img/instructor/instructor_shape02.svg");
-
   return (
     <section className="instructor__area-two">
       <div className="container">
         <div className="instructor__item-wrap-two">
           <div className="row">
             <div className="col-xl-6">
-              <div className="instructor__item-two tg-svg" ref={svgIconRef}>
+              <div className="instructor__item-two">
                 <div className="instructor__thumb-two">
                   <EditableImage sectionId={sectionId} field="left.image_url" fallbackSrc="/assets/img/instructor/instructor_two01.png" alt="img" />
                   <div className="shape-one">
                     <InjectableSvg src="/assets/img/instructor/instructor_shape01.svg" alt="img" className="injectable" />
-                  </div>
-                  <div className="shape-two">
-                    <span className="svg-icon"></span>
                   </div>
                 </div>
                 <div className="instructor__content-two">
@@ -55,14 +48,11 @@ const InstructorTwoEditor = ({ sectionId }: InstructorTwoEditorProps) => {
             </div>
 
             <div className="col-xl-6">
-              <div className="instructor__item-two tg-svg" ref={svgIconRef2}>
+              <div className="instructor__item-two">
                 <div className="instructor__thumb-two">
                   <EditableImage sectionId={sectionId} field="right.image_url" fallbackSrc="/assets/img/instructor/instructor_two02.png" alt="img" />
                   <div className="shape-one">
                     <InjectableSvg src="/assets/img/instructor/instructor_shape01.svg" alt="img" className="injectable" />
-                  </div>
-                  <div className="shape-two">
-                    <span className="svg-icon"></span>
                   </div>
                 </div>
                 <div className="instructor__content-two">

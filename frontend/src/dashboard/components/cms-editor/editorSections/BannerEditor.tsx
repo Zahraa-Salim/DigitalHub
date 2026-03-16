@@ -1,7 +1,5 @@
-import React from "react";
 import Image from "@/components/common/Image";
 import Link from "@/components/common/Link";
-import SvgAnimation from "@/hooks/SvgAnimation";
 import BtnArrow from "@/svg/BtnArrow";
 import banner_img_1 from "@/assets/img/banner/banner_img.png";
 import banner_shape_1 from "@/assets/img/banner/banner_shape01.png";
@@ -26,7 +24,6 @@ const normalizeBannerBackground = (value: string) => {
 };
 
 const BannerEditor = ({ sectionId }: BannerEditorProps) => {
-  const svgIconRef = SvgAnimation("/assets/img/objects/title_shape.svg");
   const { getValue } = useEditor();
   const backgroundImageUrl = normalizeBannerBackground(getValue(sectionId, "background_image_url"));
   const ctaLink = getValue(sectionId, "cta_link") || "/programs";
@@ -40,10 +37,10 @@ const BannerEditor = ({ sectionId }: BannerEditorProps) => {
         <div className="row justify-content-between align-items-center">
           <div className="col-xl-5 col-lg-6">
             <div className="banner__content">
-              <h3 className="title tg-svg" data-aos="fade-right" data-aos-delay="400" ref={svgIconRef}>
+              <h3 className="title tg-svg">
                 Build Your{" "}
                 <span className="banner-highlight-wrap">
-                  <span className="svg-icon"></span>
+                  <span className="svg-icon" style={{ visibility: "hidden" }}></span>
                   <svg
                     x="0px"
                     y="0px"
@@ -69,7 +66,7 @@ const BannerEditor = ({ sectionId }: BannerEditorProps) => {
                 For Work, Freelancing, and <b>the Digital Economy</b>
               </h3>
 
-              <p data-aos="fade-right" data-aos-delay="600">
+              <p>
                 <EditableSpan
                   sectionId={sectionId}
                   field="description"
@@ -78,7 +75,7 @@ const BannerEditor = ({ sectionId }: BannerEditorProps) => {
                 />
               </p>
 
-              <div className="banner__btn-wrap" data-aos="fade-right" data-aos-delay="800">
+              <div className="banner__btn-wrap">
                 <Link to={ctaLink} className="btn arrow-btn">
                   <EditableSpan sectionId={sectionId} field="cta_text" fallback="Explore Programs" /> <BtnArrow />
                 </Link>
@@ -89,7 +86,7 @@ const BannerEditor = ({ sectionId }: BannerEditorProps) => {
           <div className="col-lg-6">
             <div className="banner__images">
               <EditableImage sectionId={sectionId} field="main_image_url" fallbackSrc={banner_img_1} alt="img" className="main-img" />
-              <div className="shape big-shape" data-aos="fade-up-right" data-aos-delay="600">
+              <div className="shape big-shape">
                 <Image src={banner_shape_1} alt="shape" className="tg-motion-effects1" />
               </div>
               <Image src={banner_icon_1} alt="shape" className="shape bg-dots rotateme" />
@@ -115,7 +112,7 @@ const BannerEditor = ({ sectionId }: BannerEditorProps) => {
         </div>
       </div>
 
-      <Image src={banner_shape_3} alt="shape" className="line-shape" data-aos="fade-right" data-aos-delay="1600" />
+      <Image src={banner_shape_3} alt="shape" className="line-shape" />
     </section>
   );
 };

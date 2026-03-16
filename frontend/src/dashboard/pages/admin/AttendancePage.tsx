@@ -2,9 +2,11 @@
 // Purpose: Renders the admin attendance page in the dashboard.
 // Redesigned: list layout, present/absent toggle, late checkbox.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageShell } from "../../components/PageShell";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { PulseDots } from "../../components/PulseDots";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api } from "../../utils/api";
 
 type AttendanceStatus = "present" | "absent" | "late";
@@ -191,17 +193,9 @@ export function AttendancePage() {
   const [loadingSheet, setLoadingSheet] = useState(false);
   const [hasLoadedSheetOnce, setHasLoadedSheetOnce] = useState(false);
   const [savingSheet, setSavingSheet] = useState(false);
-  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
-
-  const pushToast = useCallback((tone: "success" | "error", message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((c) => [...c, { id, tone, message }]);
-    window.setTimeout(() => setToasts((c) => c.filter((t) => t.id !== id)), 5000);
-  }, []);
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   const selectedCohort = useMemo(
     () => cohorts.find((c) => String(c.id) === selectedCohortId) ?? null,
@@ -233,7 +227,6 @@ export function AttendancePage() {
   useEffect(() => {
     let active = true;
     setLoadingCohorts(true);
-    setError("");
     api<{ cohorts: AttendanceCohort[] }>("/attendance/cohorts/running")
       .then((res) => {
         if (!active) return;
@@ -247,7 +240,6 @@ export function AttendancePage() {
       .catch((err) => {
         if (!active) return;
         const msg = err instanceof ApiError ? err.message : "Failed to load cohorts.";
-        setError(msg);
         pushToast("error", msg);
       })
       .finally(() => { if (active) setLoadingCohorts(false); });
@@ -259,7 +251,6 @@ export function AttendancePage() {
     let active = true;
     setLoadingSheet(true);
     setHasLoadedSheetOnce(false);
-    setError("");
     const query = `/attendance/sheet?cohort_id=${encodeURIComponent(selectedCohortId)}&date=${encodeURIComponent(attendanceDate)}`;
     api<AttendanceSheetResponse>(query)
       .then((res) => {
@@ -277,7 +268,7 @@ export function AttendancePage() {
       .catch((err) => {
         if (!active) return;
         const msg = err instanceof ApiError ? err.message : "Failed to load attendance sheet.";
-        setError(msg);
+        pushToast("error", msg);
         setStudents([]);
       })
       .finally(() => {
@@ -338,7 +329,6 @@ export function AttendancePage() {
     if (!selectedCohortId) { pushToast("error", "Select a cohort first."); return; }
     if (!students.length) { pushToast("error", "No students found."); return; }
     setSavingSheet(true);
-    setError("");
     try {
       const payload = {
         cohort_id: Number(selectedCohortId),
@@ -361,7 +351,6 @@ export function AttendancePage() {
       );
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Failed to save attendance.";
-      setError(msg);
       pushToast("error", msg);
     } finally {
       setSavingSheet(false);
@@ -483,8 +472,6 @@ export function AttendancePage() {
       )}
 
       {/* ── Error ────────────────────────────────────────────── */}
-      {error && <div className="att-error-banner">⚠ {error}</div>}
-
       {/* ── Toolbar ──────────────────────────────────────────── */}
       {students.length > 0 && (
         <div className="att-toolbar">
@@ -533,10 +520,7 @@ export function AttendancePage() {
       {/* ── Student list ──────────────────────────────────────── */}
       <div className="att-sheet">
         {showInitialSheetLoading ? (
-          <div className="att-loading">
-            <div className="att-loading__spinner" />
-            <p>Loading attendance sheet…</p>
-          </div>
+          <PulseDots padding={60} label="Loading attendance sheet" />
         ) : !selectedCohortId ? (
           <div className="att-empty">
             <div className="att-empty__icon">📚</div>
@@ -650,7 +634,8 @@ export function AttendancePage() {
 
       <ToastStack
         toasts={toasts}
-        onDismiss={(id) => setToasts((c) => c.filter((t) => t.id !== id))}
+        exitingIds={exitingIds}
+        onDismiss={dismissToast}
       />
     </PageShell>
   );

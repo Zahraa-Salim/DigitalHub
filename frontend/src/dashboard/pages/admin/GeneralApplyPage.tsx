@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ConfirmActionModal } from "../../components/ConfirmActionModal";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
+import { PulseDots } from "../../components/PulseDots";
+import { ToastStack } from "../../components/ToastStack";
 import {
   type MessageTemplate,
   type ProgramApplicationListItem,
@@ -34,6 +36,7 @@ import {
   workflowStatusLabel,
 } from "../../lib/adminWorkflowText";
 import { onboardingSkipReasonText, summarizeOnboardingMessage } from "../../lib/onboardingMessage";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, apiList } from "../../utils/api";
 import "../../styles/general-apply.css";
 
@@ -264,7 +267,6 @@ function getSubmissionEntries(
 type InterviewSchedulerModalProps = {
   applicantName: string;
   busy: boolean;
-  error: string;
   initial: {
     scheduled_at: string;
     duration_minutes: number;
@@ -283,7 +285,6 @@ type InterviewSchedulerModalProps = {
 function InterviewSchedulerModal({
   applicantName,
   busy,
-  error,
   initial,
   onClose,
   onSubmit,
@@ -304,7 +305,6 @@ function InterviewSchedulerModal({
           </div>
         </header>
         <div className="admx-modal__body">
-          {error ? <p className="admx-inline-error">{error}</p> : null}
           <div className="form-grid form-grid--two">
             <label className="field">
               <span className="field__label">Interview Date/Time</span>
@@ -381,6 +381,7 @@ type CreateUserDeliveryModalProps = {
   busy: boolean;
   onClose: () => void;
   onSubmit: (channels: CreateUserDeliveryChannels) => void;
+  onInvalidSubmit: () => void;
 };
 
 function CreateUserDeliveryModal({
@@ -391,6 +392,7 @@ function CreateUserDeliveryModal({
   busy,
   onClose,
   onSubmit,
+  onInvalidSubmit,
 }: CreateUserDeliveryModalProps) {
   const [emailEnabled, setEmailEnabled] = useState(initialChannels.email);
   const [smsEnabled, setSmsEnabled] = useState(initialChannels.sms);
@@ -441,9 +443,6 @@ function CreateUserDeliveryModal({
               </span>
             </label>
           </div>
-          {!canSubmit ? (
-            <p className="admx-inline-error">Select at least one delivery channel.</p>
-          ) : null}
         </div>
         <footer className="admx-modal__footer">
           <button className="btn btn--secondary btn--sm" type="button" onClick={onClose} disabled={busy}>
@@ -452,8 +451,14 @@ function CreateUserDeliveryModal({
           <button
             className="btn btn--primary btn--sm"
             type="button"
-            disabled={!canSubmit || busy}
-            onClick={() => onSubmit({ email: emailEnabled, sms: smsEnabled })}
+            disabled={busy}
+            onClick={() => {
+              if (!canSubmit) {
+                onInvalidSubmit();
+                return;
+              }
+              onSubmit({ email: emailEnabled, sms: smsEnabled });
+            }}
           >
             {busy ? "Creating..." : "Create User"}
           </button>
@@ -465,6 +470,7 @@ function CreateUserDeliveryModal({
 
 export function GeneralApplyPage() {
   const { setPageData: setGlobalMessagingPageData } = useGlobalMessagingContext();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [searchParams] = useSearchParams();
   const [activeFilter, setActiveFilter] = useState<ApplicationFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -482,22 +488,17 @@ export function GeneralApplyPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loadingApplications, setLoadingApplications] = useState(true);
-  const [applicationsError, setApplicationsError] = useState("");
 
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(null);
   const [detailData, setDetailData] = useState<DetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [savingReviewMessage, setSavingReviewMessage] = useState(false);
   const [detailReviewMessageDraft, setDetailReviewMessageDraft] = useState("");
-  const [detailError, setDetailError] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [actionSuccess, setActionSuccess] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleTargetId, setScheduleTargetId] = useState<number | null>(null);
   const [scheduleTargetName, setScheduleTargetName] = useState("");
   const [scheduleBusy, setScheduleBusy] = useState(false);
-  const [scheduleError, setScheduleError] = useState("");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [scheduleInitial, setScheduleInitial] = useState({
     scheduled_at: "",
@@ -522,7 +523,6 @@ export function GeneralApplyPage() {
   const [composerBody, setComposerBody] = useState("");
   const [composerShowTemplates, setComposerShowTemplates] = useState(false);
   const [composerBusy, setComposerBusy] = useState(false);
-  const [composerError, setComposerError] = useState("");
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
   const [confirmResolver, setConfirmResolver] = useState<((confirmed: boolean) => void) | null>(null);
 
@@ -574,14 +574,12 @@ export function GeneralApplyPage() {
     }
 
     if (sourceParam === "overview") {
-      setActionSuccess(overviewGeneralApplyFocusMessage(focusParam || stageParam));
-      setActionError("");
-      setApplicationsError("");
+      pushToast("success", overviewGeneralApplyFocusMessage(focusParam || stageParam));
       setSelectedIds(new Set());
       setPage(1);
       setFilterPanelOpen(false);
     }
-  }, [searchParams]);
+  }, [pushToast, searchParams]);
 
   const selectedApplication = useMemo(() => applicants.find((item) => item.id === selectedApplicationId) ?? null, [applicants, selectedApplicationId]);
   const programTitleById = useMemo(
@@ -710,7 +708,6 @@ export function GeneralApplyPage() {
 
   const loadApplications = async () => {
     setLoadingApplications(true);
-    setApplicationsError("");
     try {
       const search = searchQuery.trim() || undefined;
       const result = await listProgramApplications({
@@ -726,7 +723,7 @@ export function GeneralApplyPage() {
       setTotal(result.pagination.total);
       setTotalPages(result.pagination.totalPages);
     } catch (error) {
-      setApplicationsError(error instanceof ApiError ? error.message : "Failed to load program applications.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to load program applications.");
       setApplicants([]);
       setTotal(0);
       setTotalPages(0);
@@ -764,7 +761,6 @@ export function GeneralApplyPage() {
 
   const loadDetail = async (id: number) => {
     setLoadingDetail(true);
-    setDetailError("");
     try {
       const detail = await getProgramApplicationDetail(id);
       setDetailData({
@@ -774,7 +770,7 @@ export function GeneralApplyPage() {
       });
       setDetailReviewMessageDraft(String(detail.program_application?.review_message ?? "").trim());
     } catch (error) {
-      setDetailError(error instanceof ApiError ? error.message : "Failed to load application detail.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to load application detail.");
       setDetailData(null);
       setDetailReviewMessageDraft("");
     } finally {
@@ -847,8 +843,6 @@ export function GeneralApplyPage() {
 
   const runAction = async (work: () => Promise<unknown>) => {
     setActionBusy(true);
-    setActionError("");
-    setActionSuccess("");
     try {
       await work();
       await loadApplications();
@@ -858,7 +852,7 @@ export function GeneralApplyPage() {
       }
       return true;
     } catch (error) {
-      setActionError(error instanceof ApiError ? error.message : "Action couldn't be completed. Please try again.");
+      pushToast("error", error instanceof ApiError ? error.message : "Action couldn't be completed. Please try again.");
       return false;
     } finally {
       setActionBusy(false);
@@ -872,7 +866,7 @@ export function GeneralApplyPage() {
       .filter((entry) => idSet.has(entry.id) && !hasCreatedUser(entry.created_user_id))
       .map((entry) => entry.id);
     if (!eligibleIds.length) {
-      setActionError("Selected applicant(s) already have user accounts.");
+      pushToast("error", "Selected applicant(s) already have user accounts.");
       return;
     }
     const eligibleIdSet = new Set(eligibleIds);
@@ -925,14 +919,16 @@ export function GeneralApplyPage() {
       const extras: string[] = [];
       if (summary.sentCount > 0) extras.push(`credentials sent (${summary.sentCount})`);
       if (summary.skipped) extras.push(onboardingSkipReasonText(summary.reason));
-      setActionSuccess(
+      pushToast(
+        "success",
         extras.length
           ? `${existingUser ? "Existing account linked" : "User created"} for ${safeLabel}; ${extras.join(", ")}.`
           : `${existingUser ? "Existing account linked" : "User created"} for ${safeLabel}.`,
       );
       if (summary.failedCount > 0) {
         const firstFailure = summary.firstFailure ? toFriendlyDeliveryFailure(summary.firstFailure) : "";
-        setActionError(
+        pushToast(
+          "error",
           `${existingUser ? "Account linked" : "User created"}, but ${summary.failedCount} credential message${summary.failedCount === 1 ? "" : "s"} failed.${firstFailure ? ` ${firstFailure}` : ""}`,
         );
       }
@@ -996,7 +992,7 @@ export function GeneralApplyPage() {
             .join(" ");
           parts.push(`Delivery skipped: ${skippedCount}.${skippedReasonText ? ` ${skippedReasonText}` : ""}`);
         }
-        setActionSuccess(parts.join(" "));
+        pushToast("success", parts.join(" "));
       }
 
       if (failed.length || deliveryFailedCount > 0) {
@@ -1012,7 +1008,7 @@ export function GeneralApplyPage() {
             `${deliveryFailedCount} credential message${deliveryFailedCount === 1 ? "" : "s"} failed.${friendlyFailure ? ` ${friendlyFailure}` : ""}`,
           );
         }
-        setActionError(messages.join(" "));
+        pushToast("error", messages.join(" "));
       }
     });
   };
@@ -1033,7 +1029,7 @@ export function GeneralApplyPage() {
     if (!selectedApplicationId || !detailData) return;
     const nextMessage = detailReviewMessageDraft.trim();
     if (!nextMessage) {
-      setActionError("Review message cannot be empty.");
+      pushToast("error", "Review message cannot be empty.");
       return;
     }
     const currentMessage = String(detailData.program_application?.review_message ?? "").trim();
@@ -1041,7 +1037,6 @@ export function GeneralApplyPage() {
 
     const stage = toStage(String(detailData.program_application?.stage ?? "applied"));
     setSavingReviewMessage(true);
-    setActionError("");
     try {
       await updateProgramApplicationStage(selectedApplicationId, {
         stage,
@@ -1050,9 +1045,9 @@ export function GeneralApplyPage() {
       await loadApplications();
       await loadStatusCounts();
       await loadDetail(selectedApplicationId);
-      setActionSuccess("Review message saved.");
+      pushToast("success", "Review message saved.");
     } catch (error) {
-      setActionError(error instanceof ApiError ? error.message : "Failed to save review message.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to save review message.");
     } finally {
       setSavingReviewMessage(false);
     }
@@ -1074,7 +1069,6 @@ export function GeneralApplyPage() {
       location_type: "online",
       location_details: "",
     });
-    setScheduleError("");
     setScheduleModalOpen(true);
   };
 
@@ -1083,7 +1077,6 @@ export function GeneralApplyPage() {
     setScheduleModalOpen(false);
     setScheduleTargetId(null);
     setScheduleTargetName("");
-    setScheduleError("");
   };
 
   const handleStageChangeRequest = async (
@@ -1128,7 +1121,8 @@ export function GeneralApplyPage() {
       });
     });
     if (succeeded && target) {
-      setActionSuccess(
+      pushToast(
+        "success",
         `${target.full_name?.trim() || target.email?.trim() || "Applicant"} moved to ${workflowStatusLabel(nextStage, {
           confirmedLabel: "Confirmed",
         })}.`,
@@ -1149,7 +1143,6 @@ export function GeneralApplyPage() {
     const hasPhone = Boolean(target?.phone?.trim());
 
     setScheduleBusy(true);
-    setScheduleError("");
     try {
       await scheduleProgramApplicationInterview(scheduleTargetId, {
         scheduled_at: toIsoDateTime(input.scheduled_at),
@@ -1159,8 +1152,7 @@ export function GeneralApplyPage() {
         channels: hasEmail || hasPhone ? { email: hasEmail, sms: hasPhone } : undefined,
       });
       const targetName = target?.full_name?.trim() || target?.email?.trim() || scheduleTargetName || "Applicant";
-      setActionSuccess(buildInterviewScheduleFeedback(targetName, hasEmail, hasPhone));
-      setActionError("");
+      pushToast("success", buildInterviewScheduleFeedback(targetName, hasEmail, hasPhone));
 
       setApplicants((current) =>
         current.map((entry) =>
@@ -1175,9 +1167,7 @@ export function GeneralApplyPage() {
       }
       closeScheduleModal(true);
     } catch (error) {
-      setScheduleError(
-        error instanceof ApiError ? error.message : "Failed to schedule interview.",
-      );
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to schedule interview.");
     } finally {
       setScheduleBusy(false);
     }
@@ -1206,7 +1196,6 @@ export function GeneralApplyPage() {
   };
 
   const openMessageComposer = (target?: { id?: number }) => {
-    setActionSuccess("");
     const preselectedId = target?.id ?? null;
     setComposerPreselectedId(preselectedId);
     setComposerSingleId(preselectedId);
@@ -1221,7 +1210,6 @@ export function GeneralApplyPage() {
     setComposerSubject("");
     setComposerBody("");
     setComposerShowTemplates(false);
-    setComposerError("");
     setComposerOpen(true);
   };
 
@@ -1230,7 +1218,6 @@ export function GeneralApplyPage() {
     setComposerPreselectedId(null);
     setComposerSingleId(null);
     setComposerShowTemplates(false);
-    setComposerError("");
   };
 
   const closeApplicationModal = () => {
@@ -1238,8 +1225,6 @@ export function GeneralApplyPage() {
     setDetailData(null);
     setDetailReviewMessageDraft("");
     setSavingReviewMessage(false);
-    setDetailError("");
-    setActionError("");
   };
 
   useEffect(() => {
@@ -1273,15 +1258,15 @@ export function GeneralApplyPage() {
 
   const sendComposerMessage = async () => {
     if (!composerRecipients.length) {
-      setComposerError("No recipients selected.");
+      pushToast("error", "No recipients selected.");
       return;
     }
     if (composerChannel === "email" && !composerSubject.trim()) {
-      setComposerError("Subject is required for email.");
+      pushToast("error", "Subject is required for email.");
       return;
     }
     if (!composerBody.trim()) {
-      setComposerError("Message body is required.");
+      pushToast("error", "Message body is required.");
       return;
     }
 
@@ -1293,13 +1278,16 @@ export function GeneralApplyPage() {
       .filter((recipient) => recipient.to.trim().length > 0);
 
     if (!recipientsToSend.length) {
-      setComposerError(composerChannel === "email" ? "Selected recipients do not have email addresses." : "Selected recipients do not have phone numbers.");
+      pushToast(
+        "error",
+        composerChannel === "email"
+          ? "Selected recipients do not have email addresses."
+          : "Selected recipients do not have phone numbers.",
+      );
       return;
     }
 
     setComposerBusy(true);
-    setComposerError("");
-    setActionSuccess("");
     try {
       await Promise.all(
         recipientsToSend.map(async (recipient) => {
@@ -1313,11 +1301,12 @@ export function GeneralApplyPage() {
         }),
       );
       closeComposer();
-      setActionSuccess(
+      pushToast(
+        "success",
         `Message sent to ${recipientsToSend.length} recipient${recipientsToSend.length === 1 ? "" : "s"}.`,
       );
     } catch (error) {
-      setComposerError(error instanceof ApiError ? error.message : "Failed to send message.");
+      pushToast("error", error instanceof ApiError ? error.message : "Failed to send message.");
     } finally {
       setComposerBusy(false);
     }
@@ -1425,7 +1414,7 @@ export function GeneralApplyPage() {
                     void (async () => {
                       if (!bulkStatus) return;
                       if (bulkStatus === "invited_to_interview") {
-                        setActionError("Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
+                        pushToast("error", "Bulk update to 'Invited to Interview' requires scheduling each interview individually.");
                         return;
                       }
 
@@ -1468,7 +1457,8 @@ export function GeneralApplyPage() {
                           setSelectedIds(new Set());
                         });
                         if (succeeded) {
-                          setActionSuccess(
+                          pushToast(
+                            "success",
                             `${selectedIds.size} applicant${selectedIds.size === 1 ? "" : "s"} moved to ${workflowStatusLabel(
                               bulkStatus as ProgramApplicationStage,
                               { confirmedLabel: "Confirmed" },
@@ -1514,8 +1504,6 @@ export function GeneralApplyPage() {
             </section>
           ) : null}
 
-          {actionSuccess ? <p className="popapply-success">{actionSuccess}</p> : null}
-
           <div className="popapply-table-wrap">
             <table className="popapply-table">
               <thead>
@@ -1530,7 +1518,11 @@ export function GeneralApplyPage() {
               </thead>
               <tbody>
                 {loadingApplications ? (
-                  <tr><td colSpan={6} className="popapply-empty">Loading...</td></tr>
+                  <tr>
+                    <td colSpan={6} className="popapply-empty">
+                      <PulseDots layout="inline" label="Loading" />
+                    </td>
+                  </tr>
                 ) : applicants.length ? (
                   applicants.map((applicant) => {
                     const stage = toStage(applicant.stage);
@@ -1575,7 +1567,7 @@ export function GeneralApplyPage() {
                     );
                   })
                 ) : (
-                  <tr><td colSpan={6} className="popapply-empty">{applicationsError || "No applications found."}</td></tr>
+                  <tr><td colSpan={6} className="popapply-empty">No applications found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1616,11 +1608,7 @@ export function GeneralApplyPage() {
                 </div>
 
                 <div className="popapply-modal-body">
-                  {loadingDetail ? <p className="popapply-info">Loading application details...</p> : null}
-                  {detailError ? <p className="popapply-error">{detailError}</p> : null}
-                  {actionError ? <p className="popapply-error">{actionError}</p> : null}
-                  {actionSuccess ? <p className="popapply-success">{actionSuccess}</p> : null}
-
+                  {loadingDetail ? <PulseDots layout="inline" label="Loading details" /> : null}
                   {detailData ? (
                     <>
                       {submissionEntries.length ? (
@@ -1741,13 +1729,15 @@ export function GeneralApplyPage() {
             onSubmit={(channels) => {
               void submitCreateUserModal(channels);
             }}
+            onInvalidSubmit={() => {
+              pushToast("error", "Select at least one delivery channel.");
+            }}
           />
 
           {scheduleModalOpen ? (
             <InterviewSchedulerModal
               applicantName={scheduleTargetName || "Applicant"}
               busy={scheduleBusy}
-              error={scheduleError}
               initial={scheduleInitial}
               onClose={() => closeScheduleModal()}
               onSubmit={(input) => void submitScheduleModal(input)}
@@ -1769,7 +1759,6 @@ export function GeneralApplyPage() {
                   </div>
                 </header>
                 <div className="admx-modal__body">
-                  {composerError ? <p className="admx-inline-error">{composerError}</p> : null}
                   <label className="admx-label">Send To</label>
                   <div className="admx-chip-row">
                     <button className={composerGroup === "individual" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setComposerGroup("individual")}>Individual</button>
@@ -1854,7 +1843,7 @@ export function GeneralApplyPage() {
             onConfirm={() => closeConfirmation(true)}
             onClose={() => closeConfirmation(false)}
           />
-
+          <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       </section>
     </div>
   );

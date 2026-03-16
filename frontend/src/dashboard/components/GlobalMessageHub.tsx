@@ -2,7 +2,7 @@
 // Purpose: Renders the dashboard global message hub component.
 // It packages reusable admin UI and behavior for dashboard pages.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createApplicationMessage,
   createProgramApplicationMessage,
@@ -19,8 +19,10 @@ import {
   FALLBACK_MESSAGE_TEMPLATES,
   filterTemplatesForChannel,
 } from "../lib/messageTemplates";
-import { ToastStack, type ToastItem } from "./ToastStack";
+import { PulseDots } from "./PulseDots";
+import { ToastStack } from "./ToastStack";
 import { useGlobalMessagingContext } from "./GlobalMessagingContext";
+import { useDashboardToasts } from "../hooks/useDashboardToasts";
 import { ApiError } from "../utils/api";
 
 type RecipientGroup = "individual" | "selected" | "all" | `status:${string}`;
@@ -65,7 +67,6 @@ export function GlobalMessageHub() {
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState<MessagingUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [usersError, setUsersError] = useState("");
   const [search, setSearch] = useState("");
 
   const [group, setGroup] = useState<RecipientGroup>("individual");
@@ -76,12 +77,9 @@ export function GlobalMessageHub() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
-  const [sendError, setSendError] = useState("");
   const [sending, setSending] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
-  const toastTimersRef = useRef<Record<number, number>>({});
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   const hasApplicantContext = Boolean(pageData?.recipients.length);
   const pageRecipients = useMemo<ComposerRecipient[]>(
@@ -157,7 +155,6 @@ export function GlobalMessageHub() {
     let active = true;
     const timer = window.setTimeout(async () => {
       setLoadingUsers(true);
-      setUsersError("");
       try {
         const result = await listMessagingUsers({
           page: 1,
@@ -172,9 +169,9 @@ export function GlobalMessageHub() {
         if (!active) return;
         setUsers([]);
         if (error instanceof ApiError && error.status === 404) {
-          setUsersError("Messaging users endpoint is not loaded. Restart the backend server and try again.");
+          pushToast("error", "Messaging users endpoint is not loaded. Restart the backend server and try again.");
         } else {
-          setUsersError(error instanceof ApiError ? error.message : "Failed to load users.");
+          pushToast("error", error instanceof ApiError ? error.message : "Failed to load users.");
         }
       } finally {
         if (active) setLoadingUsers(false);
@@ -235,38 +232,8 @@ export function GlobalMessageHub() {
 
   const canSend = recipients.length > 0 && body.trim().length > 0 && (channel === "sms" || subject.trim().length > 0);
 
-  const pushToast = (tone: ToastItem["tone"], message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    const timeoutId = window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-      delete toastTimersRef.current[id];
-    }, 5000);
-    toastTimersRef.current[id] = timeoutId;
-  };
-
-  const dismissToast = (id: number) => {
-    const timeoutId = toastTimersRef.current[id];
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      delete toastTimersRef.current[id];
-    }
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
-
-  useEffect(() => {
-    return () => {
-      Object.values(toastTimersRef.current).forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-      toastTimersRef.current = {};
-    };
-  }, []);
-
   const openComposer = () => {
     setOpen(true);
-    setSendError("");
-    setUsersError("");
     setShowTemplates(false);
     setSearch("");
   };
@@ -274,8 +241,6 @@ export function GlobalMessageHub() {
   const closeComposer = () => {
     setOpen(false);
     setSearch("");
-    setSendError("");
-    setUsersError("");
     setShowTemplates(false);
     setSending(false);
   };
@@ -305,7 +270,6 @@ export function GlobalMessageHub() {
   };
 
   const sendMessage = async () => {
-    setSendError("");
     if (!canSend || sending) return;
 
     const recipientsToSend = recipients
@@ -316,7 +280,12 @@ export function GlobalMessageHub() {
       .filter((entry) => entry.to.length > 0);
 
     if (!recipientsToSend.length) {
-      setSendError(channel === "email" ? "Selected recipients do not have email addresses." : "Selected recipients do not have phone numbers.");
+      pushToast(
+        "error",
+        channel === "email"
+          ? "Selected recipients do not have email addresses."
+          : "Selected recipients do not have phone numbers.",
+      );
       return;
     }
 
@@ -327,7 +296,7 @@ export function GlobalMessageHub() {
           .map((entry) => Number(entry.id))
           .filter((value) => Number.isInteger(value) && value > 0);
         if (!numericUserIds.length) {
-          setSendError("No valid users selected.");
+          pushToast("error", "No valid users selected.");
           return;
         }
 
@@ -384,7 +353,6 @@ export function GlobalMessageHub() {
               : String(firstError.reason ?? "Unknown error")
             : "Unknown error";
         const message = `${failed.length} of ${recipientsToSend.length} messages failed. ${reason}`;
-        setSendError(message);
         pushToast("error", message);
         return;
       }
@@ -393,7 +361,6 @@ export function GlobalMessageHub() {
       closeComposer();
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Failed to send message.";
-      setSendError(message);
       pushToast("error", message);
     } finally {
       setSending(false);
@@ -422,9 +389,6 @@ export function GlobalMessageHub() {
             </header>
 
             <div className="admx-modal__body">
-              {usersError ? <p className="admx-inline-error">{usersError}</p> : null}
-              {sendError ? <p className="admx-inline-error">{sendError}</p> : null}
-
               <label className="admx-label">Send To</label>
               <div className="admx-chip-row">
                 <button className={group === "individual" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("individual")}>Individual</button>
@@ -461,7 +425,7 @@ export function GlobalMessageHub() {
 
               {group === "selected" && !hasApplicantContext ? (
                 <div className="admx-recipient-list">
-                  {loadingUsers ? <span className="admx-recipient-pill">Loading...</span> : null}
+                  {loadingUsers ? <PulseDots layout="inline" label="Loading" /> : null}
                   {!loadingUsers && searchedRecipients.length === 0 ? <span className="admx-recipient-pill">No users found</span> : null}
                   {searchedRecipients.map((entry) => (
                     <button key={entry.id} className={manualSelectedIds.has(entry.id) ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => toggleManualSelected(entry.id)}>
@@ -502,7 +466,7 @@ export function GlobalMessageHub() {
           </div>
         </div>
       ) : null}
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </>
   );
 }

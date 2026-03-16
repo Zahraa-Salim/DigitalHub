@@ -174,6 +174,13 @@ if (fs.existsSync(frontendIndexFile)) {
             "/logs",
             "/projects",
             "/uploads",
+            "/events",
+            "/contact",
+            "/cohorts",
+            "/subscribe",
+            "/unsubscribe",
+            "/whatsapp",
+            "/overview",
         ];
         const isApiOnlyPath = apiOnlyPrefixes.some((prefix) => pathName === prefix || pathName.startsWith(`${prefix}/`));
         if (isApiOnlyPath) {
@@ -200,7 +207,6 @@ app.use("/api/whatsapp", whatsappRouter);
 app.use("/api", subscribersRouter);
 app.use("/cms", cmsRouter);
 app.use(programsRouter);
-app.use(subscribersRouter);
 app.use("/profiles", profilesRouter);
 app.use("/applications", applicationsRouter);
 app.use("/program-applications", programApplicationsRouter);
@@ -475,7 +481,7 @@ async function ensureSoftDeleteColumns() {
 }
 
 // Handles 'ensureSubscribersTable' workflow for this module.
-async function ensureSubscribersTable(client: DbClient) {
+async function ensureSubscribersTable(client: typeof pool | DbClient) {
     await client.query(`
       CREATE TABLE IF NOT EXISTS subscribers (
         id             SERIAL PRIMARY KEY,

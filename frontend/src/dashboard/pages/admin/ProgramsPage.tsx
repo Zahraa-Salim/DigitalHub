@@ -7,6 +7,7 @@ import { Card } from "../../components/Card";
 import type { ChangeEvent } from "react";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
+import { PulseDots } from "../../components/PulseDots";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
 import { ToastStack } from "../../components/ToastStack";
@@ -153,7 +154,7 @@ function toFormState(program: ProgramRow | null): ProgramFormState {
 }
 
 export function ProgramsPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [programs, setPrograms] = useState<ProgramRow[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -548,7 +549,7 @@ export function ProgramsPage() {
     <PageShell title="Programs" subtitle="Manage program templates used by cohorts."
       actions={<button className="btn btn--primary dh-btn dh-btn--add" type="button" onClick={openCreate}>Add Program</button>}>
       <div className="dh-page">
-        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
         <div className="stats-grid stats-grid--compact dh-stats dh-programs-top-grid">
           <StatsCard label="Total Programs" value={String(totalPrograms)} hint="Templates in database" />
           <StatsCard label="Last Updated" value={lastUpdated ? formatDateTime(lastUpdated) : "No records"} hint="Most recently changed" />
@@ -592,13 +593,7 @@ export function ProgramsPage() {
         <BulkActionsToolbar selectedCount={selectedPrograms.size} onDelete={handleBulkDelete} onExport={() => handleBulkExport('csv')} onDeselectAll={() => setSelectedPrograms(new Set())} isLoading={isProcessingBulk} />
 
         {loading ? (
-          <Card className="card--table desktop-only dh-table-wrap">
-            <div className="program-skeleton-table" aria-hidden>
-              <div className="program-skeleton-line program-skeleton-line--lg" />
-              <div className="program-skeleton-line" />
-              <div className="program-skeleton-line program-skeleton-line--sm" />
-            </div>
-          </Card>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         ) : (
           <Card className="card--table desktop-only dh-table-wrap">
             <Table<ProgramRow> rows={rows} rowKey={(row) => row.id} emptyMessage="No programs found."

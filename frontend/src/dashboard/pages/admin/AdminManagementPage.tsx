@@ -2,15 +2,17 @@
 // Purpose: Renders the admin admin management page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { StatsCard } from "../../components/StatsCard";
 import { Table } from "../../components/Table";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -92,7 +94,6 @@ export function AdminManagementPage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [showCreate, setShowCreate] = useState(false);
@@ -106,20 +107,7 @@ export function AdminManagementPage() {
   const [activationNext, setActivationNext] = useState<boolean | null>(null);
   const [isUpdatingActivation, setIsUpdatingActivation] = useState(false);
 
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(1);
-
-  const pushToast = useCallback((tone: "success" | "error", message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 5000);
-  }, []);
-
-  const dismissToast = (id: number) => {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -136,7 +124,6 @@ export function AdminManagementPage() {
     let active = true;
     const load = async () => {
       setLoading(true);
-      setError("");
       try {
         const result = await apiList<AdminRow>(
           `/admins${buildQueryString({
@@ -161,7 +148,6 @@ export function AdminManagementPage() {
           return;
         }
         const message = err instanceof ApiError ? err.message : "Failed to load admins.";
-        setError(message);
         pushToast("error", message);
       } finally {
         if (active) {
@@ -318,15 +304,9 @@ export function AdminManagementPage() {
           ]}
         />
 
-        {error ? (
-          <Card>
-            <p className="alert alert--error">{error}</p>
-          </Card>
-        ) : null}
-
         {loading ? (
           <Card>
-            <div className="spinner">Loading admins...</div>
+            <PulseDots padding={32} label="Loading" />
           </Card>
         ) : (
           <>
@@ -583,7 +563,7 @@ export function AdminManagementPage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

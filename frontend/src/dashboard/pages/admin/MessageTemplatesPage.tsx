@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
+import { PulseDots } from "../../components/PulseDots";
 import { ToastStack } from "../../components/ToastStack";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import {
@@ -149,7 +150,7 @@ function insertToken(value: string, token: string, start: number, end: number): 
 }
 
 export function MessageTemplatesPage() {
-  const { toasts, pushToast, dismissToast } = useDashboardToasts();
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const navigate = useNavigate();
   const activeBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const createBodyRef = useRef<HTMLTextAreaElement | null>(null);
@@ -424,8 +425,8 @@ export function MessageTemplatesPage() {
         </div>
       }
     >
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      {loading ? <Card><p className="info-text">Loading templates...</p></Card> : null}
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
+      {loading ? <Card><PulseDots padding={24} label="Loading templates" /></Card> : null}
       {showStaticLinks ? (
         <Card className="mtpl-links-card">
           <div className="mtpl-panel-head">

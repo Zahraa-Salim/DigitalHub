@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "rea
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
 import { PageShell } from "../../components/PageShell";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { PulseDots } from "../../components/PulseDots";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api } from "../../utils/api";
 import { setUser } from "../../utils/auth";
 
@@ -209,27 +211,9 @@ export function MyProfilePage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isSavingVisibility, setIsSavingVisibility] = useState(false);
-  const [pageError, setPageError] = useState("");
-  const [editError, setEditError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [visibilityError, setVisibilityError] = useState("");
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [editModalAvatarLoadFailed, setEditModalAvatarLoadFailed] = useState(false);
-  const [toastId, setToastId] = useState(1);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  const pushToast = (tone: "success" | "error", message: string) => {
-    const id = toastId;
-    setToastId((current) => current + 1);
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 5000);
-  };
-
-  const dismissToast = (id: number) => {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   const updateMyProfile = async (payload: Record<string, unknown>): Promise<AdminProfile> => {
     try {
@@ -264,7 +248,6 @@ export function MyProfilePage() {
 
     const loadProfile = async () => {
       setLoading(true);
-      setPageError("");
       try {
         if (!active) {
           return;
@@ -276,9 +259,9 @@ export function MyProfilePage() {
         }
         setProfile(null);
         if (err instanceof ApiError) {
-          setPageError(err.message || "Failed to load profile from database.");
+          pushToast("error", err.message || "Failed to load profile from database.");
         } else {
-          setPageError("Failed to load profile from database.");
+          pushToast("error", "Failed to load profile from database.");
         }
       } finally {
         if (active) {
@@ -308,23 +291,22 @@ export function MyProfilePage() {
     };
 
     if (!String(payload.full_name || "").trim()) {
-      setEditError("Full name is required.");
+      pushToast("error", "Full name is required.");
       return;
     }
     if (!String(payload.email || "").trim()) {
-      setEditError("Email is required.");
+      pushToast("error", "Email is required.");
       return;
     }
 
     setIsSaving(true);
-    setEditError("");
 
     try {
       const avatarInput = String(payload.avatar_url || "");
       if (avatarInput.startsWith("data:image/")) {
         const parsed = parseImageDataUrl(avatarInput);
         if (!parsed) {
-          setEditError("Invalid avatar image data. Please re-select the image.");
+          pushToast("error", "Invalid avatar image data. Please re-select the image.");
           setIsSaving(false);
           return;
         }
@@ -356,11 +338,11 @@ export function MyProfilePage() {
       pushToast("success", "Profile updated successfully.");
     } catch (err) {
       if (err instanceof ApiError) {
-        setEditError(err.message || "Failed to update profile.");
+        pushToast("error", err.message || "Failed to update profile.");
       } else if (err instanceof Error && err.message) {
-        setEditError(err.message);
+        pushToast("error", err.message);
       } else {
-        setEditError("Failed to update profile.");
+        pushToast("error", "Failed to update profile.");
       }
     } finally {
       setIsSaving(false);
@@ -376,12 +358,11 @@ export function MyProfilePage() {
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      setEditError("Only JPG, PNG, and WEBP files are allowed.");
+      pushToast("error", "Only JPG, PNG, and WEBP files are allowed.");
       return;
     }
 
     setIsUploadingAvatar(true);
-    setEditError("");
 
     try {
       file = await shrinkImageToLimit(file, 2 * 1024 * 1024);
@@ -391,11 +372,11 @@ export function MyProfilePage() {
       pushToast("success", "Avatar ready. Save profile to apply.");
     } catch (err) {
       if (err instanceof ApiError) {
-        setEditError(err.message || "Failed to upload avatar.");
+        pushToast("error", err.message || "Failed to upload avatar.");
       } else if (err instanceof Error && err.message) {
-        setEditError(err.message);
+        pushToast("error", err.message);
       } else {
-        setEditError("Failed to upload avatar.");
+        pushToast("error", "Failed to upload avatar.");
       }
     } finally {
       setIsUploadingAvatar(false);
@@ -403,13 +384,12 @@ export function MyProfilePage() {
   };
 
   const openEditProfile = () => {
-    setEditError("");
     setIsEditProfileOpen(true);
     void (async () => {
       try {
         await loadMyProfile();
       } catch {
-        setEditError("Failed to load latest profile data.");
+        pushToast("error", "Failed to load latest profile data.");
       }
     })();
   };
@@ -419,11 +399,9 @@ export function MyProfilePage() {
       return;
     }
     setIsEditProfileOpen(false);
-    setEditError("");
   };
 
   const openPasswordModal = () => {
-    setPasswordError("");
     setPasswordForm(initialPasswordForm);
     setIsPasswordModalOpen(true);
   };
@@ -433,26 +411,24 @@ export function MyProfilePage() {
       return;
     }
     setIsPasswordModalOpen(false);
-    setPasswordError("");
     setPasswordForm(initialPasswordForm);
   };
 
   const savePassword = async () => {
     if (!passwordForm.current_password.trim() || !passwordForm.new_password.trim() || !passwordForm.confirm_password.trim()) {
-      setPasswordError("All password fields are required.");
+      pushToast("error", "All password fields are required.");
       return;
     }
     if (passwordForm.new_password.length < 8) {
-      setPasswordError("New password must be at least 8 characters.");
+      pushToast("error", "New password must be at least 8 characters.");
       return;
     }
     if (passwordForm.new_password !== passwordForm.confirm_password) {
-      setPasswordError("New password and confirmation do not match.");
+      pushToast("error", "New password and confirmation do not match.");
       return;
     }
 
     setIsSavingPassword(true);
-    setPasswordError("");
     try {
       await updateMyProfile({
         current_password: passwordForm.current_password,
@@ -462,9 +438,9 @@ export function MyProfilePage() {
       pushToast("success", "Password changed successfully.");
     } catch (err) {
       if (err instanceof ApiError) {
-        setPasswordError(err.message || "Failed to change password.");
+        pushToast("error", err.message || "Failed to change password.");
       } else {
-        setPasswordError("Failed to change password.");
+        pushToast("error", "Failed to change password.");
       }
     } finally {
       setIsSavingPassword(false);
@@ -472,7 +448,6 @@ export function MyProfilePage() {
   };
 
   const openVisibilityModal = () => {
-    setVisibilityError("");
     setIsVisibilityModalOpen(true);
   };
 
@@ -481,7 +456,6 @@ export function MyProfilePage() {
       return;
     }
     setIsVisibilityModalOpen(false);
-    setVisibilityError("");
   };
 
   const toggleVisibility = async () => {
@@ -490,7 +464,6 @@ export function MyProfilePage() {
     }
 
     setIsSavingVisibility(true);
-    setVisibilityError("");
     try {
       const updated = await updateMyProfile({
         is_public: !profile.is_public,
@@ -506,9 +479,9 @@ export function MyProfilePage() {
       );
     } catch (err) {
       if (err instanceof ApiError) {
-        setVisibilityError(err.message || "Failed to update profile visibility.");
+        pushToast("error", err.message || "Failed to update profile visibility.");
       } else {
-        setVisibilityError("Failed to update profile visibility.");
+        pushToast("error", "Failed to update profile visibility.");
       }
     } finally {
       setIsSavingVisibility(false);
@@ -534,8 +507,7 @@ export function MyProfilePage() {
   return (
     <PageShell title="My Profile" subtitle="Your profile data from admin_profiles.">
       <Card>
-        {loading ? <p className="info-text">Loading profile...</p> : null}
-        {pageError ? <p className="alert alert--error">{pageError}</p> : null}
+        {loading ? <PulseDots padding={24} label="Loading profile" /> : null}
 
         <div className="profile-main profile-main--between">
           {avatarSrc && !avatarLoadFailed ? (
@@ -759,8 +731,6 @@ export function MyProfilePage() {
               </section>
             </div>
 
-            {editError ? <p className="alert alert--error">{editError}</p> : null}
-
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={closeEditProfile} disabled={isSaving || isUploadingAvatar}>
                 Cancel
@@ -811,7 +781,6 @@ export function MyProfilePage() {
                 />
               </label>
             </div>
-            {passwordError ? <p className="alert alert--error">{passwordError}</p> : null}
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={closePasswordModal} disabled={isSavingPassword}>
                 Cancel
@@ -841,7 +810,6 @@ export function MyProfilePage() {
                 New: <strong>{profile?.is_public ? "Private" : "Public"}</strong>
               </p>
             </div>
-            {visibilityError ? <p className="alert alert--error">{visibilityError}</p> : null}
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={closeVisibilityModal} disabled={isSavingVisibility}>
                 Cancel
@@ -854,7 +822,7 @@ export function MyProfilePage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }

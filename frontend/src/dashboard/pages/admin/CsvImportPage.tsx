@@ -480,7 +480,7 @@ function ExportPanel() {
           </section>
         ) : null}
 
-        {selectedSource?.key === "attendance" && exportStep >= 2 ? (
+        {selectedSource?.key === "attendance" && exportStep === 2 ? (
           <AttendanceExportPanel
             exportStep={exportStep}
             onBackToSource={() => {

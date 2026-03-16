@@ -9,8 +9,10 @@ import { Card } from "../../components/Card";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { Pagination } from "../../components/Pagination";
+import { PulseDots } from "../../components/PulseDots";
 import { Table } from "../../components/Table";
-import { ToastStack, type ToastItem } from "../../components/ToastStack";
+import { ToastStack } from "../../components/ToastStack";
+import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
@@ -48,8 +50,6 @@ type FormState = {
 };
 
 type FormMode = "create" | "edit" | null;
-
-type ToastTone = "success" | "error";
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
 const initialForm: FormState = {
@@ -105,55 +105,23 @@ export function AnnouncementsPage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<AnnouncementRow | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editing, setEditing] = useState<AnnouncementRow | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
-  const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AnnouncementRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [broadcastTarget, setBroadcastTarget] = useState<AnnouncementRow | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastSentIds, setBroadcastSentIds] = useState<Set<number>>(new Set());
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
-  const toastIdRef = useRef(1);
-  const toastTimersRef = useRef<Record<number, number>>({});
   const filterDragStartYRef = useRef<number | null>(null);
   const filterOffsetRef = useRef(0);
-
-  const showToast = (tone: ToastTone, message: string) => {
-    const id = toastIdRef.current++;
-    setToasts((current) => [...current, { id, tone, message }]);
-    const timeoutId = window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-      delete toastTimersRef.current[id];
-    }, 5000);
-    toastTimersRef.current[id] = timeoutId;
-  };
-
-  const dismissToast = (id: number) => {
-    const timeoutId = toastTimersRef.current[id];
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      delete toastTimersRef.current[id];
-    }
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
-
-  useEffect(() => {
-    const timers = toastTimersRef.current;
-    return () => {
-      Object.values(timers).forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-    };
-  }, []);
+  const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -182,7 +150,7 @@ export function AnnouncementsPage() {
       } catch (err) {
         if (!active) return;
         const message = err instanceof ApiError ? err.message || "Failed to load reference data." : "Failed to load reference data.";
-        showToast("error", message);
+        pushToast("error", message);
       }
     };
     void loadReferenceData();
@@ -195,7 +163,6 @@ export function AnnouncementsPage() {
     let active = true;
     const loadAnnouncements = async () => {
       setLoading(true);
-      setError("");
       try {
         const status = publishedFilter === "all" ? undefined : publishedFilter === "true" ? "published" : "draft";
         const result = await apiList<AnnouncementRow>(
@@ -207,8 +174,7 @@ export function AnnouncementsPage() {
       } catch (err) {
         if (!active) return;
         const message = err instanceof ApiError ? err.message || "Failed to load announcements." : "Failed to load announcements.";
-        setError(message);
-        showToast("error", message);
+        pushToast("error", message);
       } finally {
         if (active) setLoading(false);
       }
@@ -247,23 +213,18 @@ export function AnnouncementsPage() {
     setFormMode("create");
     setEditing(null);
     setForm(initialForm);
-    setFormError("");
-    setError("");
   };
 
   const openEdit = (item: AnnouncementRow) => {
     setFormMode("edit");
     setEditing(item);
     setForm(toFormState(item));
-    setFormError("");
-    setError("");
   };
 
   const closeForm = () => {
     if (isSubmitting) return;
     setFormMode(null);
     setEditing(null);
-    setFormError("");
   };
 
   const saveAnnouncement = async () => {
@@ -272,22 +233,22 @@ export function AnnouncementsPage() {
     const ctaLabel = form.ctaLabel.trim();
     const ctaUrl = form.ctaUrl.trim();
     if (!title) {
-      setFormError("Title is required.");
+      pushToast("error", "Title is required.");
       return;
     }
     if (!body) {
-      setFormError("Body is required.");
+      pushToast("error", "Body is required.");
       return;
     }
 
     const publishAt = toIsoDateTime(form.publishAt);
     if (form.publishAt && !publishAt) {
-      setFormError("Publish at must be a valid datetime.");
+      pushToast("error", "Publish at must be a valid datetime.");
       return;
     }
 
     if (form.cohortId !== "none" && form.eventId !== "none") {
-      setFormError("Link either a cohort or an event, not both.");
+      pushToast("error", "Link either a cohort or an event, not both.");
       return;
     }
 
@@ -299,11 +260,11 @@ export function AnnouncementsPage() {
         /^mailto:/i.test(ctaUrl) ||
         /^tel:/i.test(ctaUrl);
       if (!isSupportedLink) {
-        setFormError("CTA link must be an absolute URL, site path, anchor, mailto, or tel link.");
+        pushToast("error", "CTA link must be an absolute URL, site path, anchor, mailto, or tel link.");
         return;
       }
     } else if (ctaLabel) {
-      setFormError("CTA link is required when CTA label is provided.");
+      pushToast("error", "CTA link is required when CTA label is provided.");
       return;
     }
 
@@ -321,19 +282,17 @@ export function AnnouncementsPage() {
     };
 
     setIsSubmitting(true);
-    setFormError("");
-    setError("");
 
     try {
       if (formMode === "create") {
         await api<AnnouncementRow>("/announcements", { method: "POST", body: JSON.stringify(payload) });
-        showToast("success", "Announcement created successfully.");
+        pushToast("success", "Announcement created successfully.");
       } else if (formMode === "edit" && editing) {
         await api<AnnouncementRow>(`/announcements/${editing.id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        showToast("success", "Announcement updated successfully.");
+        pushToast("success", "Announcement updated successfully.");
       }
 
       setFormMode(null);
@@ -341,15 +300,13 @@ export function AnnouncementsPage() {
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to save announcement." : "Failed to save announcement.";
-      setFormError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const togglePublished = async (item: AnnouncementRow) => {
-    setError("");
     try {
       const updated = await api<AnnouncementRow>(`/announcements/${item.id}`, {
         method: "PATCH",
@@ -359,11 +316,10 @@ export function AnnouncementsPage() {
       });
       setSelected((current) => (current?.id === item.id ? updated : current));
       setRefreshKey((current) => current + 1);
-      showToast("success", updated.is_published ? "Announcement published successfully." : "Announcement unpublished successfully.");
+      pushToast("success", updated.is_published ? "Announcement published successfully." : "Announcement unpublished successfully.");
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to update publish status." : "Failed to update publish status.";
-      setError(message);
-      showToast("error", message);
+      pushToast("error", message);
     }
   };
 
@@ -371,18 +327,16 @@ export function AnnouncementsPage() {
     if (!deleteTarget) return;
 
     setIsDeleting(true);
-    setError("");
 
     try {
       await api<{ id: number }>(`/announcements/${deleteTarget.id}`, { method: "DELETE" });
-      showToast("success", "Announcement deleted successfully.");
+      pushToast("success", "Announcement deleted successfully.");
       setDeleteTarget(null);
       setSelected(null);
       setRefreshKey((current) => current + 1);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to delete announcement." : "Failed to delete announcement.";
-      setError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsDeleting(false);
     }
@@ -397,7 +351,6 @@ export function AnnouncementsPage() {
     if (!broadcastTarget) return;
 
     setIsBroadcasting(true);
-    setError("");
 
     try {
       await api<{
@@ -421,12 +374,11 @@ export function AnnouncementsPage() {
         next.add(broadcastTarget.id);
         return next;
       });
-      showToast("success", "Broadcast sent successfully.");
+      pushToast("success", "Broadcast sent successfully.");
       setBroadcastTarget(null);
     } catch (err) {
       const message = err instanceof ApiError ? err.message || "Failed to send broadcast." : "Failed to send broadcast.";
-      setError(message);
-      showToast("error", message);
+      pushToast("error", message);
     } finally {
       setIsBroadcasting(false);
     }
@@ -581,12 +533,6 @@ export function AnnouncementsPage() {
           </div>
         </div>
 
-        {error ? (
-          <Card>
-            <p className="alert alert--error dh-alert">{error}</p>
-          </Card>
-        ) : null}
-
         {!loading ? (
           <Card className="card--table desktop-only dh-table-wrap">
             <Table<AnnouncementRow>
@@ -637,14 +583,7 @@ export function AnnouncementsPage() {
             />
           </Card>
         ) : (
-          <Card className="card--table desktop-only dh-table-wrap">
-            <div className="program-skeleton-table" aria-hidden>
-              <div className="program-skeleton-line program-skeleton-line--lg" />
-              <div className="program-skeleton-line" />
-              <div className="program-skeleton-line program-skeleton-line--sm" />
-              <div className="program-skeleton-line" />
-            </div>
-          </Card>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         )}
 
         {!loading ? (
@@ -678,16 +617,7 @@ export function AnnouncementsPage() {
             )}
           </div>
         ) : (
-          <div className="mobile-only programs-mobile-list">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <Card key={index}>
-                <div className="program-skeleton-card" aria-hidden>
-                  <div className="program-skeleton-line program-skeleton-line--md" />
-                  <div className="program-skeleton-line program-skeleton-line--sm" />
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Card><PulseDots padding={40} label="Loading data" /></Card>
         )}
 
         {!loading && pagination.total > 0 ? (
@@ -753,7 +683,6 @@ export function AnnouncementsPage() {
                 <label className="field announcement-form-switch"><span className="field__label">Published</span><input type="checkbox" checked={form.isPublished} onChange={(event) => setForm((current) => ({ ...current, isPublished: event.target.checked }))} /></label>
               </div>
             </div>
-            {formError ? <p className="alert alert--error">{formError}</p> : null}
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={closeForm} disabled={isSubmitting}>Cancel</button>
               <button className="btn btn--primary" type="button" onClick={saveAnnouncement} disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save"}</button>
@@ -810,7 +739,7 @@ export function AnnouncementsPage() {
         </div>
       ) : null}
 
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>
   );
 }
