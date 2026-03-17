@@ -31,7 +31,7 @@ interface FooterData {
 
 const DEFAULT_FOOTER: FooterData = {
   brand: {
-    title: "The Digital Hub",
+    title: "igital Hub",
     text: "The Digital Hub is a modern learning platform focused on technology, programming, and digital skills.",
     address: "Downtown, Beirut",
     phone: "+961 70639085",
@@ -144,6 +144,7 @@ const FooterCommon = () => {
                     e.currentTarget.src = "/assets/img/logo/logoD.png";
                   }}
                 />
+                <span className="footer__brand-title">{data.brand.title}</span>
               </div>
             </Link>
           </div>

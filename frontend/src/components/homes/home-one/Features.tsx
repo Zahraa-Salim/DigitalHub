@@ -62,7 +62,7 @@ const Features = ({ content }: FeaturesProps) => {
                   <div key={item.id} className="col-xl-3 col-lg-4 col-md-6">
                      <div className="features__item">
                         <div className="features__icon">
-                           <Image src={item.iconSrc} className="injectable" alt="img" />
+                           <Image src={item.iconSrc} alt="img" />
                         </div>
                         <div className="features__content">
                            <h4 className="title">{item.title}</h4>
@@ -78,4 +78,3 @@ const Features = ({ content }: FeaturesProps) => {
 }
 
 export default Features;
-
