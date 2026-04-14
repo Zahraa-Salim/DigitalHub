@@ -3828,21 +3828,22 @@ body {
   min-height: 42px;
   min-width: 126px;
   padding: 0 20px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #0255e0 0%, #0255e0 100%);
-  box-shadow: 0 10px 24px rgba(2, 85, 224, 0.28);
+  border: medium none;
+  border-radius: 50px;
+  background: var(--tg-theme-primary);
+  box-shadow: 4px 6px 0px 0px var(--tg-common-color-blue);
   color: #fff;
+  font-weight: 600;
   text-align: center;
   line-height: 1;
   letter-spacing: 0.2px;
+  transition: all 0.3s ease-out 0s;
 }
 
 .dh-navbar .dh-auth-btn.dh-auth-btn--special:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(2, 85, 224, 0.34);
-  background: linear-gradient(135deg, #0255e0 0%, #0255e0 100%);
-  color: #fff;
+  background: var(--tg-theme-secondary);
+  color: var(--tg-heading-color);
+  box-shadow: 0 0 0 0 var(--tg-common-color-blue);
 }
 
 .dh-navbar .dh-auth-btn.dh-auth-btn--ghost {
@@ -6560,6 +6561,12 @@ body {
 .banner-area .banner__content {
   margin: 0;
   max-width: 620px;
+  padding-left: 70px;
+}
+
+.banner-area .banner__content .title {
+  font-size: 36px;
+  font-weight: 500;
 }
 
 .banner-area .banner__content .title .banner-highlight-wrap {
@@ -6593,24 +6600,23 @@ body {
 }
 
 .banner-area .banner__btn-wrap .btn.arrow-btn {
-  border: 1px solid #0255e0;
-  background: #0255e0;
+  border: medium none;
+  background: var(--tg-theme-primary);
   color: #fff;
-  box-shadow: 0 8px 18px rgba(2, 85, 224, 0.24);
+  box-shadow: 4px 6px 0px 0px var(--tg-common-color-blue);
 }
 
 .banner-area .banner__btn-wrap .btn.arrow-btn:hover {
-  border-color: #0146ba;
-  background: #0b60e8;
-  color: #fff;
-  box-shadow: 0 10px 20px rgba(2, 85, 224, 0.28);
-  transform: translateY(-1px);
+  background: var(--tg-theme-secondary);
+  color: var(--tg-heading-color);
+  box-shadow: 0 0 0 0 var(--tg-common-color-blue);
+  transform: none;
 }
 
 .banner-area .banner__btn-wrap .btn.arrow-btn svg,
 .banner-area .banner__btn-wrap .btn.arrow-btn:hover svg,
 .banner-area .banner__btn-wrap .btn.arrow-btn:focus-visible svg {
-  color: #fff;
+  color: currentColor;
 }
 
 .banner-area .banner__images .main-img {
@@ -6629,6 +6635,7 @@ body {
   .banner-area .banner__content {
     margin: 0 0 36px;
     max-width: 100%;
+    padding-left: 0;
   }
 
   .banner-area .banner__content .title .banner-highlight-wrap {
