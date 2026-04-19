@@ -27,6 +27,7 @@ type MessageTemplatePayload = {
   channel?: string;
   subject?: string | null;
   body?: string;
+  body_html?: string | null;
   is_active?: boolean;
   sort_order?: number;
 };
@@ -262,13 +263,14 @@ export async function updateMessageTemplateService(key: string, actorUserId: num
       channel: payload.channel,
       subject: normalizeOptionalText(payload.subject),
       body: payload.body,
+      body_html: payload.body_html,
       is_active: payload.is_active,
       sort_order: payload.sort_order,
     };
 
     const { setClause, values } = buildUpdateQuery(
       updatePayload,
-      ["label", "description", "channel", "subject", "body", "is_active", "sort_order"],
+      ["label", "description", "channel", "subject", "body", "body_html", "is_active", "sort_order"],
       1,
     );
     const updatedResult = await updateMessageTemplateByKey(normalizedKey, setClause, values, actorUserId, client);
@@ -318,6 +320,7 @@ export async function createMessageTemplateService(actorUserId: number, payload:
         channel: payload.channel ?? "all",
         subject: normalizeOptionalText(payload.subject),
         body: String(payload.body || ""),
+        body_html: payload.body_html ? String(payload.body_html) : null,
         is_active: payload.is_active ?? true,
         sort_order: payload.sort_order ?? 0,
         created_by: actorUserId,

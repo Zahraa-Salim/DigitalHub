@@ -6,7 +6,7 @@ import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
 
 const ALLOWED_PROFILE_TABLES = ["student_profiles", "instructor_profiles", "admin_profiles"] as const;
-const ALLOWED_PROFILE_SORT_COLUMNS = ["full_name", "created_at", "sort_order", "featured_rank", "updated_at"] as const;
+const ALLOWED_PROFILE_SORT_COLUMNS = ["full_name", "created_at", "featured_rank", "updated_at"] as const;
 
 type ProfileTableName = typeof ALLOWED_PROFILE_TABLES[number];
 type ProfileSortColumn = typeof ALLOWED_PROFILE_SORT_COLUMNS[number];
@@ -25,7 +25,6 @@ type InstructorProfilePayload = {
   github_url?: string | null;
   portfolio_url?: string | null;
   is_public?: boolean;
-  sort_order?: number | null;
 };
 
 function assertValidProfileTableName(tableName: ProfileTableName): void {
@@ -163,10 +162,9 @@ export async function createInstructorProfile(userId: number, payload: Instructo
         linkedin_url,
         github_url,
         portfolio_url,
-        is_public,
-        sort_order
+        is_public
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `,
     [
@@ -180,7 +178,6 @@ export async function createInstructorProfile(userId: number, payload: Instructo
       payload.github_url ?? null,
       payload.portfolio_url ?? null,
       payload.is_public ?? false,
-      payload.sort_order ?? null,
     ],
   );
 }

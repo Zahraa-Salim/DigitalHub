@@ -19,6 +19,7 @@ type WhatsAppConfig = {
 type SendWhatsAppInput = {
   to: string;
   body: string;
+  mediaUrl?: string;
 };
 
 // Handles 'normalizePhone' workflow for this module.
@@ -31,6 +32,18 @@ function normalizePhone(value: string): string {
   const digits = raw.replace(/\D/g, "");
   if (!digits) return "";
   return `${hasPlus ? "+" : ""}${digits}`;
+}
+
+// Handles 'normalizeToE164' workflow for this module.
+function normalizeToE164(phone: string): string {
+  const raw = String(phone || "").trim();
+  if (!raw) return "";
+
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+  if (raw.startsWith("00")) return `+${digits.slice(2)}`;
+  if (raw.startsWith("+")) return `+${digits}`;
+  return `+${digits}`;
 }
 
 // Handles 'readConfig' workflow for this module.
@@ -70,11 +83,12 @@ function isConfigured(config: WhatsAppConfig): boolean {
 }
 
 // Handles 'sendDigitalHubWhatsApp' workflow for this module.
-export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
+export async function sendDigitalHubWhatsApp({ to, body, mediaUrl }: SendWhatsAppInput) {
   const destinationPhone = normalizePhone(to);
+  const normalizedPhone = normalizeToE164(destinationPhone);
   const messageBody = String(body || "").trim();
 
-  if (!destinationPhone) {
+  if (!normalizedPhone) {
     throw new AppError(400, "VALIDATION_ERROR", "WhatsApp destination phone is required.", undefined);
   }
   if (!messageBody) {
@@ -82,8 +96,8 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
   }
 
   const config = readConfig();
-  const metaDestination = destinationPhone.replace(/\D/g, "");
-  const destination = config.provider === "meta" ? metaDestination : `whatsapp:${destinationPhone}`;
+  const metaDestination = normalizedPhone.replace(/\D/g, "");
+  const destination = config.provider === "meta" ? metaDestination : `whatsapp:${normalizedPhone}`;
 
   if (!isConfigured(config)) {
     if (!warnedMockMode) {
@@ -105,12 +119,14 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
 
     const metaApiVersion = (process.env.META_WA_API_VERSION || "v19.0").trim();
     const url = `https://graph.facebook.com/${metaApiVersion}/${encodeURIComponent(config.metaPhoneNumberId)}/messages`;
-    const payload = {
-      messaging_product: "whatsapp",
-      to: metaDestination,
-      type: "text",
-      text: { body: messageBody },
-    };
+
+    const trimmedMediaUrl = (mediaUrl || "").trim();
+    const isImage = trimmedMediaUrl && /\.(jpe?g|png|gif|webp)$/i.test(trimmedMediaUrl);
+    const payload = trimmedMediaUrl
+      ? isImage
+        ? { messaging_product: "whatsapp", to: metaDestination, type: "image" as const, image: { link: trimmedMediaUrl, caption: messageBody } }
+        : { messaging_product: "whatsapp", to: metaDestination, type: "document" as const, document: { link: trimmedMediaUrl, caption: messageBody, filename: trimmedMediaUrl.split("/").pop() || "file" } }
+      : { messaging_product: "whatsapp", to: metaDestination, type: "text" as const, text: { body: messageBody } };
 
     const response = await fetch(url, {
       method: "POST",
@@ -143,11 +159,21 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
       data = null;
     }
 
+    const testNumbers = String(process.env.META_WA_TEST_NUMBERS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (testNumbers.length && !testNumbers.includes(metaDestination)) {
+      console.warn(
+        `[whatsapp] WARNING: META_WA_TEST_NUMBERS is set but ${metaDestination} is not in the list. Message may not be delivered in test mode.`,
+      );
+    }
+
     return {
       mode: "meta",
       provider: "meta",
       from: null,
-      to: metaDestination,
+      to: normalizedPhone,
       message_id: data?.messages?.[0]?.id ?? null,
     };
   }
@@ -158,6 +184,10 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
   payload.set("From", config.from);
   payload.set("To", destination);
   payload.set("Body", messageBody);
+  const twilioMediaUrl = (mediaUrl || "").trim();
+  if (twilioMediaUrl) {
+    payload.set("MediaUrl", twilioMediaUrl);
+  }
 
   const response = await fetch(url, {
     method: "POST",
@@ -194,9 +224,8 @@ export async function sendDigitalHubWhatsApp({ to, body }: SendWhatsAppInput) {
     mode: "twilio",
     provider: "twilio",
     from: config.from,
-    to: destination,
+    to: normalizedPhone,
     sid: data?.sid ?? null,
     status: data?.status ?? null,
   };
 }
-

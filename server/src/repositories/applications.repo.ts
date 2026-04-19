@@ -15,15 +15,24 @@ type ApplicationInterviewUpsertInput = {
     created_by?: number | null;
 };
 
+type MessageAttachment = {
+    url: string;
+    filename: string;
+    mime_type: string;
+    size?: number;
+};
+
 type ApplicationMessageDraftInput = {
     application_id: number;
     channel: string;
     to_value: string;
     subject?: string | null;
     body: string;
+    body_html?: string | null;
     template_key?: string | null;
     status?: string | null;
     created_by?: number | null;
+    attachments?: MessageAttachment[];
 };
 // Handles 'createApplicant' workflow for this module.
 export async function createApplicant(
@@ -481,12 +490,14 @@ export async function createApplicationMessageDraft(input: ApplicationMessageDra
         to_value,
         subject,
         body,
+        body_html,
         template_key,
         status,
         created_by,
+        attachments,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'draft'), $8, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'draft'), $9, $10, NOW())
       RETURNING *
     `, [
         input.application_id,
@@ -494,9 +505,11 @@ export async function createApplicationMessageDraft(input: ApplicationMessageDra
         input.to_value,
         input.subject ?? null,
         input.body,
+        input.body_html ?? null,
         input.template_key ?? null,
         input.status ?? "draft",
         input.created_by ?? null,
+        JSON.stringify(input.attachments ?? []),
     ]);
 }
 

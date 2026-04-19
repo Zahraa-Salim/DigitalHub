@@ -22,10 +22,12 @@ type ProgramApplicationMessageDraftInput = {
   to_value: string;
   subject?: string | null;
   body: string;
+  body_html?: string | null;
   template_key?: string | null;
   status?: string | null;
   created_by?: number | null;
   metadata?: unknown;
+  attachments?: Array<{ url: string; filename: string; mime_type: string; size?: number }>;
 };
 
 // Handles 'programApplicationsTableExists' workflow for this module.
@@ -498,12 +500,14 @@ export async function createProgramApplicationMessageDraft(
           to_value,
           subject,
           body,
+          body_html,
           template_key,
           status,
           sent_at,
           created_by,
           created_at,
-          metadata
+          metadata,
+          attachments
         )
         VALUES (
           $1,
@@ -513,11 +517,13 @@ export async function createProgramApplicationMessageDraft(
           $5,
           $6,
           $7,
-          COALESCE($8, 'draft'),
+          $8,
+          COALESCE($9, 'draft'),
           NULL,
-          $9,
+          $10,
           NOW(),
-          $10
+          $11,
+          $12
         )
         RETURNING *
       `,
@@ -528,10 +534,12 @@ export async function createProgramApplicationMessageDraft(
         input.to_value,
         input.subject ?? null,
         input.body,
+        input.body_html ?? null,
         input.template_key ?? null,
         input.status ?? "draft",
         input.created_by ?? null,
         JSON.stringify(input.metadata ?? {}),
+        JSON.stringify(input.attachments ?? []),
       ],
     );
   }
@@ -545,10 +553,12 @@ export async function createProgramApplicationMessageDraft(
           to_value,
           subject,
           body,
+          body_html,
           template_key,
           status,
           sent_at,
           created_by,
+          attachments,
           created_at
         )
         VALUES (
@@ -559,9 +569,11 @@ export async function createProgramApplicationMessageDraft(
           $5,
           $6,
           $7,
-          COALESCE($8, 'draft'),
+          $8,
+          COALESCE($9, 'draft'),
           NULL,
-          $9,
+          $10,
+          $11,
           NOW()
         )
         RETURNING *
@@ -573,9 +585,11 @@ export async function createProgramApplicationMessageDraft(
       input.to_value,
       input.subject ?? null,
       input.body,
+      input.body_html ?? null,
       input.template_key ?? null,
       input.status ?? "draft",
       input.created_by ?? null,
+      JSON.stringify(input.attachments ?? []),
     ],
   );
 }

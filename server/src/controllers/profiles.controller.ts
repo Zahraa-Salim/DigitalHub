@@ -7,6 +7,7 @@ import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
 import {
   createInstructorProfileService,
+  createStudentProfileService,
   getPublicStudentProfile,
   getStudentProfile,
   listStudentProfilesAdminService,
@@ -16,6 +17,7 @@ import {
   patchProfileVisibilityService,
   setInstructorActivationService,
   uploadInstructorAvatarService,
+  uploadStudentAvatarService,
   updateStudentProfileAdmin,
 } from "../services/profiles.service.js";
 
@@ -86,7 +88,7 @@ export const patchInstructorProfile = createPatchHandler("instructor_profiles", 
     "linkedin_url",
     "github_url",
     "portfolio_url",
-    "sort_order",
+    "is_public",
 ]);
 export const patchInstructorVisibility = createVisibilityHandler("instructor_profiles");
 // Handles 'postInstructorProfile' workflow for this module.
@@ -155,6 +157,26 @@ export async function updateStudentProfileHandler(req: Request, res: Response) {
   const { userId } = req.params;
   const data = await updateStudentProfileAdmin(req.user!.id, Number(userId), req.body);
   sendSuccess(res, data, "Student profile updated successfully.");
+}
+
+/**
+ * POST /profiles/students
+ * Create a new student (users row + student_profiles row + initial cohort enrollment)
+ * Admin only access
+ */
+export async function postStudentProfile(req: Request, res: Response) {
+  const data = await createStudentProfileService(req.user!.id, req.body);
+  sendSuccess(res, data, "Student created successfully.", 201);
+}
+
+/**
+ * POST /profiles/students/avatar
+ * Upload a student avatar image and return a public URL.
+ * Admin only access
+ */
+export async function postStudentAvatar(req: Request, res: Response) {
+  const data = await uploadStudentAvatarService(req.user!.id, req.body);
+  sendSuccess(res, data, "Student avatar uploaded successfully.", 201);
 }
 
 /**

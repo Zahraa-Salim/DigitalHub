@@ -7,6 +7,7 @@ import type { Request, Response } from "express";
 import { sendSuccess } from "../utils/httpResponse.js";
 import { sendList } from "../utils/httpResponse.js";
 import { forgotPasswordService, getMyAdminProfile, listAllAdmins, listUsersForMessagingService, loginAdmin, resetPasswordService, sendMessagingUsersService, updateAdminBySuperAdmin, updateMyAdminProfile } from "../services/auth.service.js";
+import { uploadManagerAvatarService } from "../services/profiles.service.js";
 // Handles 'login' workflow for this module.
 export async function login(req: Request, res: Response) {
     const payload = req.body;
@@ -35,6 +36,11 @@ export async function getMe(req: Request, res: Response) {
 export async function patchMe(req: Request, res: Response) {
     const data = await updateMyAdminProfile(req.user!.id, req.body);
     sendSuccess(res, data, "Profile updated successfully.");
+}
+// Handles 'postMeAvatar' workflow for this module.
+export async function postMeAvatar(req: Request, res: Response) {
+    const data = await uploadManagerAvatarService(req.user!.id, req.body);
+    sendSuccess(res, data, "Avatar uploaded successfully.", 201);
 }
 // Handles 'getAdmins' workflow for this module.
 export async function getAdmins(req: Request, res: Response) {

@@ -38,6 +38,13 @@ type MessagingUsersPayload = {
     user_ids?: Array<number | string>;
     subject?: string;
     body?: string;
+    body_html?: string;
+    attachments?: Array<{
+        url: string;
+        filename: string;
+        mime_type?: string;
+        size?: number;
+    }>;
 };
 // Handles 'loginAdmin' workflow for this module.
 export async function loginAdmin(input: AuthLoginInput) {
@@ -415,6 +422,7 @@ export async function sendMessagingUsersService(actorUserId: number, actorRole: 
     }
 
     const body = String(payload.body || "").trim();
+    const bodyHtml = String(payload.body_html || "").trim();
     const subject = payload.channel === "email"
         ? String(payload.subject || "").trim() || "Digital Hub Message"
         : "";
@@ -441,6 +449,16 @@ export async function sendMessagingUsersService(actorUserId: number, actorRole: 
                     to: toValue,
                     subject,
                     body,
+                    bodyHtml: bodyHtml || undefined,
+                    attachments: Array.isArray(payload.attachments)
+                        ? payload.attachments
+                            .filter((attachment) => attachment && typeof attachment.url === "string" && typeof attachment.filename === "string")
+                            .map((attachment) => ({
+                            url: attachment.url,
+                            filename: attachment.filename,
+                            mime_type: attachment.mime_type?.trim() || "application/octet-stream",
+                        }))
+                        : undefined,
                 });
                 sentCount += 1;
             }
@@ -465,10 +483,11 @@ export async function sendMessagingUsersService(actorUserId: number, actorRole: 
             continue;
         }
         try {
-            await sendDigitalHubWhatsApp({
+            const waResult = await sendDigitalHubWhatsApp({
                 to: phone,
                 body,
             });
+            console.log(`[whatsapp] Sent to ${phone}, provider message_id: ${waResult.message_id ?? "none"}`);
             sentCount += 1;
         }
         catch (error: any) {

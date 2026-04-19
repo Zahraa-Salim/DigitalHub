@@ -6,6 +6,12 @@ import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import { pool } from "../db/index.js";
 dotenv.config();
+
+if (String(process.env.NODE_ENV || "").trim().toLowerCase() === "production") {
+    console.error("Seed script must not run in production.");
+    process.exit(1);
+}
+
 // Handles 'seedAdmin' workflow for this module.
 async function seedAdmin() {
     const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();

@@ -3,11 +3,12 @@
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
 import { Router } from "express";
-import { forgotPassword, getAdmins, getMe, getUsers, login, patchAdmin, patchMe, postUsersMessage, resetPassword } from "../controllers/auth.controller.js";
+import { forgotPassword, getAdmins, getMe, getUsers, login, patchAdmin, patchMe, postUsersMessage, resetPassword, postMeAvatar } from "../controllers/auth.controller.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { adminUserIdParamsSchema, forgotPasswordBodySchema, loginBodySchema, resetPasswordBodySchema, resetPasswordParamsSchema, sendMessagingUsersBodySchema, superAdminUpdateAdminBodySchema, updateMeBodySchema } from "../schemas/auth.schemas.js";
+import { managerAvatarUploadSchema } from "../schemas/profiles.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const authRouter = Router();
 authRouter.post("/login", rateLimit({
@@ -27,6 +28,7 @@ authRouter.post("/reset-password/:token", rateLimit({
 }), validateRequest({ params: resetPasswordParamsSchema, body: resetPasswordBodySchema }), asyncHandler(resetPassword));
 authRouter.get("/me", verifyAdminAuth, asyncHandler(getMe));
 authRouter.patch("/me", verifyAdminAuth, validateRequest({ body: updateMeBodySchema }), asyncHandler(patchMe));
+authRouter.post("/me/avatar", verifyAdminAuth, validateRequest({ body: managerAvatarUploadSchema }), asyncHandler(postMeAvatar));
 authRouter.get("/admins", verifyAdminAuth, asyncHandler(getAdmins));
 authRouter.get("/users", verifyAdminAuth, asyncHandler(getUsers));
 authRouter.post("/users/messages", verifyAdminAuth, validateRequest({ body: sendMessagingUsersBodySchema }), asyncHandler(postUsersMessage));

@@ -32,6 +32,7 @@ export const messageTemplatePatchSchema = z
     channel: z.enum(["email", "sms", "all"]).optional(),
     subject: z.string().trim().max(200).nullable().optional(),
     body: z.string().trim().min(1).max(10000).optional(),
+    body_html: z.string().trim().max(50000).optional(),
     is_active: z.boolean().optional(),
     sort_order: z.coerce.number().int().min(0).max(9999).optional(),
   })
@@ -54,6 +55,7 @@ export const messageTemplateCreateSchema = z
     channel: z.enum(["email", "sms", "all"]).default("all").optional(),
     subject: z.string().trim().max(200).nullable().optional(),
     body: z.string().trim().min(1).max(10000),
+    body_html: z.string().trim().max(50000).optional(),
     is_active: z.boolean().default(true).optional(),
     sort_order: z.coerce.number().int().min(0).max(9999).default(0).optional(),
   })

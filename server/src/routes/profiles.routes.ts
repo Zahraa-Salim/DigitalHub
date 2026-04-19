@@ -3,10 +3,10 @@
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
 import { Router } from "express";
-import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile } from "../controllers/profiles.controller.js";
+import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile, postStudentAvatar, postStudentProfile } from "../controllers/profiles.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentStatusPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
+import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentAvatarUploadSchema, studentCreateSchema, studentStatusPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const profilesRouter = Router();
 
@@ -23,6 +23,8 @@ profilesRouter.get("/public/students/:public_slug", validateRequest({ params: pu
 profilesRouter.use(verifyAdminAuth);
 
 // Admin only: GET /profiles/students/:userId - Fetch specific student profile with projects
+// Route order is safe: the userId schema rejects non-numeric values, so paths like
+// /students/avatar will not be mistaken for a :userId route.
 profilesRouter.get("/students/:userId", validateRequest({ params: studentUserIdParamsSchema }), asyncHandler(getStudentProfileHandler));
 
 // Admin only: PATCH /profiles/students/:userId - Update student profile (with transaction, logging)
@@ -32,6 +34,12 @@ profilesRouter.patch("/students/:userId/status", validateRequest({ params: stude
 // ===================================
 // GENERIC PROFILE ROUTES
 // ===================================
+
+// Admin: POST /profiles/students/avatar - Upload student avatar image
+profilesRouter.post("/students/avatar", validateRequest({ body: studentAvatarUploadSchema }), asyncHandler(postStudentAvatar));
+
+// Admin: POST /profiles/students - Create new student (users + student_profiles + enrollment)
+profilesRouter.post("/students", validateRequest({ body: studentCreateSchema }), asyncHandler(postStudentProfile));
 
 // List students
 profilesRouter.get("/students", asyncHandler(getStudentProfiles));

@@ -12,6 +12,7 @@ type MessageTemplateInput = {
   channel?: string;
   subject?: string | null;
   body: string;
+  body_html?: string | null;
   is_active?: boolean;
   sort_order?: number;
   created_by?: number | null;
@@ -107,6 +108,7 @@ export async function listMessageTemplates(includeInactive = false, sortBy = "so
         channel,
         subject,
         body,
+        body_html,
         is_active,
         sort_order,
         created_by,
@@ -134,12 +136,13 @@ export async function createMessageTemplate(input: MessageTemplateInput, db: DbC
         channel,
         subject,
         body,
+        body_html,
         is_active,
         sort_order,
         created_by,
         updated_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
       RETURNING
         id,
         key,
@@ -148,6 +151,7 @@ export async function createMessageTemplate(input: MessageTemplateInput, db: DbC
         channel,
         subject,
         body,
+        body_html,
         is_active,
         sort_order,
         created_by,
@@ -162,6 +166,7 @@ export async function createMessageTemplate(input: MessageTemplateInput, db: DbC
       input.channel ?? "all",
       input.subject ?? null,
       input.body,
+      input.body_html ?? null,
       input.is_active ?? true,
       input.sort_order ?? 0,
       input.created_by ?? null,
@@ -181,6 +186,7 @@ export async function getMessageTemplateByKey(key: string, db: DbClient = pool) 
         channel,
         subject,
         body,
+        body_html,
         is_active,
         sort_order,
         created_by,
@@ -218,6 +224,7 @@ export async function updateMessageTemplateByKey(
         channel,
         subject,
         body,
+        body_html,
         is_active,
         sort_order,
         created_by,

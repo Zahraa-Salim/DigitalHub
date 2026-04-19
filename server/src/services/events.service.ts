@@ -17,7 +17,7 @@ import { AppError } from "../utils/appError.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { buildPagination, parseListQuery } from "../utils/pagination.js";
 import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
-import { countEvents, createEvent, deleteEvent, listEvents, markEventDone, updateEvent, } from "../repositories/events.repo.js";
+import { countEvents, createEvent, deleteEvent, listEvents, markEventDone, markEventUndone, updateEvent, } from "../repositories/events.repo.js";
 
 const EVENT_IMAGE_MIME_TO_EXT = {
     "image/jpeg": "jpg",
@@ -291,6 +291,24 @@ export async function markEventDoneService(id: number, adminId: number) {
             message: `Event ${id} was marked as done.`,
             title: "Event Completed",
             body: `Event #${id} was marked as completed.`,
+        }, client);
+        return result.rows[0];
+    });
+}
+
+// Handles 'markEventUndoneService' workflow for this module.
+export async function markEventUndoneService(id: number, adminId: number) {
+    return withTransaction(async (client: Parameters<typeof createEvent>[1]) => {
+        const result = await markEventUndone(id, client);
+        if (!result.rowCount) {
+            throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+        }
+        await logAdminAction({
+            actorUserId: adminId,
+            action: "mark event undone",
+            entityType: "events",
+            entityId: id,
+            message: `Event ${id} was marked as not done.`,
         }, client);
         return result.rows[0];
     });

@@ -4,6 +4,7 @@
 
 import { pool } from "../db/index.js";
 import type { DbClient } from "../db/index.js";
+import { AppError } from "../utils/appError.js";
 
 type MediaAssetInput = {
     file_name?: string;
@@ -63,6 +64,8 @@ export async function ensureDefaultPages(db: DbClient = pool) {
             'hero_title_primary', 'Practical Learning For',
             'hero_title_highlight', 'Real Career Progress',
             'hero_subtitle', 'Digital Hub helps learners move from foundations to delivery through project-driven programs, mentor feedback, and clear execution standards.',
+            'banner_title', 'Build skills. Become employable.',
+            'banner_subtitle', 'About Us',
             'hero_image_url', '/assets/img/others/inner_about_img.png',
             'hero_pills', jsonb_build_array(
               'Industry-aligned programs',
@@ -76,9 +79,6 @@ export async function ensureDefaultPages(db: DbClient = pool) {
             'focus_eyebrow', 'What We Deliver',
             'focus_title', 'How The Learning Experience Works',
             'focus_description', 'Our delivery model combines technical depth, structured mentorship, and measurable outcomes so learners can build strong momentum.',
-            'mission_eyebrow', 'Mission',
-            'mission_title', 'What We Stand For',
-            'mission_description', 'Digital Hub is designed to close the gap between learning and employability through practical, high-accountability training.',
             'outcomes_eyebrow', 'How We Measure Outcomes',
             'outcomes_title', 'Mission Impact KPIs',
             'outcomes_description', 'These KPI cards are tied to live platform entities: cohorts, participants, team members, and programs.',
@@ -86,15 +86,6 @@ export async function ensureDefaultPages(db: DbClient = pool) {
             'programs_title', 'Program Names',
             'programs_description', 'Programs currently available across Digital Hub tracks.',
             'program_names_limit', 12,
-            'alumni_eyebrow', 'Alumni Success Stories',
-            'alumni_title', 'Real Outcomes From Recent Graduates',
-            'alumni_description', 'Examples of graduates moving into delivery roles, freelance work, and product teams.',
-            'partners_eyebrow', 'Partner Companies',
-            'partners_title', 'Organizations Collaborating With Digital Hub',
-            'partners_description', 'A sample of hiring and project partners connected to learner outcomes.',
-            'faq_eyebrow', 'Mission FAQ',
-            'faq_title', 'Program Impact Questions',
-            'faq_description', 'Answers to common questions about outcomes, employability, and measurable impact.',
             'journey_eyebrow', 'Mission In Action',
             'journey_title', 'From Learning To Delivery',
             'journey_description', 'Participants move through a clear journey that turns learning into demonstrable execution.',
@@ -162,68 +153,6 @@ export async function ensureDefaultPages(db: DbClient = pool) {
               jsonb_build_object(
                 'title', 'Career Readiness',
                 'description', 'Training includes portfolio direction, communication practice, and execution habits.'
-              )
-            ),
-            'mission_cards', jsonb_build_array(
-              jsonb_build_object(
-                'title', 'Access To Practical Skills',
-                'description', 'We help learners gain hands-on digital capabilities through guided, structured delivery.'
-              ),
-              jsonb_build_object(
-                'title', 'Clarity And Accountability',
-                'description', 'Clear milestones and progress tracking help learners stay focused and move forward.'
-              ),
-              jsonb_build_object(
-                'title', 'Community And Growth',
-                'description', 'Learners grow inside a support system of mentors, peers, and outcomes-focused coaching.'
-              )
-            ),
-            'alumni_story_cards', jsonb_build_array(
-              jsonb_build_object(
-                'name', 'Nour Salameh',
-                'role', 'Frontend Developer',
-                'company', 'Cedar Tech',
-                'quote', 'The project cycle taught me how to deliver features under real deadlines.',
-                'outcome', 'Hired as a junior frontend developer after completing capstone delivery.'
-              ),
-              jsonb_build_object(
-                'name', 'Hadi Nasser',
-                'role', 'Data Analyst',
-                'company', 'Insight Labs',
-                'quote', 'Mentor feedback on dashboards changed how I present data to stakeholders.',
-                'outcome', 'Moved from intern to full-time analyst role within three months.'
-              ),
-              jsonb_build_object(
-                'name', 'Rana Farah',
-                'role', 'Product Associate',
-                'company', 'Launchbase',
-                'quote', 'The product workflow modules made roadmap planning and prioritization practical.',
-                'outcome', 'Transitioned from marketing coordination into product operations.'
-              )
-            ),
-            'partner_logo_cards', jsonb_build_array(
-              jsonb_build_object('name', 'Cedar Tech', 'logo_url', '/assets/img/brand/brand01.png', 'link', 'https://example.com/cedar-tech'),
-              jsonb_build_object('name', 'Insight Labs', 'logo_url', '/assets/img/brand/brand02.png', 'link', 'https://example.com/insight-labs'),
-              jsonb_build_object('name', 'Launchbase', 'logo_url', '/assets/img/brand/brand03.png', 'link', 'https://example.com/launchbase'),
-              jsonb_build_object('name', 'Beirut Digital Factory', 'logo_url', '/assets/img/brand/brand04.png', 'link', 'https://example.com/bdf'),
-              jsonb_build_object('name', 'Nexa Systems', 'logo_url', '/assets/img/brand/brand05.png', 'link', 'https://example.com/nexa')
-            ),
-            'mission_faq_items', jsonb_build_array(
-              jsonb_build_object(
-                'question', 'How are mission outcomes measured?',
-                'answer', 'We track operational KPIs such as cohorts created, participant activity, and team-supported delivery capacity.'
-              ),
-              jsonb_build_object(
-                'question', 'Are these KPI cards static?',
-                'answer', 'No. The KPI cards map to live data keys and can also be overridden when needed for campaigns.'
-              ),
-              jsonb_build_object(
-                'question', 'Where do program names come from?',
-                'answer', 'Program names are loaded directly from the programs table via public API endpoints.'
-              ),
-              jsonb_build_object(
-                'question', 'What defines an alumni success story?',
-                'answer', 'Stories are outcome-focused: role transition, hiring progress, or tangible project delivery results.'
               )
             ),
             'journey_cards', jsonb_build_array(
@@ -879,7 +808,7 @@ export async function listThemeTokens(
     db: DbClient = pool,
 ) {
     return db.query(`
-      SELECT id, key, purpose, value, scope, updated_by, updated_at
+      SELECT id, key, purpose, value, scope, COALESCE(color_history, '[]'::jsonb) AS color_history, updated_by, updated_at
       FROM theme_tokens
       ${whereClause}
       ORDER BY ${sortBy} ${order}
@@ -905,14 +834,45 @@ export async function createThemeToken(
 // Handles 'updateThemeToken' workflow for this module.
 export async function updateThemeToken(
     id: number,
-    setClause: string,
-    values: unknown[],
+    payload: Record<string, unknown>,
     adminId: number | null,
     db: DbClient = pool,
 ) {
+    const allowedColumns = ["key", "purpose", "value", "scope"] as const;
+    const entries = Object.entries(payload).filter(([key, value]) => allowedColumns.includes(key as (typeof allowedColumns)[number]) && value !== undefined);
+
+    if (entries.length === 0) {
+        throw new AppError(400, "VALIDATION_ERROR", "No valid theme token fields provided for update.");
+    }
+
+    const values = entries.map(([, value]) => value);
+    const valueEntryIndex = entries.findIndex(([key]) => key === "value");
+    const setAssignments = entries.map(([key], index) => `${key} = $${index + 1}`);
+
+    if (valueEntryIndex >= 0) {
+        const valueParamIndex = valueEntryIndex + 1;
+        setAssignments.push(`
+          color_history = CASE
+            WHEN value <> $${valueParamIndex}
+              THEN COALESCE(
+                (
+                  SELECT jsonb_agg(item ORDER BY ord)
+                  FROM (
+                    SELECT item, ord
+                    FROM jsonb_array_elements(jsonb_build_array(value) || COALESCE(color_history, '[]'::jsonb)) WITH ORDINALITY AS history(item, ord)
+                    WHERE ord <= 10
+                  ) limited_history
+                ),
+                '[]'::jsonb
+              )
+            ELSE COALESCE(color_history, '[]'::jsonb)
+          END
+        `);
+    }
+
     return db.query(`
       UPDATE theme_tokens
-      SET ${setClause}, updated_by = $${values.length + 1}, updated_at = NOW()
+      SET ${setAssignments.join(", ")}, updated_by = $${values.length + 1}, updated_at = NOW()
       WHERE id = $${values.length + 2}
       RETURNING *
     `, [...values, adminId, id]);

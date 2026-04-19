@@ -21,14 +21,18 @@ import {
   getStudentEnrollments,
   getPublicStudentProfileBySlug,
   getPublicStudentProjects,
+  insertStudentProfileWithFields,
   listStudentProfilesForAdmin,
   getStudentProfileWithUser,
   getStudentProjects,
   isPublicSlugUnique,
+  removeStudentEnrollment,
   updateStudentAdminStatus,
   updateStudentProfile,
   getUserById,
 } from "../repositories/students.repo.js";
+import { createStudentUser } from "../repositories/applications.repo.js";
+import { upsertEnrollmentFromProgramApplication } from "../repositories/programApplications.repo.js";
 
 type ProfileTableName = "admin_profiles" | "instructor_profiles" | "student_profiles";
 type ProfileQuery = Record<string, unknown>;
@@ -47,8 +51,8 @@ function ensureAdminProfilePermission(tableName: ProfileTableName, actorUserId: 
         throw new AppError(403, "FORBIDDEN", "Admin users can edit only their own account.");
     }
     if (!isSuperAdmin && payload) {
-        if ("admin_role" in payload || "sort_order" in payload) {
-            throw new AppError(403, "FORBIDDEN", "Only super admin can update admin role or sort order.");
+        if ("admin_role" in payload) {
+            throw new AppError(403, "FORBIDDEN", "Only super admin can update admin role.");
         }
     }
 }
@@ -239,6 +243,63 @@ export async function uploadInstructorAvatarService(actorUserId: number, payload
     return { avatar_url: avatarUrl };
 }
 
+// Handles 'uploadManagerAvatarService' workflow for this module.
+export async function uploadManagerAvatarService(actorUserId: number, payload: ProfilePayload) {
+    const mimeType = String(payload.mime_type || "").trim().toLowerCase();
+    const extension = AVATAR_MIME_TO_EXT[mimeType as keyof typeof AVATAR_MIME_TO_EXT];
+    if (!extension) {
+        throw new AppError(400, "VALIDATION_ERROR", "Unsupported avatar mime type.");
+    }
+
+    const base64Raw = String(payload.data_base64 || "").trim();
+    if (!base64Raw) {
+        throw new AppError(400, "VALIDATION_ERROR", "Avatar data is required.");
+    }
+
+    const normalizedBase64 = base64Raw.replace(/\s+/g, "");
+    let fileBuffer = null;
+    try {
+        fileBuffer = Buffer.from(normalizedBase64, "base64");
+    }
+    catch (_error) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid avatar payload.");
+    }
+
+    if (!fileBuffer || !fileBuffer.length) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid avatar payload.");
+    }
+
+    if (fileBuffer.length > MAX_AVATAR_BYTES) {
+        throw new AppError(400, "VALIDATION_ERROR", "Avatar image must be 2MB or less.");
+    }
+
+    const safeBase = sanitizeFilenamePart(payload.filename);
+    const fileName = `${actorUserId}-${Date.now()}-${randomBytes(8).toString("hex")}-${safeBase}.${extension}`;
+    const avatarsDir = path.resolve(process.cwd(), "uploads", "avatars");
+    const filePath = path.join(avatarsDir, fileName);
+
+    await fs.promises.mkdir(avatarsDir, { recursive: true });
+    await fs.promises.writeFile(filePath, fileBuffer);
+
+    const avatarUrl = `/uploads/avatars/${fileName}`;
+    await logAdminAction({
+        actorUserId,
+        action: "manager avatar uploaded",
+        entityType: "admin_profiles",
+        entityId: actorUserId,
+        message: `Manager avatar uploaded by user ${actorUserId}.`,
+        metadata: {
+            mime_type: mimeType,
+            bytes: fileBuffer.length,
+            avatar_url: avatarUrl,
+        },
+        title: "Manager Avatar Uploaded",
+        body: "Avatar file uploaded successfully for manager profile.",
+    });
+
+    return { avatar_url: avatarUrl };
+}
+
 // Handles 'normalizeOptionalText' workflow for this module.
 function normalizeOptionalText(value: unknown): string | null {
     if (value === undefined || value === null) {
@@ -277,7 +338,6 @@ export async function createInstructorProfileService(actorUserId: number, payloa
                 github_url: normalizeOptionalText(payload.github_url),
                 portfolio_url: normalizeOptionalText(payload.portfolio_url),
                 is_public: Boolean(payload.is_public),
-                sort_order: payload.sort_order ? Number(payload.sort_order) : null,
             }, client);
             const profileResult = await getInstructorProfileByUserId(userId, client);
             const row = profileResult.rows[0];
@@ -338,6 +398,141 @@ export async function setInstructorActivationService(actorUserId: number, userId
     });
 }
 
+
+// Handles 'uploadStudentAvatarService' workflow for this module.
+export async function uploadStudentAvatarService(actorUserId: number, payload: ProfilePayload) {
+    const mimeType = String(payload.mime_type || "").trim().toLowerCase();
+    const extension = AVATAR_MIME_TO_EXT[mimeType as keyof typeof AVATAR_MIME_TO_EXT];
+    if (!extension) {
+        throw new AppError(400, "VALIDATION_ERROR", "Unsupported avatar mime type.");
+    }
+
+    const base64Raw = String(payload.data_base64 || "").trim();
+    if (!base64Raw) {
+        throw new AppError(400, "VALIDATION_ERROR", "Avatar data is required.");
+    }
+
+    const normalizedBase64 = base64Raw.replace(/\s+/g, "");
+    let fileBuffer = null;
+    try {
+        fileBuffer = Buffer.from(normalizedBase64, "base64");
+    }
+    catch (_error) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid avatar payload.");
+    }
+
+    if (!fileBuffer || !fileBuffer.length) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid avatar payload.");
+    }
+
+    if (fileBuffer.length > MAX_AVATAR_BYTES) {
+        throw new AppError(400, "VALIDATION_ERROR", "Avatar image must be 2MB or less.");
+    }
+
+    const safeBase = sanitizeFilenamePart(payload.filename);
+    const fileName = `${actorUserId}-${Date.now()}-${randomBytes(8).toString("hex")}-${safeBase}.${extension}`;
+    const avatarsDir = path.resolve(process.cwd(), "uploads", "avatars");
+    const filePath = path.join(avatarsDir, fileName);
+
+    await fs.promises.mkdir(avatarsDir, { recursive: true });
+    await fs.promises.writeFile(filePath, fileBuffer);
+
+    const avatarUrl = `/uploads/avatars/${fileName}`;
+    await logAdminAction({
+        actorUserId,
+        action: ADMIN_ACTIONS.STUDENT_PROFILE_AVATAR_UPLOADED,
+        entityType: "student_profiles",
+        entityId: actorUserId,
+        message: `Student avatar uploaded by admin ${actorUserId}.`,
+        metadata: {
+            mime_type: mimeType,
+            bytes: fileBuffer.length,
+            avatar_url: avatarUrl,
+        },
+        title: "Student Avatar Uploaded",
+        body: "Avatar file uploaded successfully for student profile.",
+    });
+
+    return { avatar_url: avatarUrl };
+}
+
+// Handles 'createStudentProfileService' workflow for this module.
+export async function createStudentProfileService(actorUserId: number, payload: ProfilePayload) {
+    return withTransaction(async (client: any) => {
+        const email = normalizeOptionalText(payload.email)?.toLowerCase() ?? null;
+        const phone = normalizeOptionalText(payload.phone);
+        if (!email && !phone) {
+            throw new AppError(400, "VALIDATION_ERROR", "Email or phone is required.");
+        }
+        const fullName = normalizeOptionalText(payload.full_name) ?? "Student";
+        const cohortId = Number(payload.cohort_id);
+        if (!cohortId || !Number.isInteger(cohortId) || cohortId <= 0) {
+            throw new AppError(400, "VALIDATION_ERROR", "A valid cohort_id is required.");
+        }
+        const generatedPassword = generateInternalPassword();
+        const passwordHash = await bcrypt.hash(generatedPassword, 10);
+        let userId = 0;
+        try {
+            const userResult = await createStudentUser(email, phone, passwordHash, client);
+            userId = Number(userResult.rows[0]?.id ?? 0);
+            if (!userId) {
+                throw new AppError(500, "SERVER_ERROR", "Failed to create student user.");
+            }
+            await insertStudentProfileWithFields(userId, {
+                full_name: fullName,
+                avatar_url: normalizeOptionalText(payload.avatar_url),
+                bio: normalizeOptionalText(payload.bio),
+                linkedin_url: normalizeOptionalText(payload.linkedin_url),
+                github_url: normalizeOptionalText(payload.github_url),
+                portfolio_url: normalizeOptionalText(payload.portfolio_url),
+                is_public: Boolean(payload.is_public),
+                is_graduated: Boolean(payload.is_graduated),
+                is_working: Boolean(payload.is_working),
+                open_to_work: Boolean(payload.open_to_work),
+                company_work_for: normalizeOptionalText(payload.company_work_for),
+            }, client);
+            await upsertEnrollmentFromProgramApplication(userId, cohortId, client);
+            await logAdminAction({
+                actorUserId,
+                action: ADMIN_ACTIONS.STUDENT_PROFILE_CREATED,
+                entityType: "student_profiles",
+                entityId: userId,
+                message: `Student profile for ${fullName} was created.`,
+                metadata: {
+                    user_id: userId,
+                    cohort_id: cohortId,
+                    is_public: Boolean(payload.is_public),
+                },
+                title: "Student Added",
+                body: `${fullName} was added to users and enrolled in cohort ${cohortId}.`,
+            }, client);
+
+            const [freshResult, projectsResult, enrollmentsResult] = await Promise.all([
+                getStudentProfileWithUser(userId, client),
+                getStudentProjects(userId, client),
+                getStudentEnrollments(userId, client),
+            ]);
+            const freshRow = freshResult.rows[0];
+            const cohorts = (enrollmentsResult.rows || []).map((entry: any) => ({
+                enrollment_id: entry.id,
+                cohort_id: entry.cohort_id,
+                cohort_name: entry.cohort_name ?? null,
+                cohort_status: entry.cohort_status ?? null,
+                program_id: entry.program_id,
+                program_title: entry.program_title ?? null,
+                enrollment_status: entry.status ?? null,
+                enrolled_at: entry.enrolled_at ?? null,
+            }));
+            return toStudentProfileResponse(freshRow, { ...freshRow, cohorts }, projectsResult.rows || []);
+        }
+        catch (error) {
+            if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+                throw new AppError(409, "CONFLICT", "An account with this email or phone already exists.");
+            }
+            throw error;
+        }
+    });
+}
 
 // ===================================
 // STUDENT PROFILE FUNCTIONS
@@ -515,21 +710,73 @@ export async function updateStudentProfileAdmin(adminUserId: number, targetUserI
   try {
     await client.query("BEGIN");
 
-    // Update profile (without empty strings being treated as updates)
-    const normalizedPayload: Record<string, unknown> = {};
+    // Extract enrollment / user-level fields from payload before normalizing profile updates
+    const addCohortIds: number[] = Array.isArray(payload.add_cohort_ids)
+      ? payload.add_cohort_ids.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+      : [];
+    const removeCohortIds: number[] = Array.isArray(payload.remove_cohort_ids)
+      ? payload.remove_cohort_ids.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+      : [];
+
+    const emailInput = payload.email;
+    const phoneInput = payload.phone;
+    const hasEmailChange = emailInput !== undefined;
+    const hasPhoneChange = phoneInput !== undefined;
+
+    // Normalize profile-only fields (strip out user + enrollment management keys)
+    const profilePayload: Record<string, unknown> = {};
     Object.entries(payload).forEach(([key, value]: [string, unknown]) => {
+      if (key === "email" || key === "phone" || key === "add_cohort_ids" || key === "remove_cohort_ids") {
+        return;
+      }
       if (value !== undefined) {
-        normalizedPayload[key] = value === "" ? null : value;
+        profilePayload[key] = value === "" ? null : value;
       }
     });
 
-    // Perform update
-    const updateResult = await updateStudentProfile(targetUserId, normalizedPayload, client as any);
-    if (!updateResult || !updateResult.rowCount) {
-      throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
+    // Update users row for email/phone if provided
+    if (hasEmailChange || hasPhoneChange) {
+      try {
+        const setParts: string[] = [];
+        const values: unknown[] = [];
+        if (hasEmailChange) {
+          const normalizedEmail = String(emailInput || "").trim().toLowerCase() || null;
+          values.push(normalizedEmail);
+          setParts.push(`email = $${values.length}`);
+        }
+        if (hasPhoneChange) {
+          const normalizedPhone = String(phoneInput || "").trim() || null;
+          values.push(normalizedPhone);
+          setParts.push(`phone = $${values.length}`);
+        }
+        values.push(targetUserId);
+        await client.query(
+          `UPDATE users SET ${setParts.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`,
+          values,
+        );
+      } catch (error: any) {
+        if (error && typeof error === "object" && error.code === "23505") {
+          throw new AppError(409, "CONFLICT", "An account with this email or phone already exists.");
+        }
+        throw error;
+      }
     }
 
-    const updatedProfile = updateResult.rows[0];
+    // Perform profile update if there are any profile fields
+    if (Object.keys(profilePayload).length > 0) {
+      const updateResult = await updateStudentProfile(targetUserId, profilePayload, client as any);
+      if (!updateResult || !updateResult.rowCount) {
+        throw new AppError(404, "PROFILE_NOT_FOUND", "Student profile not found.");
+      }
+    }
+
+    // Apply enrollment changes
+    for (const cohortId of addCohortIds) {
+      await upsertEnrollmentFromProgramApplication(targetUserId, cohortId, client as any);
+    }
+    for (const cohortId of removeCohortIds) {
+      await removeStudentEnrollment(targetUserId, cohortId, client as any);
+    }
 
     // Log admin action
     await logAdminAction(
@@ -540,7 +787,13 @@ export async function updateStudentProfileAdmin(adminUserId: number, targetUserI
         entityId: targetUserId,
         message: `Admin updated student profile for user ${targetUserId}.`,
         metadata: {
-          updated_fields: Object.keys(normalizedPayload),
+          updated_fields: Object.keys(profilePayload),
+          user_fields: [
+            ...(hasEmailChange ? ["email"] : []),
+            ...(hasPhoneChange ? ["phone"] : []),
+          ],
+          add_cohort_ids: addCohortIds,
+          remove_cohort_ids: removeCohortIds,
         },
       },
       client
@@ -548,13 +801,25 @@ export async function updateStudentProfileAdmin(adminUserId: number, targetUserI
 
     await client.query("COMMIT");
 
-    // Fetch fresh profile with projects
-    const freshResult = await getStudentProfileWithUser(targetUserId);
-    const projectsResult = await getStudentProjects(targetUserId);
+    // Fetch fresh profile with projects + enrollments
+    const [freshResult, projectsResult, enrollmentsResult] = await Promise.all([
+      getStudentProfileWithUser(targetUserId),
+      getStudentProjects(targetUserId),
+      getStudentEnrollments(targetUserId),
+    ]);
     const projects = projectsResult.rows || [];
-
     const freshRow = freshResult.rows[0];
-    return toStudentProfileResponse(freshRow, freshRow, projects);
+    const cohorts = (enrollmentsResult.rows || []).map((entry: any) => ({
+      enrollment_id: entry.id,
+      cohort_id: entry.cohort_id,
+      cohort_name: entry.cohort_name ?? null,
+      cohort_status: entry.cohort_status ?? null,
+      program_id: entry.program_id,
+      program_title: entry.program_title ?? null,
+      enrollment_status: entry.status ?? null,
+      enrolled_at: entry.enrolled_at ?? null,
+    }));
+    return toStudentProfileResponse(freshRow, { ...freshRow, cohorts }, projects);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

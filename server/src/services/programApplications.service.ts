@@ -118,12 +118,27 @@ function buildParticipationConfirmLink(token: string) {
 
 // Handles 'buildLearnerSignInUrl' workflow for this module.
 function buildLearnerSignInUrl() {
-  return (
+  const url =
     process.env.LEARNER_SIGNIN_URL ||
     process.env.STUDENT_SIGNIN_URL ||
     process.env.PUBLIC_STUDENT_SIGNIN_URL ||
-    "https://example.com/sign-in"
-  );
+    "";
+
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new AppError(
+        500,
+        "CONFIGURATION_ERROR",
+        "LEARNER_SIGNIN_URL is not configured. Cannot send credential emails in production.",
+      );
+    }
+    console.warn(
+      "[programApplications] LEARNER_SIGNIN_URL is not set. Credential emails will not include a valid sign-in link.",
+    );
+    return "(Sign-in link not configured — contact admissions)";
+  }
+
+  return url;
 }
 
 // Handles 'formatTemplateDate' workflow for this module.
@@ -1057,17 +1072,26 @@ export async function sendProgramApplicationMessageService(
     const tokens = await buildProgramApplicationMessageTokens(programApplicationId, client);
     const renderedSubject = renderTemplateString(draft.subject || "Digital Hub Message", tokens);
     const renderedBody = renderTemplateString(draft.body, tokens);
+    const renderedBodyHtml = draft.body_html
+      ? renderTemplateString(draft.body_html, tokens)
+      : undefined;
+    const draftAttachments: Array<{ url: string; filename: string; mime_type: string }> =
+      Array.isArray(draft.attachments) ? draft.attachments : [];
     try {
       if (draft.channel === "email") {
         await sendDigitalHubEmail({
           to: draft.to_value,
           subject: renderedSubject,
           body: renderedBody,
+          bodyHtml: renderedBodyHtml,
+          attachments: draftAttachments.length ? draftAttachments : undefined,
         });
       } else if (draft.channel === "sms") {
+        const firstMedia = draftAttachments[0]?.url || undefined;
         await sendDigitalHubWhatsApp({
           to: draft.to_value,
           body: renderedBody,
+          mediaUrl: firstMedia,
         });
       }
 
@@ -1458,4 +1482,3 @@ export async function createUserFromProgramApplicationService(
     };
   });
 }
-

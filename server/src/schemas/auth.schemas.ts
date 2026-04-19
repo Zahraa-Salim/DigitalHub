@@ -3,6 +3,12 @@
 // It describes the request shapes and validation rules used before service logic runs.
 
 import { z } from "zod";
+
+const urlOrUploadPath = z.string().trim().refine(
+  (value) => !value || value.startsWith("/uploads/") || /^https?:\/\/./.test(value),
+  { message: "Must be a valid URL or upload path" }
+);
+
 export const loginBodySchema = z.object({
     email: z.string().trim().email(),
     password: z.string().min(1),
@@ -33,7 +39,7 @@ export const updateMeBodySchema = z.object({
     is_public: z.boolean().optional(),
     bio: z.string().trim().max(2000).optional(),
     job_title: z.string().trim().max(120).optional(),
-    avatar_url: z.string().trim().url().or(z.literal("")).optional(),
+    avatar_url: urlOrUploadPath.or(z.literal("")).optional(),
     linkedin_url: z.string().trim().url().or(z.literal("")).optional(),
     github_url: z.string().trim().url().or(z.literal("")).optional(),
     portfolio_url: z.string().trim().url().or(z.literal("")).optional(),
@@ -58,7 +64,7 @@ export const superAdminUpdateAdminBodySchema = z.object({
     phone: z.string().trim().min(3).or(z.literal("")).optional(),
     bio: z.string().trim().max(2000).optional(),
     job_title: z.string().trim().max(120).optional(),
-    avatar_url: z.string().trim().url().or(z.literal("")).optional(),
+    avatar_url: urlOrUploadPath.or(z.literal("")).optional(),
     linkedin_url: z.string().trim().url().or(z.literal("")).optional(),
     github_url: z.string().trim().url().or(z.literal("")).optional(),
     portfolio_url: z.string().trim().url().or(z.literal("")).optional(),
@@ -78,5 +84,12 @@ export const sendMessagingUsersBodySchema = z.object({
     user_ids: z.array(z.coerce.number().int().positive()).min(1),
     subject: z.string().trim().min(1).optional(),
     body: z.string().trim().min(1),
-}).strict();
+    body_html: z.string().trim().optional(),
+    attachments: z.array(z.object({
+        url: z.string().trim().min(1),
+        filename: z.string().trim().min(1),
+        mime_type: z.string().trim().optional(),
+        size: z.number().optional(),
+    })).optional(),
+});
 

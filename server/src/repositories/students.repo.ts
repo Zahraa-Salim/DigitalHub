@@ -438,6 +438,91 @@ export async function listStudentProfilesForAdmin(
   );
 }
 
+// Handles 'insertStudentProfileWithFields' workflow for this module.
+export async function insertStudentProfileWithFields(
+  userId: number,
+  fields: {
+    full_name: string | null;
+    avatar_url?: string | null;
+    bio?: string | null;
+    linkedin_url?: string | null;
+    github_url?: string | null;
+    portfolio_url?: string | null;
+    is_public?: boolean;
+    is_graduated?: boolean;
+    is_working?: boolean;
+    open_to_work?: boolean;
+    company_work_for?: string | null;
+  },
+  db: DbClient = pool,
+) {
+  return db.query(
+    `
+    INSERT INTO student_profiles (
+      user_id,
+      full_name,
+      avatar_url,
+      bio,
+      linkedin_url,
+      github_url,
+      portfolio_url,
+      is_public,
+      featured,
+      featured_rank,
+      public_slug,
+      is_graduated,
+      is_working,
+      open_to_work,
+      company_work_for,
+      created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, NULL, NULL, $9, $10, $11, $12, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET
+      full_name = EXCLUDED.full_name,
+      avatar_url = EXCLUDED.avatar_url,
+      bio = EXCLUDED.bio,
+      linkedin_url = EXCLUDED.linkedin_url,
+      github_url = EXCLUDED.github_url,
+      portfolio_url = EXCLUDED.portfolio_url,
+      is_public = EXCLUDED.is_public,
+      is_graduated = EXCLUDED.is_graduated,
+      is_working = EXCLUDED.is_working,
+      open_to_work = EXCLUDED.open_to_work,
+      company_work_for = EXCLUDED.company_work_for
+    RETURNING *
+    `,
+    [
+      userId,
+      fields.full_name,
+      fields.avatar_url ?? null,
+      fields.bio ?? null,
+      fields.linkedin_url ?? null,
+      fields.github_url ?? null,
+      fields.portfolio_url ?? null,
+      fields.is_public ?? false,
+      fields.is_graduated ?? false,
+      fields.is_working ?? false,
+      fields.open_to_work ?? false,
+      fields.company_work_for ?? null,
+    ],
+  );
+}
+
+// Handles 'removeStudentEnrollment' workflow for this module.
+export async function removeStudentEnrollment(
+  studentUserId: number,
+  cohortId: number,
+  db: DbClient = pool,
+) {
+  return db.query(
+    `
+    DELETE FROM enrollments
+    WHERE student_user_id = $1 AND cohort_id = $2
+    `,
+    [studentUserId, cohortId],
+  );
+}
+
 // Handles 'updateStudentAdminStatus' workflow for this module.
 export async function updateStudentAdminStatus(
   userId: number,

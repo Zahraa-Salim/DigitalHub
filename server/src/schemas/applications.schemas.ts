@@ -131,13 +131,22 @@ export const createUserBodySchema = z
   })
   .strict();
 
+const attachmentSchema = z.object({
+  url: z.string().trim().min(1),
+  filename: z.string().trim().min(1),
+  mime_type: z.string().trim().min(1),
+  size: z.number().int().nonnegative().optional(),
+});
+
 export const messageCreateBodySchema = z
   .object({
     channel: z.enum(["email", "sms"]),
     to_value: z.string().trim().min(1),
     subject: z.string().trim().min(1).optional(),
     body: z.string().trim().min(1),
+    body_html: z.string().trim().optional(),
     template_key: z.string().trim().min(1).optional(),
+    attachments: z.array(attachmentSchema).optional(),
   })
   .strict();
 

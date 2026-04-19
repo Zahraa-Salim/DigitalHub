@@ -85,8 +85,15 @@ export const programApplicationMessageCreateSchema = z
     to_value: z.string().trim().min(1).optional(),
     subject: z.string().trim().min(1).optional(),
     body: z.string().trim().min(1),
+    body_html: z.string().trim().optional(),
     template_key: z.string().trim().min(1).optional(),
     sendNow: z.boolean().optional(),
+    attachments: z.array(z.object({
+      url: z.string().trim().min(1),
+      filename: z.string().trim().min(1),
+      mime_type: z.string().trim().min(1),
+      size: z.number().int().nonnegative().optional(),
+    })).optional(),
   })
   .strict();
 

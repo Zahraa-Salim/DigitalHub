@@ -14,15 +14,25 @@ import { buildSearchClause, buildUpdateQuery } from "../utils/sql.js";
 import { logAdminAction } from "../utils/logAdminAction.js";
 import { countHomeSections, countMediaAssets, countPages, countThemeTokens, createMediaAsset, createThemeToken, ensureDefaultHomeSections, ensureDefaultPages, ensureSiteSettingsRow, getSiteSettings, listHomeSections, listMediaAssets, listPages, listThemeTokens, updateHomeSection, updatePage, updateSiteSettings, updateThemeToken, } from "../repositories/cms.repo.js";
 
-const CMS_MEDIA_MIME_TO_EXT = {
+const CMS_MEDIA_MIME_TO_EXT: Record<string, string> = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
     "image/gif": "gif",
     "image/svg+xml": "svg",
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "application/zip": "zip",
 };
-const MAX_CMS_MEDIA_BYTES = 6 * 1024 * 1024;
+const MAX_CMS_MEDIA_BYTES = 10 * 1024 * 1024;
 
 type CmsQuery = Record<string, unknown>;
 
@@ -225,7 +235,7 @@ export async function listCmsMedia(query: CmsQuery) {
 // Handles 'uploadCmsMedia' workflow for this module.
 export async function uploadCmsMedia(adminId: number, payload: CmsMediaPayload) {
     const mimeType = String(payload.mime_type || "").trim().toLowerCase();
-    const extension = CMS_MEDIA_MIME_TO_EXT[mimeType as keyof typeof CMS_MEDIA_MIME_TO_EXT];
+    const extension = CMS_MEDIA_MIME_TO_EXT[mimeType];
     if (!extension) {
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported media mime type.");
     }
@@ -314,10 +324,8 @@ export async function createCmsThemeToken(adminId: number, input: CmsThemeTokenP
 }
 // Handles 'patchCmsThemeToken' workflow for this module.
 export async function patchCmsThemeToken(id: number, adminId: number, payload: Record<string, unknown>) {
-    const updated = await withTransaction(async (client: Parameters<typeof updateThemeToken>[4]) => {
-        const allowedColumns = ["key", "purpose", "value", "scope"];
-        const { setClause, values } = buildUpdateQuery(payload, allowedColumns, 1);
-        const result = await updateThemeToken(id, setClause, values, adminId, client);
+    const updated = await withTransaction(async (client: Parameters<typeof updateThemeToken>[3]) => {
+        const result = await updateThemeToken(id, payload, adminId, client);
         if (!result.rowCount) {
             throw new AppError(404, "THEME_TOKEN_NOT_FOUND", "Theme token not found.");
         }

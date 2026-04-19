@@ -96,3 +96,14 @@ export async function markEventDone(id: number, db: DbClient = pool) {
     `, [id]);
 }
 
+// Handles 'markEventUndone' workflow for this module.
+export async function markEventUndone(id: number, db: DbClient = pool) {
+    return db.query(`
+      UPDATE events
+      SET is_done = FALSE, done_at = NULL, updated_at = NOW()
+      WHERE id = $1
+        AND deleted_at IS NULL
+      RETURNING *
+    `, [id]);
+}
+

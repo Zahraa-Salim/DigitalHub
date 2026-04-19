@@ -135,7 +135,7 @@ const cohortsConfig = {
     extraWhere: ["p.is_published = TRUE", "p.deleted_at IS NULL", "c.deleted_at IS NULL", "c.status <> 'cancelled'"],
     resourceConfig: {
         tableExpression: "cohorts c JOIN programs p ON p.id = c.program_id",
-        selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, p.summary AS program_summary, p.description AS program_description, p.requirements AS program_requirements, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
+        selectFields: "c.id, c.program_id, p.title AS program_title, p.image_url AS program_image_url, p.summary AS program_summary, p.description AS program_description, p.requirements AS program_requirements, p.color_scheme_id, p.icon_class, c.name, CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END AS status, CASE WHEN c.status = 'open' THEN TRUE ELSE FALSE END AS allow_applications, c.use_general_form, c.application_form_id, c.capacity, c.enrollment_open_at, c.enrollment_close_at, c.start_date, c.end_date, c.created_at, c.updated_at",
         sortPrefix: "c",
     },
     statusFilterExpression: "(CASE WHEN c.status = 'planned' THEN 'coming_soon' ELSE c.status END)",
@@ -199,24 +199,24 @@ const announcementsConfig = {
     },
 };
 const managersConfig = {
-    sortableColumns: ["user_id", "full_name", "sort_order", "created_at"],
-    defaultSort: "sort_order",
+    sortableColumns: ["user_id", "full_name", "created_at"],
+    defaultSort: "created_at",
     searchableColumns: ["ap.full_name", "COALESCE(ap.job_title, '')", "COALESCE(ap.bio, '')", "COALESCE(ap.admin_role, '')"],
     extraWhere: ["ap.is_public = TRUE"],
     resourceConfig: {
         tableExpression: "admin_profiles ap",
-        selectFields: "ap.user_id, ap.full_name, ap.avatar_url, ap.bio, ap.job_title, ap.skills, ap.admin_role, ap.linkedin_url, ap.github_url, ap.portfolio_url, ap.sort_order",
+        selectFields: "ap.user_id, ap.full_name, ap.avatar_url, ap.bio, ap.job_title, ap.skills, ap.admin_role, ap.linkedin_url, ap.github_url, ap.portfolio_url",
         sortPrefix: "ap",
     },
 };
 const instructorsConfig = {
-    sortableColumns: ["user_id", "full_name", "created_at"],
-    defaultSort: "created_at",
+    sortableColumns: ["user_id", "full_name", "sort_order", "created_at"],
+    defaultSort: "sort_order",
     searchableColumns: ["ip.full_name", "COALESCE(ip.expertise, '')", "COALESCE(ip.bio, '')"],
     extraWhere: ["ip.is_public = TRUE"],
     resourceConfig: {
         tableExpression: "instructor_profiles ip",
-        selectFields: "ip.user_id, ip.full_name, ip.avatar_url, ip.bio, ip.expertise, ip.skills, ip.linkedin_url, ip.github_url, ip.portfolio_url",
+        selectFields: "ip.user_id, ip.full_name, ip.avatar_url, ip.bio, ip.expertise, ip.skills, ip.linkedin_url, ip.github_url, ip.portfolio_url, ip.sort_order",
         sortPrefix: "ip",
     },
 };

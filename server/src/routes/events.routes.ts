@@ -3,7 +3,7 @@
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
 import { Router } from "express";
-import { createEvent, deleteEvent, getEvents, markEventDone, patchEvent, postEventImage, } from "../controllers/events.controller.js";
+import { createEvent, deleteEvent, getEvents, markEventDone, markEventUndone, patchEvent, postEventImage, } from "../controllers/events.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { eventCreateSchema, eventImageUploadSchema, eventPatchSchema, idParamsSchema } from "../schemas/events.schemas.js";
@@ -16,5 +16,6 @@ eventsRouter.get("/", asyncHandler(getEvents));
 eventsRouter.patch("/:id", validateRequest({ params: idParamsSchema, body: eventPatchSchema }), asyncHandler(patchEvent));
 eventsRouter.delete("/:id", validateRequest({ params: idParamsSchema }), asyncHandler(deleteEvent));
 eventsRouter.patch("/:id/mark-done", validateRequest({ params: idParamsSchema }), asyncHandler(markEventDone));
+eventsRouter.patch("/:id/mark-undone", validateRequest({ params: idParamsSchema }), asyncHandler(markEventUndone));
 export { eventsRouter };
 

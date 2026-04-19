@@ -5,7 +5,7 @@
 
 import type { Request, Response } from "express";
 import { sendList, sendSuccess } from "../utils/httpResponse.js";
-import { createEventService, deleteEventService, listEventsService, markEventDoneService, patchEventService, uploadEventImageService, } from "../services/events.service.js";
+import { createEventService, deleteEventService, listEventsService, markEventDoneService, markEventUndoneService, patchEventService, uploadEventImageService, } from "../services/events.service.js";
 // Handles 'createEvent' workflow for this module.
 export async function createEvent(req: Request, res: Response) {
     const data = await createEventService(req.user!.id, req.body);
@@ -30,6 +30,12 @@ export async function deleteEvent(req: Request, res: Response) {
 export async function markEventDone(req: Request, res: Response) {
     const data = await markEventDoneService(Number(req.params.id), req.user!.id);
     sendSuccess(res, data, "Event marked as done.");
+}
+
+// Handles 'markEventUndone' workflow for this module.
+export async function markEventUndone(req: Request, res: Response) {
+    const data = await markEventUndoneService(Number(req.params.id), req.user!.id);
+    sendSuccess(res, data, "Event marked as not done.");
 }
 // Handles 'postEventImage' workflow for this module.
 export async function postEventImage(req: Request, res: Response) {

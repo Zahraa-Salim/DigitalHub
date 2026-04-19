@@ -474,10 +474,11 @@ async function queueMessageDrafts(
           body: renderedBody,
         });
       } else {
-        await sendDigitalHubWhatsApp({
+        const waResult = await sendDigitalHubWhatsApp({
           to: String(toValue).trim(),
           body: renderedBody,
         });
+        console.log(`[whatsapp] Sent to ${String(toValue).trim()}, provider message_id: ${waResult.message_id ?? "none"}`);
       }
 
       const sentResult = await markApplicationMessageSent(
@@ -641,7 +642,8 @@ async function sendAccountCredentialsMessageForApplication(
 
   if (sendWhatsApp) {
     try {
-      await sendDigitalHubWhatsApp({ to: phoneValue, body });
+      const waResult = await sendDigitalHubWhatsApp({ to: phoneValue, body });
+      console.log(`[whatsapp] Sent to ${phoneValue}, provider message_id: ${waResult.message_id ?? "none"}`);
       const created = await createApplicationMessageDraft(
         {
           application_id: applicationId,
@@ -1662,17 +1664,22 @@ export async function sendApplicationMessageService(applicationId: number, messa
     const tokens = await buildApplicationMessageTokens(applicationId, client);
     const renderedSubject = renderTemplateString(draft.subject || "Digital Hub Message", tokens);
     const renderedBody = renderTemplateString(draft.body, tokens);
+    const draftAttachments = Array.isArray(draft.attachments) ? draft.attachments : [];
     try {
       if (draft.channel === "email") {
         await sendDigitalHubEmail({
           to: draft.to_value,
           subject: renderedSubject,
           body: renderedBody,
+          bodyHtml: draft.body_html || undefined,
+          attachments: draftAttachments.length ? draftAttachments : undefined,
         });
       } else if (draft.channel === "sms") {
+        const firstMedia = draftAttachments[0]?.url || undefined;
         await sendDigitalHubWhatsApp({
           to: draft.to_value,
           body: renderedBody,
+          mediaUrl: firstMedia,
         });
       }
 

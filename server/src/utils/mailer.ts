@@ -8,12 +8,18 @@ import { AppError } from "./appError.js";
 
 const require = createRequire(import.meta.url);
 
+type MailAttachment = {
+  filename: string;
+  path: string;
+};
+
 type MailTransportOptions = {
   from: string;
   to: string;
   subject: string;
   text: string;
   html: string;
+  attachments?: MailAttachment[];
 };
 
 type MailTransporter = {
@@ -40,10 +46,18 @@ type SiteSettingsRow = {
   } | null;
 };
 
+type EmailAttachmentInput = {
+  url: string;
+  filename: string;
+  mime_type: string;
+};
+
 type SendEmailInput = {
   to: string;
   subject: string;
   body: string;
+  bodyHtml?: string;
+  attachments?: EmailAttachmentInput[];
 };
 
 type SendEmailResult = {
@@ -199,7 +213,7 @@ async function resolveFromAddress(config: MailerConfig): Promise<string> {
 }
 
 // Handles 'sendDigitalHubEmail' workflow for this module.
-export async function sendDigitalHubEmail({ to, subject, body }: SendEmailInput): Promise<SendEmailResult> {
+export async function sendDigitalHubEmail({ to, subject, body, bodyHtml, attachments }: SendEmailInput): Promise<SendEmailResult> {
   const destination = String(to || "").trim();
   const subjectLine = String(subject || "").trim();
   const messageBody = String(body || "").trim();
@@ -244,12 +258,17 @@ export async function sendDigitalHubEmail({ to, subject, body }: SendEmailInput)
   }
 
   const transporter = getTransporter(config);
+  const mailAttachments: MailAttachment[] = (attachments ?? [])
+    .filter((a) => a.url && a.filename)
+    .map((a) => ({ filename: a.filename, path: a.url }));
+
   await transporter.sendMail({
     from: `"${config.fromName}" <${fromAddress}>`,
     to: destination,
     subject: subjectLine,
     text: messageBody,
-    html: buildHtmlFromText(messageBody),
+    html: bodyHtml ? bodyHtml : buildHtmlFromText(messageBody),
+    ...(mailAttachments.length ? { attachments: mailAttachments } : {}),
   });
 
   return {

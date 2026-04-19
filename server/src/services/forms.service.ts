@@ -60,17 +60,17 @@ type FormMetaRow = Omit<FormDto, "fields">;
 type FormPayload = {
   key?: string;
   title?: string;
-  description?: string;
+  description?: string | null;
   is_active?: boolean;
   fields?: FormFieldInput[];
   created_by?: number | null;
   form?: {
     title?: string;
-    description?: string;
+    description?: string | null;
     is_active?: boolean;
     fields?: FormFieldInput[];
   };
-  mode?: "general" | "custom";
+  mode?: "general" | "custom" | "program";
   [key: string]: unknown;
 };
 
@@ -316,6 +316,16 @@ function normalizeFields(fieldsInput: unknown): FormFieldInput[] {
   });
 }
 
+// Handles 'normalizeOptionalFields' workflow for this module.
+function normalizeOptionalFields(fieldsInput: unknown): FormFieldInput[] {
+  const rawFields = Array.isArray(fieldsInput) ? (fieldsInput as FormFieldInput[]) : [];
+  if (!rawFields.length) {
+    return [];
+  }
+
+  return normalizeFields(rawFields);
+}
+
 // Handles 'toFormDto' workflow for this module.
 function toFormDto(formRow: any, fieldsRows: FormFieldInput[]): FormDto {
   return {
@@ -535,7 +545,7 @@ async function upsertFormByKey({ key, title, description, is_active, fields, cre
     formRow = updated.rows[0];
   }
 
-  const normalizedFields = normalizeFields(fields);
+  const normalizedFields = normalizeOptionalFields(fields);
   const fieldsResult = await replaceFormFields(formRow.id, normalizedFields, client);
   return toFormDto(formRow, fieldsResult.rows);
 }
@@ -551,6 +561,7 @@ async function buildCohortFormResponse(cohortId: number, client: any, cachedGene
 
   const cohort = cohortResult.rows[0];
   let customForm = null;
+  let resolvedForm = generalForm;
 
   if (cohort.application_form_id) {
     const customFormResult = await getFormById(cohort.application_form_id, client);
@@ -560,7 +571,21 @@ async function buildCohortFormResponse(cohortId: number, client: any, cachedGene
     }
   }
 
-  const resolvedForm = cohort.use_general_form || !customForm ? generalForm : customForm;
+  if (customForm && !cohort.use_general_form) {
+    resolvedForm = customForm;
+  } else if (cohort.program_id) {
+    const programConfig = await getProgramFormConfigById(cohort.program_id, client);
+    if (programConfig.rowCount) {
+      const program = programConfig.rows[0];
+      if (!program.use_general_form && program.application_form_id) {
+        const programFormResult = await getFormById(program.application_form_id, client);
+        if (programFormResult.rowCount) {
+          const programFieldsResult = await listFormFields(program.application_form_id, client);
+          resolvedForm = toFormDto(programFormResult.rows[0], programFieldsResult.rows);
+        }
+      }
+    }
+  }
 
   return {
     cohort,
@@ -640,6 +665,7 @@ export async function saveCohortFormService(cohortId: number, adminId: number, p
     }
 
     const cohort = cohortResult.rows[0];
+    const customInput = payload.form ?? {};
 
     if (payload.mode === "general") {
       const updateResult = await updateCohortFormConfig(cohortId, true, null, client);
@@ -664,9 +690,60 @@ export async function saveCohortFormService(cohortId: number, adminId: number, p
       return buildCohortFormResponse(cohortId, client, generalForm);
     }
 
+    if (payload.mode === "program") {
+      const programResult = await getProgramFormConfigById(cohort.program_id, client);
+      let programFormFields = generalForm.fields;
+
+      if (programResult.rowCount) {
+        const program = programResult.rows[0];
+        if (!program.use_general_form && program.application_form_id) {
+          const programFormMetaResult = await getFormById(program.application_form_id, client);
+          if (programFormMetaResult.rowCount) {
+            const programFieldsResult = await listFormFields(program.application_form_id, client);
+            if (programFieldsResult.rows.length) {
+              programFormFields = programFieldsResult.rows;
+            }
+          }
+        }
+      }
+
+      const customFormKey = `cohort_application_cohort_${cohortId}`;
+      const customForm = await upsertFormByKey(
+        {
+          key: customFormKey,
+          title: customInput.title?.trim() || `${cohort.name} Application Form`,
+          description: customInput.description?.trim() || null,
+          is_active: customInput.is_active ?? true,
+          fields: cloneFields(programFormFields),
+          created_by: adminId,
+        },
+        client,
+      );
+
+      const updateResult = await updateCohortFormConfig(cohortId, false, customForm.id, client);
+      if (!updateResult.rowCount) {
+        throw new AppError(404, "COHORT_NOT_FOUND", "Cohort not found.");
+      }
+
+      await logAdminAction(
+        {
+          actorUserId: adminId,
+          action: ADMIN_ACTIONS.COHORT_FORM_ASSIGNED,
+          entityType: "cohorts",
+          entityId: cohortId,
+          message: `Cohort ${cohortId} now uses a custom application form copied from its program form.`,
+          metadata: { mode: "program", form_id: customForm.id, program_id: cohort.program_id },
+          title: "Cohort Form Updated",
+          body: `Custom application form saved for cohort ${cohort.name} using the program form as a starting point.`,
+        },
+        client,
+      );
+
+      return buildCohortFormResponse(cohortId, client, generalForm);
+    }
+
     const customFormKey = `cohort_application_cohort_${cohortId}`;
-    const customInput = payload.form ?? {};
-    const customFields = Array.isArray(customInput.fields) && customInput.fields.length
+    const customFields = Array.isArray(customInput.fields)
       ? customInput.fields
       : cloneFields(generalForm.fields);
 
@@ -792,7 +869,7 @@ export async function saveProgramFormService(programId: number, adminId: number,
 
     const customFormKey = `program_application_program_${programId}`;
     const customInput = payload.form ?? {};
-    const customFields = Array.isArray(customInput.fields) && customInput.fields.length
+    const customFields = Array.isArray(customInput.fields)
       ? customInput.fields
       : cloneFields(generalForm.fields);
 
@@ -903,7 +980,7 @@ export async function patchProgramApplicationFormFieldsService(adminId: number, 
 }
 
 // Handles 'assignCohortFormService' workflow for this module.
-export async function assignCohortFormService(cohortId: number, adminId: number, mode: "general" | "custom") {
+export async function assignCohortFormService(cohortId: number, adminId: number, mode: "general" | "custom" | "program") {
   return saveCohortFormService(cohortId, adminId, { mode });
 }
 

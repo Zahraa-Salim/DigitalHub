@@ -81,6 +81,15 @@ export const formPayloadSchema = z
   })
   .strict();
 
+const cohortFormBodySchema = z
+  .object({
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().nullable().optional(),
+    is_active: z.boolean().optional(),
+    fields: z.array(formFieldSchema).optional(),
+  })
+  .strict();
+
 export const formCreateSchema = z
   .object({
     key: z.string().trim().min(1),
@@ -105,14 +114,14 @@ export const formPatchPayloadSchema = z
 
 export const cohortFormPayloadSchema = z
   .object({
-    mode: z.enum(["general", "custom"]),
-    form: formPayloadSchema.partial({ fields: true }).optional(),
+    mode: z.enum(["general", "custom", "program"]),
+    form: cohortFormBodySchema.optional(),
   })
   .strict();
 
 export const cohortFormAssignBodySchema = z
   .object({
-    mode: z.enum(["general", "custom"]),
+    mode: z.enum(["general", "custom", "program"]),
   })
   .strict();
 
