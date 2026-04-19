@@ -28,6 +28,8 @@ export type CohortProgramCard = {
   instructorName: string;
   thumb: string;
   rating: number;
+  colorSchemeId: number;
+  iconClass: string;
 };
 
 const COURSE_THUMBS = [
@@ -145,6 +147,8 @@ export const mapOpenCohortsToProgramCards = (cohorts: PublicCohort[]): CohortPro
         instructorName: "Digital Hub Team",
         thumb: resolveProgramImageUrl(cohort.program_image_url) || COURSE_THUMBS[index % COURSE_THUMBS.length],
         rating: 5,
+        colorSchemeId: cohort.color_scheme_id || 1,
+        iconClass: cohort.icon_class || "fa-code",
       };
     });
 };

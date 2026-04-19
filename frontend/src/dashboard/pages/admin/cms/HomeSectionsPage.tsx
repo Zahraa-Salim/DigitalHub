@@ -463,6 +463,21 @@ export function CmsHomeSectionsPage() {
   const sectionConfig = SECTION_CONFIG[sectionKind];
   const sectionMeta = SECTION_META[sectionKind];
   const parsedContent = useMemo(() => (editor ? parseJsonObject(editor.contentText) : { value: null as JsonObject | null, error: "" }), [editor]);
+  const selectedRow = useMemo(
+    () => (selectedId ? orderedRows.find((row) => row.id === selectedId) ?? null : null),
+    [orderedRows, selectedId],
+  );
+  const editorDirty = useMemo(() => {
+    if (!editor || !selectedRow) return false;
+    const baseline = buildEditor(selectedRow);
+    return (
+      baseline.title !== editor.title
+      || baseline.isEnabled !== editor.isEnabled
+      || baseline.sortOrder !== editor.sortOrder
+      || baseline.contentText !== editor.contentText
+    );
+  }, [editor, selectedRow]);
+  const hasUnsavedChanges = orderDirty || editorDirty;
 
   useEffect(() => {
     if (error) {
@@ -509,6 +524,16 @@ export function CmsHomeSectionsPage() {
     void loadSections();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedChanges]);
 
   const handleSelect = (row: HomeSectionRow) => {
     setSelectedId(row.id);

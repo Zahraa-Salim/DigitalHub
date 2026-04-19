@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/terms.tsx
-// Purpose: Acts as the route entry for the terms page.
-// It composes the shared layout with the main section component for this route.
-
 import Wrapper from "@/layouts/Wrapper";
 import { Terms } from "@/sections/terms.sections";
+import { PageMeta } from "@/components/PageMeta";
 
 const TermsPage = () => {
   return (
     <Wrapper>
+      <PageMeta
+        title="Terms & Conditions"
+        description="Terms and conditions for The Digital Hub."
+        canonicalPath="/terms"
+      />
       <Terms />
     </Wrapper>
   );
 };
 
 export default TermsPage;
-

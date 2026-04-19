@@ -19,11 +19,20 @@ type SiteSettingsRow = {
   social_links: Record<string, unknown> | null;
 };
 
+type CmsPageRow = {
+  id: number;
+  key: string;
+  title: string | null;
+  content: Record<string, unknown> | null;
+  is_published: boolean;
+};
+
 type SiteSettingsForm = {
   siteName: string;
   defaultEventLocation: string;
   browserTitle: string;
   faviconUrl: string;
+  headerLogoUrl: string;
   contactEmail: string;
   contactPhone: string;
   contactAddress: string;
@@ -42,6 +51,7 @@ const initialForm: SiteSettingsForm = {
   defaultEventLocation: "",
   browserTitle: "",
   faviconUrl: "",
+  headerLogoUrl: "",
   contactEmail: "",
   contactPhone: "",
   contactAddress: "",
@@ -74,6 +84,12 @@ export function CmsSiteSettingsPage() {
   const [faviconError, setFaviconError] = useState("");
   const [rawContactInfo, setRawContactInfo] = useState<Record<string, unknown>>({});
   const [rawSocialLinks, setRawSocialLinks] = useState<Record<string, unknown>>({});
+  const [navbarPageId, setNavbarPageId] = useState<number | null>(null);
+  const [navbarContent, setNavbarContent] = useState<Record<string, unknown>>({});
+  const [contactPageId, setContactPageId] = useState<number | null>(null);
+  const [contactContent, setContactContent] = useState<Record<string, unknown>>({});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState("");
 
   useEffect(() => {
     if (error) {
@@ -96,19 +112,40 @@ export function CmsSiteSettingsPage() {
       setSuccess("");
 
       try {
-        const settings = await api<SiteSettingsRow>("/cms/site-settings");
+        const [settings, pagesRes] = await Promise.all([
+          api<SiteSettingsRow>("/cms/site-settings"),
+          api<{ data: CmsPageRow[] }>("/cms/pages?limit=100"),
+        ]);
         if (!active) return;
+
+        const pages = Array.isArray(pagesRes.data) ? pagesRes.data : Array.isArray(pagesRes) ? pagesRes as unknown as CmsPageRow[] : [];
+        const navPage = pages.find((p) => p.key === "navbar");
+        const contPage = pages.find((p) => p.key === "contact");
+
+        if (navPage) {
+          setNavbarPageId(navPage.id);
+          const nc = isObjectRecord(navPage.content) ? navPage.content : {};
+          setNavbarContent(nc);
+        }
+        if (contPage) {
+          setContactPageId(contPage.id);
+          const cc = isObjectRecord(contPage.content) ? contPage.content : {};
+          setContactContent(cc);
+        }
 
         const contactInfo = isObjectRecord(settings.contact_info) ? settings.contact_info : {};
         const socialLinks = isObjectRecord(settings.social_links) ? settings.social_links : {};
         setRawContactInfo(contactInfo);
         setRawSocialLinks(socialLinks);
 
+        const navContent = navPage && isObjectRecord(navPage.content) ? navPage.content : {};
+
         setForm({
           siteName: asText(settings.site_name),
           defaultEventLocation: asText(settings.default_event_location),
           browserTitle: asText(contactInfo.browser_title ?? contactInfo.browserTitle),
           faviconUrl: asText(contactInfo.favicon_url ?? contactInfo.faviconUrl),
+          headerLogoUrl: asText(navContent.logo_url ?? navContent.logoUrl ?? navContent.header_logo_url ?? navContent.headerLogoUrl),
           contactEmail: asText(contactInfo.email),
           contactPhone: asText(contactInfo.phone),
           contactAddress: asText(contactInfo.address),
@@ -178,6 +215,51 @@ export function CmsSiteSettingsPage() {
       setFaviconError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploadingFavicon(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleLogoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("Logo must be 2 MB or less.");
+      event.target.value = "";
+      return;
+    }
+
+    setLogoError("");
+    setUploadingLogo(true);
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read file."));
+        reader.readAsDataURL(file);
+      });
+
+      const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(dataUrl);
+      if (!match) {
+        throw new Error("Unsupported file type.");
+      }
+
+      const result = await api<{ public_url: string }>("/cms/media", {
+        method: "POST",
+        body: JSON.stringify({
+          filename: file.name,
+          mime_type: match[1],
+          data_base64: match[2],
+          alt_text: "header logo",
+        }),
+      });
+
+      setForm((prev) => ({ ...prev, headerLogoUrl: result.public_url }));
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploadingLogo(false);
       event.target.value = "";
     }
   };
@@ -263,6 +345,43 @@ export function CmsSiteSettingsPage() {
         link.href = form.faviconUrl.trim();
       }
 
+      // Sync logo to navbar page
+      if (navbarPageId && form.headerLogoUrl.trim()) {
+        try {
+          const updatedNavContent = { ...navbarContent, logo_url: form.headerLogoUrl.trim() };
+          await api(`/cms/pages/${navbarPageId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ content: updatedNavContent }),
+          });
+          setNavbarContent(updatedNavContent);
+        } catch {
+          // Non-critical: navbar page sync failed
+        }
+      }
+
+      // Sync contact info to contact page
+      if (contactPageId) {
+        try {
+          const updatedContactContent = {
+            ...contactContent,
+            email: form.contactEmail.trim(),
+            phone: form.contactPhone.trim(),
+            address: form.contactAddress.trim(),
+            map_embed_url: form.mapEmbedUrl.trim(),
+            map_location: form.mapLocation.trim(),
+            contact_form_title: form.contactFormTitle.trim(),
+            contact_form_subtitle: form.contactFormSubtitle.trim(),
+          };
+          await api(`/cms/pages/${contactPageId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ content: updatedContactContent }),
+          });
+          setContactContent(updatedContactContent);
+        } catch {
+          // Non-critical: contact page sync failed
+        }
+      }
+
       setSuccess("Site settings saved successfully.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message || "Failed to save site settings." : "Failed to save site settings.");
@@ -283,7 +402,7 @@ export function CmsSiteSettingsPage() {
     >
       <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <Card className="card--compact-row">
-        <p className="info-text">Contact defaults and social links are managed here. Navbar and Footer are now managed in CMS Pages.</p>
+        <p className="info-text">Logo, contact info, and social links are managed here. Changes sync to the navbar and contact pages automatically.</p>
         {loading ? <PulseDots layout="inline" label="Loading" /> : <Badge tone="default">Live CMS</Badge>}
       </Card>
       <div className="two-col-grid">
@@ -347,6 +466,50 @@ export function CmsSiteSettingsPage() {
                 </label>
               </div>
               {faviconError ? <span className="field__error">{faviconError}</span> : null}
+            </div>
+
+            <div className="field">
+              <span className="field__label">Header Logo</span>
+              <span className="field__hint">
+                The logo shown in the website navbar. Recommended: PNG or SVG, max 2 MB.
+              </span>
+
+              {form.headerLogoUrl ? (
+                <div className="favicon-preview">
+                  <img
+                    src={form.headerLogoUrl}
+                    alt="Header logo preview"
+                    className="favicon-preview__img"
+                    style={{ height: 40, width: "auto" }}
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                </div>
+              ) : null}
+
+              <input
+                className="field__control"
+                value={form.headerLogoUrl}
+                onChange={(event) => setForm((prev) => ({ ...prev, headerLogoUrl: event.target.value }))}
+                placeholder="https://... or /assets/img/logo/digitalhub.png"
+                disabled={loading || saving}
+              />
+
+              <div className="favicon-upload-row">
+                <span className="favicon-upload-row__or">or upload a file</span>
+                <label className="favicon-upload-btn">
+                  <input
+                    type="file"
+                    accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                    style={{ display: "none" }}
+                    disabled={loading || saving || uploadingLogo}
+                    onChange={(event) => void handleLogoUpload(event)}
+                  />
+                  {uploadingLogo ? "Uploading..." : "Choose file"}
+                </label>
+              </div>
+              {logoError ? <span className="field__error">{logoError}</span> : null}
             </div>
           </div>
         </Card>

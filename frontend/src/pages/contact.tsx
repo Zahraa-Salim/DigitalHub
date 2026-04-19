@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/contact.tsx
-// Purpose: Acts as the route entry for the contact page.
-// It composes the shared layout with the main section component for this route.
-
 import { Contact } from "@/sections/contact.sections";
 import Wrapper from "@/layouts/Wrapper";
+import { PageMeta } from "@/components/PageMeta";
 
 const page = () => {
-   return (
-      <Wrapper>
-         <Contact />
-      </Wrapper>
-   )
-}
+  return (
+    <Wrapper>
+      <PageMeta
+        title="Contact"
+        description="Get in touch with The Digital Hub. Send us a message or find our location."
+        canonicalPath="/contact"
+      />
+      <Contact />
+    </Wrapper>
+  );
+};
 
-export default page
-
+export default page;

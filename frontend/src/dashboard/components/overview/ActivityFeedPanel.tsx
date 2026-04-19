@@ -82,14 +82,14 @@ export function ActivityFeedPanel({ activityFeed }: ActivityFeedPanelProps) {
             ? 'Onboarding'
             : 'Interviews';
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="self-start">
       <CardHeader style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }} className="flex flex-row items-center justify-between">
         <CardTitle>Admin Activity</CardTitle>
         <Badge variant="gray" className="cursor-pointer hover:bg-gray-200" onClick={nextFilter} style={{ color: "var(--text-muted)", background: "var(--surface-soft)" }}>
           Filter: {filterLabel}
         </Badge>
       </CardHeader>
-      <CardContent className="p-0 flex-1 overflow-hidden">
+      <CardContent className="p-0 overflow-hidden">
         <div className="h-[300px] overflow-y-auto p-4 space-y-4">
           {filteredActivities.length === 0 ? (
             <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>No recent activity.</div>

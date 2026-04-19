@@ -183,7 +183,7 @@ export async function apiList<T>(path: string, options: RequestInit = {}, requir
 }
 
 export async function getSubscribers(params?: Record<string, string | number | boolean>) {
-  return apiList<SubscriberRow>(`/admin/subscribers${buildQueryString(params ?? {})}`);
+  return apiList<SubscriberRow>(`/api/admin/subscribers${buildQueryString(params ?? {})}`);
 }
 
 export async function patchSubscriber(
@@ -194,7 +194,7 @@ export async function patchSubscriber(
     is_active?: boolean;
   },
 ) {
-  return api<SubscriberRow>(`/admin/subscribers/${id}`, {
+  return api<SubscriberRow>(`/api/admin/subscribers/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

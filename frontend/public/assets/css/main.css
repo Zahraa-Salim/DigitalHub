@@ -40,16 +40,16 @@
 /*  01. Theme Default CSS
 ==============================================*/
 :root {
-  --tg-body-font-family: 'Inter', sans-serif;
-  --tg-heading-font-family: 'Poppins', sans-serif;
+  --tg-body-font-family: 'Montserrat', sans-serif;
+  --tg-heading-font-family: 'Garet', sans-serif;
   --tg-icon-font-family: "Font Awesome 5 Free";
   --tg-body-font-size: 16px;
   --tg-body-line-height: 1.75;
   --tg-heading-line-height: 1.3;
-  --tg-body-color: #6D6C80;
+  --tg-body-color: #4B4B4B;
   --tg-heading-color: #161439;
   --tg-theme-primary: #5751E1;
-  --tg-theme-secondary: #FFC224;
+  --tg-theme-secondary: #00F0FF;
   --tg-common-color-blue: #050071;
   --tg-common-color-blue-2: #282568;
   --tg-common-color-indigo: #9B51E0;
@@ -20632,3 +20632,6 @@ blockquote > p {
 }
 
 /*# sourceMappingURL=main.css.map */
+.dh-program-card__icon {
+  color: var(--card-accent, #ffffff);
+}

@@ -1158,6 +1158,35 @@ export function CohortsPage() {
     }
   };
 
+  const applyProgramFormToOpenCohort = async () => {
+    if (!openFormPrompt) {
+      return;
+    }
+
+    const cohortId = openFormPrompt.cohortId;
+    setIsPreparingCustomForm(true);
+
+    try {
+      await api(`/forms/cohorts/${cohortId}`, {
+        method: "PUT",
+        body: JSON.stringify({ mode: "program" }),
+      });
+      setOpenFormPrompt(null);
+      setSuccess("Program form applied to cohort.");
+      navigate(`/admin/forms?cohort_id=${cohortId}&mode=program`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND") {
+        setError("Forms API is unavailable on the current backend process. Restart the server and try again.");
+      } else if (err instanceof ApiError) {
+        setError(err.message || "Failed to apply program form.");
+      } else {
+        setError("Failed to apply program form.");
+      }
+    } finally {
+      setIsPreparingCustomForm(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) {
       return;
@@ -1523,7 +1552,7 @@ export function CohortsPage() {
                   closeDetailModal();
                 }}
               >
-                Application Form
+                Form Builder
               </button>
               <button
                 className="btn btn--secondary"
@@ -1844,7 +1873,7 @@ export function CohortsPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-header">
-              <h3 className="modal-title">Application Form Setup</h3>
+              <h3 className="modal-title">Form Setup</h3>
             </header>
             <p className="post-details__line">
               Choose the application form mode for <strong>{openFormPrompt.cohortName}</strong>.
@@ -1857,6 +1886,16 @@ export function CohortsPage() {
                 disabled={isAssigningGeneralForm || isPreparingCustomForm}
               >
                 {isAssigningGeneralForm ? "Saving..." : "Use General Form"}
+              </button>
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  void applyProgramFormToOpenCohort();
+                }}
+                disabled={isAssigningGeneralForm || isPreparingCustomForm}
+              >
+                {isPreparingCustomForm ? "Preparing..." : "Use Program Form"}
               </button>
               <button
                 className="btn btn--primary"

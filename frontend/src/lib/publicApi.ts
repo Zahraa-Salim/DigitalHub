@@ -30,6 +30,8 @@ export type PublicCohort = {
   program_summary?: string | null;
   program_description?: string | null;
   program_requirements?: string | null;
+  color_scheme_id?: number | null;
+  icon_class?: string | null;
   name: string;
   status: "coming_soon" | "open" | "running" | "completed" | "cancelled" | "planned";
   allow_applications: boolean;
@@ -509,7 +511,7 @@ export async function listPublicManagers() {
   return getList<PublicAdmin>("/public/managers", {
     page: 1,
     limit: 200,
-    sortBy: "sort_order",
+    sortBy: "full_name",
     order: "asc",
   });
 }
@@ -631,7 +633,7 @@ export async function getPublicProgramForm(programId: number) {
 }
 
 export async function submitPublicSubscribe(payload: SubscribePayload) {
-  const res = await fetch(`${API_BASE_URL}/subscribe`, {
+  const res = await fetch(`${API_BASE_URL}/api/subscribe`, {
     method: "POST",
     cache: "no-store",
     credentials: "omit",
@@ -660,7 +662,7 @@ export async function submitPublicSubscribe(payload: SubscribePayload) {
 }
 
 export async function submitPublicUnsubscribe(phone: string) {
-  const res = await fetch(`${API_BASE_URL}/unsubscribe`, {
+  const res = await fetch(`${API_BASE_URL}/api/unsubscribe`, {
     method: "POST",
     cache: "no-store",
     credentials: "omit",

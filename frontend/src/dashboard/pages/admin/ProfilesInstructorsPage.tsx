@@ -33,7 +33,6 @@ type InstructorRow = {
   email: string | null;
   phone: string | null;
   is_active: boolean;
-  sort_order?: number | null;
 };
 
 type InstructorFormState = {
@@ -48,8 +47,6 @@ type InstructorFormState = {
   github_url: string;
   portfolio_url: string;
   is_public: boolean;
-  // Quick Wins
-  sort_order: string;
 };
 
 const defaultPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0 };
@@ -65,7 +62,6 @@ const initialForm: InstructorFormState = {
   github_url: "",
   portfolio_url: "",
   is_public: false,
-  sort_order: "",
 };
 
 function asText(value: string | null | undefined): string {
@@ -85,7 +81,6 @@ function toFormState(row: InstructorRow): InstructorFormState {
     github_url: row.github_url ?? "",
     portfolio_url: row.portfolio_url ?? "",
     is_public: Boolean(row.is_public),
-    sort_order: row.sort_order === null || row.sort_order === undefined ? "" : String(row.sort_order),
   };
 }
 
@@ -320,7 +315,7 @@ export function ProfilesInstructorsPage() {
 
     setCreating(true);
     try {
-      const payload: InstructorFormState = { ...createForm };
+      const payload = { ...createForm };
       if (payload.avatar_url.startsWith("data:image/")) {
         payload.avatar_url = await uploadAvatarFromDataUrl(payload.avatar_url);
         setCreateForm((current) => ({ ...current, avatar_url: payload.avatar_url }));
@@ -345,7 +340,7 @@ export function ProfilesInstructorsPage() {
 
     setSavingEdit(true);
     try {
-      const payload: InstructorFormState = { ...editForm };
+      const payload = { ...editForm };
       if (payload.avatar_url.startsWith("data:image/")) {
         payload.avatar_url = await uploadAvatarFromDataUrl(payload.avatar_url);
         setEditForm((current) => ({ ...current, avatar_url: payload.avatar_url }));
@@ -635,24 +630,6 @@ export function ProfilesInstructorsPage() {
                   <label className="cohort-form-switch"><span className="field__label">Public Profile</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={createForm.is_public} onChange={(e) => setCreateForm((c) => ({ ...c, is_public: e.target.checked }))} /></label>
                 </div>
               </section>
-
-              <section className="profile-modal-section">
-                <h4 className="section-title">Display & Ordering</h4>
-                <div className="form-stack">
-                  <label className="field">
-                    <span className="field__label">Display Order</span>
-                    <input 
-                      className="field__control" 
-                      type="number" 
-                      min="0" 
-                      value={createForm.sort_order} 
-                      onChange={(e) => setCreateForm((c) => ({ ...c, sort_order: e.target.value }))} 
-                      placeholder="0"
-                    />
-                    <small className="field__hint">Order position for instructor directory. Lower numbers appear first. Leave blank or 0 for default.</small>
-                  </label>
-                </div>
-              </section>
             </div>
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={() => setCreateOpen(false)} disabled={creating || createAvatarUploading}>Cancel</button>
@@ -705,24 +682,6 @@ export function ProfilesInstructorsPage() {
                   <label className="field"><span className="field__label">GitHub URL</span><input className="field__control" type="url" value={editForm.github_url} onChange={(e) => setEditForm((c) => ({ ...c, github_url: e.target.value }))} /></label>
                   <label className="field"><span className="field__label">Portfolio URL</span><input className="field__control" type="url" value={editForm.portfolio_url} onChange={(e) => setEditForm((c) => ({ ...c, portfolio_url: e.target.value }))} /></label>
                   <label className="cohort-form-switch"><span className="field__label">Public Profile</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_public} onChange={(e) => setEditForm((c) => ({ ...c, is_public: e.target.checked }))} /></label>
-                </div>
-              </section>
-
-              <section className="profile-modal-section">
-                <h4 className="section-title">Display & Ordering</h4>
-                <div className="form-stack">
-                  <label className="field">
-                    <span className="field__label">Display Order</span>
-                    <input 
-                      className="field__control" 
-                      type="number" 
-                      min="0" 
-                      value={editForm.sort_order} 
-                      onChange={(e) => setEditForm((c) => ({ ...c, sort_order: e.target.value }))} 
-                      placeholder="0"
-                    />
-                    <small className="field__hint">Order position for instructor directory. Lower numbers appear first. Leave blank or 0 for default.</small>
-                  </label>
                 </div>
               </section>
             </div>

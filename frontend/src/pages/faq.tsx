@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/faq.tsx
-// Purpose: Acts as the route entry for the FAQ page.
-// It composes the shared layout with the main section component for this route.
-
 import Wrapper from "@/layouts/Wrapper";
 import { Faq } from "@/sections/faq.sections";
+import { PageMeta } from "@/components/PageMeta";
 
 const FaqPage = () => {
   return (
     <Wrapper>
+      <PageMeta
+        title="FAQ"
+        description="Frequently asked questions about The Digital Hub programs and admissions."
+        canonicalPath="/faq"
+      />
       <Faq />
     </Wrapper>
   );
 };
 
 export default FaqPage;
-

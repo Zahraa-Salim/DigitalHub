@@ -20,6 +20,12 @@ export default defineConfig({
     host: '::',
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     host: '::',

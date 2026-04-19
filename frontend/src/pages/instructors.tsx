@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/instructors.tsx
-// Purpose: Acts as the route entry for the instructors page.
-// It composes the shared layout with the main section component for this route.
-
 import { Instructors } from "@/sections/people.sections";
 import Wrapper from "@/layouts/Wrapper";
+import { PageMeta } from "@/components/PageMeta";
 
 const InstructorsPage = () => {
-   return (
-      <Wrapper>
-         <Instructors />
-      </Wrapper>
-   )
-}
+  return (
+    <Wrapper>
+      <PageMeta
+        title="Instructors"
+        description="Meet the instructors at The Digital Hub."
+        canonicalPath="/instructors"
+      />
+      <Instructors />
+    </Wrapper>
+  );
+};
 
-export default InstructorsPage
-
+export default InstructorsPage;

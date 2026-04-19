@@ -137,6 +137,7 @@ export type MessageTemplate = {
   channel: MessageTemplateChannel;
   subject: string | null;
   body: string;
+  body_html: string | null;
   is_active: boolean;
   sort_order: number;
   created_by: number | null;
@@ -285,6 +286,13 @@ export async function markProgramApplicationInterviewCompleted(id: number): Prom
   });
 }
 
+export type MessageAttachment = {
+  url: string;
+  filename: string;
+  mime_type: string;
+  size?: number;
+};
+
 export async function createApplicationMessage(
   id: number,
   payload: {
@@ -292,6 +300,8 @@ export async function createApplicationMessage(
     to_value: string;
     subject?: string;
     body: string;
+    body_html?: string;
+    attachments?: MessageAttachment[];
     template_key?: string;
   },
 ): Promise<ApplicationMessage> {
@@ -364,6 +374,8 @@ export async function createProgramApplicationMessage(
     to_value?: string;
     subject?: string;
     body: string;
+    body_html?: string;
+    attachments?: MessageAttachment[];
     template_key?: string;
   },
 ): Promise<ProgramApplicationMessage> {
@@ -438,6 +450,8 @@ export async function sendMessagingUsers(payload: {
   user_ids: number[];
   subject?: string;
   body: string;
+  body_html?: string;
+  attachments?: MessageAttachment[];
 }): Promise<{
   channel: "email" | "sms";
   requested_count: number;
@@ -471,6 +485,7 @@ export async function updateMessageTemplate(
     channel: MessageTemplateChannel;
     subject: string | null;
     body: string;
+    body_html: string;
     is_active: boolean;
     sort_order: number;
   }>,
@@ -489,6 +504,7 @@ export async function createMessageTemplate(
     channel?: MessageTemplateChannel;
     subject?: string | null;
     body: string;
+    body_html?: string;
     is_active?: boolean;
     sort_order?: number;
   },

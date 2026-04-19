@@ -173,6 +173,15 @@
   background: color-mix(in srgb, var(--surface-soft) 78%, var(--secondary) 22%);
 }
 
+.mtpl-token-btn:focus {
+  outline: none;
+}
+
+.mtpl-token-btn:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
 .mtpl-empty-result {
   margin-top: 10px;
 }
@@ -214,6 +223,18 @@
 
 .mtpl-preview__content--multiline {
   white-space: pre-wrap;
+}
+
+.mtpl-preview__content--html p,
+.mtpl-preview__content--html ul,
+.mtpl-preview__content--html ol {
+  margin: 0 0 0.6rem;
+}
+
+.mtpl-preview__content--html p:last-child,
+.mtpl-preview__content--html ul:last-child,
+.mtpl-preview__content--html ol:last-child {
+  margin-bottom: 0;
 }
 
 @media (max-width: 960px) {

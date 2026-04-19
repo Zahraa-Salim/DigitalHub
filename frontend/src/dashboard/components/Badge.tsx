@@ -27,7 +27,7 @@ type BadgeTone =
   | "default";
 
 type BadgeProps = {
-  children: string;
+  children: React.ReactNode;
   tone?: BadgeTone;
 };
 

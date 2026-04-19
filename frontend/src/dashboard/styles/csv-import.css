@@ -241,6 +241,7 @@
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  pointer-events: auto;
 }
 
 .csv-table-card:hover {

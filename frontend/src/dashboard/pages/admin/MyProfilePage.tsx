@@ -311,7 +311,7 @@ export function MyProfilePage() {
           return;
         }
 
-        const uploaded = await api<{ avatar_url: string }>("/api/admins/me/avatar", {
+        const uploaded = await api<{ avatar_url: string }>("/api/auth/me/avatar", {
           method: "POST",
           body: JSON.stringify({
             filename: "avatar-upload",

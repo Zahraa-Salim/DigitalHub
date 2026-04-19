@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/participants.tsx
-// Purpose: Acts as the route entry for the participants page.
-// It composes the shared layout with the main section component for this route.
-
 import Wrapper from "@/layouts/Wrapper";
 import { Participants } from "@/sections/people.sections";
+import { PageMeta } from "@/components/PageMeta";
 
 const ParticipantsPage = () => {
   return (
     <Wrapper>
+      <PageMeta
+        title="Participants"
+        description="Meet current and past participants of The Digital Hub programs."
+        canonicalPath="/participants"
+      />
       <Participants />
     </Wrapper>
   );
 };
 
 export default ParticipantsPage;
-

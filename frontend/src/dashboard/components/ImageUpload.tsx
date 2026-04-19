@@ -9,6 +9,7 @@ interface ImageUploadProps {
   value: string;
   onChange: (value: string) => void;
   onUpload?: (file: File) => Promise<string>;
+  previewSrc?: string;
   label?: string;
   hint?: string;
   previewLabel?: string;
@@ -21,6 +22,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   value,
   onChange,
   onUpload,
+  previewSrc,
   label = 'Image Upload',
   hint = 'Upload an image or paste a URL',
   previewLabel = 'Preview',
@@ -159,12 +161,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         {error && <div className="form-error">{error}</div>}
       </div>
 
-      {preview && !previewError && (
+      {(previewSrc || preview) && !previewError && (
         <div className="image-preview">
           <p className="image-preview-label">{previewLabel}</p>
           <img
             className="image-preview-content"
-            src={preview}
+            src={previewSrc || preview}
             alt="Preview"
             onError={() => setPreviewError(true)}
           />

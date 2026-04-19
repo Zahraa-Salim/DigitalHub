@@ -94,6 +94,7 @@ export function WhatsAppMessageModal({ isOpen, onClose, prefillPhone }: WhatsApp
                 setMessage(event.target.value);
               }}
               placeholder="Write the WhatsApp message here."
+              style={{ maxHeight: "300px", overflowY: "auto" }}
             />
           </label>
         </div>

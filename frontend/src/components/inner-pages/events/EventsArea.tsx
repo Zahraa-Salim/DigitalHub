@@ -125,7 +125,6 @@ const EventsArea = () => {
   const announcementsRef = useRef<HTMLDivElement | null>(null);
   const page = useCmsPage("events");
   const pageContent = page?.content ?? null;
-  const sectionSubtitle = getCmsString(pageContent, ["subtitle", "sub_title"], "Events");
   const sectionTitle = getCmsString(
     pageContent,
     ["title", "heading", "hero_title", "heroTitle"],
@@ -611,7 +610,6 @@ const EventsArea = () => {
           <div className="row align-items-end">
             <div className="col-lg-8">
               <div className="section__title">
-                <span className="sub-title">{sectionSubtitle}</span>
                 <h2 className="title">{sectionTitle}</h2>
               </div>
             </div>

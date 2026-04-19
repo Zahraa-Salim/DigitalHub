@@ -2,7 +2,7 @@
 // Purpose: Renders the dashboard global message hub component.
 // It packages reusable admin UI and behavior for dashboard pages.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createApplicationMessage,
   createProgramApplicationMessage,
@@ -11,6 +11,7 @@ import {
   sendApplicationMessage,
   sendMessagingUsers,
   sendProgramApplicationMessage,
+  type MessageAttachment,
   type MessageTemplate,
   type MessagingUser,
 } from "../lib/api";
@@ -23,7 +24,9 @@ import { PulseDots } from "./PulseDots";
 import { ToastStack } from "./ToastStack";
 import { useGlobalMessagingContext } from "./GlobalMessagingContext";
 import { useDashboardToasts } from "../hooks/useDashboardToasts";
-import { ApiError } from "../utils/api";
+import { ApiError, api } from "../utils/api";
+import { RichTextEditor } from "./RichTextEditor";
+import { getPlainTextFromHtml } from "./RichTextEditor.utils";
 
 type RecipientGroup = "individual" | "selected" | "all" | `status:${string}`;
 
@@ -76,8 +79,13 @@ export function GlobalMessageHub() {
   const [channel, setChannel] = useState<"email" | "sms">("email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const initialGroupSetRef = useRef(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>(FALLBACK_MESSAGE_TEMPLATES);
   const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
 
@@ -182,7 +190,7 @@ export function GlobalMessageHub() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, hasApplicantContext, search]);
+  }, [open, hasApplicantContext, pushToast, search]);
 
   useEffect(() => {
     if (!open) return;
@@ -207,14 +215,23 @@ export function GlobalMessageHub() {
   }, [open, group, singleId, sourceRecipients]);
 
   useEffect(() => {
-    if (!open) return;
-
-    if (selectedCount > 0) {
-      setGroup((current) => (current === "individual" ? "selected" : current));
-    } else if (group === "selected") {
-      setGroup("all");
+    if (!open) {
+      initialGroupSetRef.current = false;
+      return;
     }
-  }, [open, selectedCount, group]);
+    if (initialGroupSetRef.current) return;
+    initialGroupSetRef.current = true;
+    if (selectedCount > 0) {
+      setGroup("selected");
+    }
+  }, [open, selectedCount]);
+
+  useEffect(() => {
+    if (!open || hasApplicantContext) return;
+    if (group === "selected" && manualSelectedIds.size === 0) {
+      setGroup("individual");
+    }
+  }, [open, hasApplicantContext, group, manualSelectedIds]);
 
   const recipients = useMemo(() => {
     if (group === "selected") {
@@ -230,7 +247,8 @@ export function GlobalMessageHub() {
     return searchedRecipients;
   }, [group, searchedRecipients, selectedIdSet, singleId, sourceRecipients]);
 
-  const canSend = recipients.length > 0 && body.trim().length > 0 && (channel === "sms" || subject.trim().length > 0);
+  const hasBody = channel === "email" ? getPlainTextFromHtml(bodyHtml).length > 0 : body.trim().length > 0;
+  const canSend = recipients.length > 0 && hasBody && (channel === "sms" || subject.trim().length > 0);
 
   const openComposer = () => {
     setOpen(true);
@@ -243,6 +261,11 @@ export function GlobalMessageHub() {
     setSearch("");
     setShowTemplates(false);
     setSending(false);
+    setAttachments([]);
+    setBodyHtml("");
+    setGroup("individual");
+    setSingleId(null);
+    setUsers([]);
   };
 
   const toggleManualSelected = (recipientId: string) => {
@@ -252,6 +275,57 @@ export function GlobalMessageHub() {
       else next.add(recipientId);
       return next;
     });
+  };
+
+  const handleFileAttach = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = "";
+
+    if (file.size > 10 * 1024 * 1024) {
+      pushToast("error", "File must be 10MB or less.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1] || "");
+        };
+        reader.onerror = () => reject(new Error("Failed to read file."));
+        reader.readAsDataURL(file);
+      });
+
+      const uploaded = await api<{ public_url: string }>("/cms/media", {
+        method: "POST",
+        body: JSON.stringify({
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          data_base64: base64,
+        }),
+      });
+
+      setAttachments((prev) => [
+        ...prev,
+        {
+          url: uploaded.public_url,
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          size: file.size,
+        },
+      ]);
+    } catch (err) {
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to upload attachment.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const applyTemplate = (template: MessageTemplate) => {
@@ -265,7 +339,14 @@ export function GlobalMessageHub() {
     }
 
     setSubject(applyTemplateTokens(template.subject || template.label, tokens));
-    setBody(applyTemplateTokens(template.body, tokens));
+    const renderedBody = applyTemplateTokens(template.body, tokens);
+    setBody(renderedBody);
+    if (channel === "email") {
+      const htmlBody = template.body_html
+        ? applyTemplateTokens(template.body_html, tokens)
+        : `<p>${renderedBody.replace(/\n/g, "</p><p>")}</p>`;
+      setBodyHtml(htmlBody);
+    }
     setShowTemplates(false);
   };
 
@@ -300,11 +381,14 @@ export function GlobalMessageHub() {
           return;
         }
 
+        const plainBody = channel === "email" ? getPlainTextFromHtml(bodyHtml) : body.trim();
         await sendMessagingUsers({
           channel,
           user_ids: numericUserIds,
           subject: channel === "email" ? subject.trim() : undefined,
-          body: body.trim(),
+          body: plainBody,
+          body_html: channel === "email" ? bodyHtml : undefined,
+          attachments: attachments.length ? attachments : undefined,
         });
         pushToast("success", `${channel === "email" ? "Email" : "WhatsApp"} message sent to ${numericUserIds.length} recipient${numericUserIds.length === 1 ? "" : "s"}.`);
         closeComposer();
@@ -317,24 +401,24 @@ export function GlobalMessageHub() {
           throw new Error(`Invalid recipient id '${recipient.id}'.`);
         }
 
+        const msgPlainBody = channel === "email" ? getPlainTextFromHtml(bodyHtml) : body.trim();
+        const msgPayload = {
+          channel,
+          to_value: recipient.to,
+          subject: channel === "email" ? subject.trim() : undefined,
+          body: msgPlainBody,
+          body_html: channel === "email" ? bodyHtml : undefined,
+          attachments: attachments.length ? attachments : undefined,
+        };
+
         if (pageScope === "applications") {
-          const created = await createApplicationMessage(resourceId, {
-            channel,
-            to_value: recipient.to,
-            subject: channel === "email" ? subject.trim() : undefined,
-            body: body.trim(),
-          });
+          const created = await createApplicationMessage(resourceId, msgPayload);
           await sendApplicationMessage(resourceId, created.id);
           return;
         }
 
         if (pageScope === "program_applications") {
-          const created = await createProgramApplicationMessage(resourceId, {
-            channel,
-            to_value: recipient.to,
-            subject: channel === "email" ? subject.trim() : undefined,
-            body: body.trim(),
-          });
+          const created = await createProgramApplicationMessage(resourceId, msgPayload);
           await sendProgramApplicationMessage(resourceId, created.id);
           return;
         }
@@ -391,7 +475,9 @@ export function GlobalMessageHub() {
             <div className="admx-modal__body">
               <label className="admx-label">Send To</label>
               <div className="admx-chip-row">
-                <button className={group === "individual" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("individual")}>Individual</button>
+                {(!hasApplicantContext || sourceRecipients.length <= 20) ? (
+                  <button className={group === "individual" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("individual")}>Individual</button>
+                ) : null}
                 <button className={group === "selected" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("selected")}>Selected ({selectedCount})</button>
                 <button className={group === "all" ? "admx-chip admx-chip--active" : "admx-chip"} type="button" onClick={() => setGroup("all")}>All ({sourceRecipients.length})</button>
                 {statusOptions.map((status) => {
@@ -412,15 +498,33 @@ export function GlobalMessageHub() {
                 onChange={(event) => setSearch(event.target.value)}
               />
 
+              {!hasApplicantContext ? (
+                <p className="admx-search-hint">
+                  Searching students, instructors, and managers by name, email, or phone.
+                </p>
+              ) : null}
+
               {group === "individual" ? (
-                <select className="field__control" value={singleId ?? ""} onChange={(event) => setSingleId(event.target.value || null)}>
-                  <option value="">{hasApplicantContext ? "Select applicant..." : "Select user..."}</option>
-                  {searchedRecipients.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.name}{entry.meta ? ` | ${entry.meta}` : entry.email ? ` | ${entry.email}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select className="field__control" value={singleId ?? ""} onChange={(event) => setSingleId(event.target.value || null)}>
+                    <option value="">{hasApplicantContext ? "Select applicant..." : "Select user..."}</option>
+                    {searchedRecipients.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.name}{entry.meta ? ` | ${entry.meta}` : entry.email ? ` | ${entry.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {!hasApplicantContext ? (
+                    <button
+                      className="admx-chip admx-chip--muted"
+                      type="button"
+                      style={{ marginTop: 4 }}
+                      onClick={() => setGroup("selected")}
+                    >
+                      + Select multiple recipients
+                    </button>
+                  ) : null}
+                </>
               ) : null}
 
               {group === "selected" && !hasApplicantContext ? (
@@ -454,7 +558,28 @@ export function GlobalMessageHub() {
                 </div>
               ) : null}
 
-              <textarea className="textarea-control" rows={channel === "sms" ? 4 : 8} value={body} onChange={(event) => setBody(event.target.value)} />
+              {channel === "email" ? (
+                <RichTextEditor
+                  value={bodyHtml}
+                  onChange={setBodyHtml}
+                  placeholder="Compose your email message..."
+                />
+              ) : (
+                <textarea className="textarea-control" rows={4} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Compose your WhatsApp message..." />
+              )}
+
+              <div className="rte-attachments">
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileAttach} />
+                <button className="rte-attach-btn" type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                  {uploading ? "Uploading..." : "+ Attach File"}
+                </button>
+                {attachments.map((att, i) => (
+                  <span key={i} className="rte-attachment">
+                    {att.filename}
+                    <button type="button" onClick={() => removeAttachment(i)} title="Remove">&times;</button>
+                  </span>
+                ))}
+              </div>
             </div>
 
             <footer className="admx-modal__footer">

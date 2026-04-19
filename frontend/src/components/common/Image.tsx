@@ -30,6 +30,8 @@ const Image = React.forwardRef<HTMLImageElement, ImageProps>(
   ({ src, alt = "", style, fill, ...props }, ref) => {
     const resolvedSrc = typeof src === "string" ? src : src.src;
 
+    if (!resolvedSrc) return null;
+
     return (
       <img
         ref={ref}

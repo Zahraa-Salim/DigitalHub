@@ -13,6 +13,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
     channel: "all",
     subject: "General Update",
     body: "Hello {name},\n\nWe have a quick update for you.\n\nBest regards,\nDigital Hub Team",
+    body_html: null,
     is_active: true,
     sort_order: 10,
     created_by: null,
@@ -36,6 +37,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
       "Confirm Token: {confirm_token}\n" +
       "Confirm here: {confirm_url}\n" +
       "Reschedule here: {reschedule_url}\n\nBest regards,\nAdmissions Team",
+    body_html: null,
     is_active: true,
     sort_order: 40,
     created_by: null,
@@ -53,6 +55,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
     body:
       "Dear {name},\n\nYour interview is confirmed for {scheduled_at}.\n" +
       "We look forward to speaking with you.\n\nBest regards,\nAdmissions Team",
+    body_html: null,
     is_active: true,
     sort_order: 50,
     created_by: null,
@@ -71,6 +74,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
       "Dear {name},\n\nCongratulations. You have been accepted into our program.\n" +
       "If you are sure you want to join, please confirm here:\n{participation_confirm_url}\n\n" +
       "Warm regards,\nAdmissions Team",
+    body_html: null,
     is_active: true,
     sort_order: 60,
     created_by: null,
@@ -87,6 +91,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
     subject: "Application Update",
     body:
       "Dear {name},\n\nThank you for applying. After careful review, we are unable to offer a place at this time.\n\nBest regards,\nAdmissions Team",
+    body_html: null,
     is_active: true,
     sort_order: 70,
     created_by: null,
@@ -108,6 +113,7 @@ export const FALLBACK_MESSAGE_TEMPLATES: MessageTemplate[] = [
       "Temporary Password: {generated_password}\n" +
       "Sign in here: {sign_in_url}\n\n" +
       "Please sign in and change your password.\n\nBest regards,\nDigital Hub Team",
+    body_html: null,
     is_active: true,
     sort_order: 80,
     created_by: null,

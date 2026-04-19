@@ -437,6 +437,18 @@ export function EventsPage() {
     }
   };
 
+  const handleMarkUndone = async (eventId: number) => {
+    try {
+      const updated = await api<EventRow>(`/events/${eventId}/mark-undone`, { method: "PATCH" });
+      setEvents((prev) => prev.map((row) => (row.id === eventId ? updated : row)));
+      setSelected((current) => (current?.id === eventId ? updated : current));
+      setEditing((current) => (current?.id === eventId ? updated : current));
+      pushToast("success", "Event marked as not done.");
+    } catch (err) {
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to mark event as not done.");
+    }
+  };
+
   const handleAnnouncementConfirm = async (payload: {
     title: string;
     body: string;
@@ -578,7 +590,20 @@ export function EventsPage() {
                 { key: "starts", label: "Starts", render: (row) => formatDateTime(row.starts_at) },
                 { key: "ends", label: "Ends", render: (row) => (row.ends_at ? formatDateTime(row.ends_at) : "N/A") },
                 { key: "published", label: "Published", render: (row) => <Badge tone={row.is_published ? "published" : "unpublished"}>{row.is_published ? "published" : "unpublished"}</Badge> },
-                { key: "done", label: "Done", render: (row) => <Badge tone={row.is_done ? "done" : "pending"}>{row.is_done ? "done" : "pending"}</Badge> },
+                {
+                  key: "done",
+                  label: "Done",
+                  render: (row) => {
+                    const isFutureDone = row.is_done && new Date(row.starts_at) > new Date();
+                    return row.is_done ? (
+                      <span title={isFutureDone ? "Warning: event date is in the future" : ""}>
+                        <Badge tone="done">done{isFutureDone ? " ⚠" : ""}</Badge>
+                      </span>
+                    ) : (
+                      <Badge tone="pending">pending</Badge>
+                    );
+                  },
+                },
                 {
                   key: "actions",
                   label: "Actions",
@@ -587,7 +612,13 @@ export function EventsPage() {
                       <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
                       <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                       <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
-                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Mark Done</button>
+                      {row.is_done ? (
+                        <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => void handleMarkUndone(row.id)}>
+                          Mark Undone
+                        </button>
+                      ) : (
+                        <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Mark Done</button>
+                      )}
                     </div>
                   ),
                 },
@@ -607,11 +638,18 @@ export function EventsPage() {
                   <p className="info-text event-mobile-item__meta"><strong>Starts:</strong> {formatDateTime(row.starts_at)}</p>
                   <p className="info-text event-mobile-item__meta"><strong>Ends:</strong> {row.ends_at ? formatDateTime(row.ends_at) : "N/A"}</p>
                   <p className="info-text event-mobile-item__meta"><strong>Location:</strong> {row.location || "N/A"}</p>
+                  <p className="info-text event-mobile-item__meta">
+                    <strong>Done:</strong> {row.is_done ? `Yes${new Date(row.starts_at) > new Date() ? " ⚠" : ""}` : "No"}
+                  </p>
                   <div className="table-actions program-mobile-item__actions event-mobile-item__actions">
                     <button className="btn btn--secondary btn--sm dh-btn btn--view" type="button" onClick={() => setSelected(row)}>View</button>
                     <button className="btn btn--primary btn--sm dh-btn btn--edit" type="button" onClick={() => openEdit(row)}>Edit</button>
                     <button className="btn btn--danger btn--sm dh-btn" type="button" onClick={() => setDeleteTarget(row)}>Delete</button>
-                    <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Done</button>
+                    {row.is_done ? (
+                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => void handleMarkUndone(row.id)}>Mark Undone</button>
+                    ) : (
+                      <button className="btn btn--secondary btn--sm dh-btn" type="button" onClick={() => setMarkDoneTarget(row)} disabled={row.is_done}>Mark Done</button>
+                    )}
                   </div>
                 </article>
               ))
@@ -646,6 +684,9 @@ export function EventsPage() {
               <p className="post-details__line"><strong>Published:</strong> {selected.is_published ? "Yes" : "No"}</p>
               <p className="post-details__line"><strong>Show in home announcements:</strong> {selected.auto_announce ? "Yes" : "No"}</p>
               <p className="post-details__line"><strong>Done:</strong> {selected.is_done ? "Yes" : "No"}</p>
+              {selected.is_done && new Date(selected.starts_at) > new Date() ? (
+                <p className="post-details__line"><strong>Warning:</strong> This event is marked done but its start date is still in the future.</p>
+              ) : null}
               {selected.is_done && Array.isArray(selected.completion_image_urls) && selected.completion_image_urls.length ? (
                 <div className="post-details__line">
                   <strong>Completion Gallery:</strong>
@@ -669,7 +710,11 @@ export function EventsPage() {
             <div className="modal-actions">
               <button className="btn btn--secondary" type="button" onClick={() => { openEdit(selected); setSelected(null); }}>Edit</button>
               <button className="btn btn--danger" type="button" onClick={() => { setDeleteTarget(selected); setSelected(null); }}>Delete</button>
-              <button className="btn btn--primary" type="button" onClick={() => { setMarkDoneTarget(selected); setSelected(null); }} disabled={selected.is_done}>Mark Done</button>
+              {selected.is_done ? (
+                <button className="btn btn--secondary" type="button" onClick={() => void handleMarkUndone(selected.id)}>Mark Undone</button>
+              ) : (
+                <button className="btn btn--primary" type="button" onClick={() => { setMarkDoneTarget(selected); setSelected(null); }} disabled={selected.is_done}>Mark Done</button>
+              )}
             </div>
           </div>
         </div>

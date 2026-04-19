@@ -1,13 +1,30 @@
-﻿<!-- File: frontend/index.html -->
-<!-- Purpose: Defines the root HTML document that Vite serves for the frontend app. -->
-<!-- It provides the mount node and base metadata before React takes over. -->
-
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Build your digital skills for work, freelancing, and the digital economy. Programs designed to build skills and employability." />
+    <meta name="theme-color" content="#0255E0" />
+    <link rel="dns-prefetch" href="%VITE_API_URL%" />
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="The Digital Hub" />
+    <meta property="og:title" content="The Digital Hub" />
+    <meta property="og:description" content="Build your digital skills for work, freelancing, and the digital economy." />
+    <meta property="og:url" content="https://thedigitalhub.tech" />
+    <meta property="og:image" content="https://thedigitalhub.tech/favicon.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="The Digital Hub" />
+    <meta name="twitter:description" content="Build your digital skills for work, freelancing, and the digital economy." />
+    <meta name="twitter:image" content="https://thedigitalhub.tech/favicon.png" />
+
+    <link rel="canonical" href="https://thedigitalhub.tech" />
+
     <link rel="stylesheet" href="/assets/css/animate.min.css" />
     <link rel="stylesheet" href="/assets/css/aos.css" />
     <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
@@ -19,11 +36,23 @@
     <link rel="stylesheet" href="/assets/css/plyr.css" />
     <link rel="stylesheet" href="/assets/css/tg-cursor.css" />
     <link rel="stylesheet" href="/assets/css/main.css" />
-    <title>Digital hub</title>
+    <title>The Digital Hub</title>
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "The Digital Hub",
+      "url": "https://thedigitalhub.tech",
+      "logo": "https://thedigitalhub.tech/favicon.png",
+      "description": "Programs designed to build digital skills and employability for work, freelancing, and the digital economy.",
+      "sameAs": []
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -19,9 +19,6 @@ export function AdminLayout() {
   const storeClearAuth = useAuthStore((state) => state.clearAuth);
   const location = useLocation();
   const navigate = useNavigate();
-  const showGlobalMessageHub =
-    location.pathname.startsWith("/admin/admissions") ||
-    location.pathname.startsWith("/admin/general-apply");
 
   useEffect(() => {
     // Always force light mode — dark mode is disabled
@@ -133,7 +130,7 @@ export function AdminLayout() {
             <div key={location.pathname} className="content-route-transition">
               <Outlet />
             </div>
-            {showGlobalMessageHub ? <GlobalMessageHub /> : null}
+            <GlobalMessageHub />
           </GlobalMessagingProvider>
         </main>
       </div>

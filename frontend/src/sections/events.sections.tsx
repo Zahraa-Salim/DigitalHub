@@ -11,7 +11,7 @@ import { useCmsBreadcrumb } from "@/hooks/useCmsPage";
 export const Events = () => {
   const breadcrumb = useCmsBreadcrumb("events", {
     defaultsTitle: "Upcoming Events",
-    defaultsSubTitle: "Events",
+    defaultsSubTitle: "",
   });
 
   return (

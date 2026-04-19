@@ -2,7 +2,7 @@
 // Purpose: Renders the admin profiles students page page in the dashboard.
 // It combines dashboard data loading, actions, and page-level UI for this screen.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Badge } from "../../components/Badge";
 import { CsvExportModal, type CsvExportColumn } from "../../components/CsvExportModal";
 import { PageShell } from "../../components/PageShell";
@@ -10,7 +10,7 @@ import { Pagination } from "../../components/Pagination";
 import { PulseDots } from "../../components/PulseDots";
 import { ToastStack } from "../../components/ToastStack";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
-import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
+import { API_URL, ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
 import { Filters } from "./profiles/shared/Filters";
@@ -50,6 +50,153 @@ function asText(value: string | null | undefined): string {
   return String(value ?? "").trim() || "Not set";
 }
 
+type StudentFormState = {
+  full_name: string;
+  email: string;
+  phone: string;
+  cohort_id: string; // stored as string for <select>; converted to number on submit
+  bio: string;
+  avatar_url: string;
+  linkedin_url: string;
+  github_url: string;
+  portfolio_url: string;
+  company_work_for: string;
+  is_public: boolean;
+  is_graduated: boolean;
+  is_working: boolean;
+  open_to_work: boolean;
+};
+
+const initialStudentForm: StudentFormState = {
+  full_name: "",
+  email: "",
+  phone: "",
+  cohort_id: "",
+  bio: "",
+  avatar_url: "",
+  linkedin_url: "",
+  github_url: "",
+  portfolio_url: "",
+  company_work_for: "",
+  is_public: false,
+  is_graduated: false,
+  is_working: false,
+  open_to_work: false,
+};
+
+function toInitials(fullName: string | null | undefined): string {
+  const source = String(fullName || "").trim();
+  if (!source) return "ST";
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "ST";
+  const first = parts[0]?.charAt(0) ?? "";
+  const second = parts.length > 1 ? parts[1]?.charAt(0) ?? "" : parts[0]?.charAt(1) ?? "";
+  return (`${first}${second}`.trim() || "ST").toUpperCase();
+}
+
+function resolveAvatarUrl(avatarUrl: string | null): string | null {
+  if (!avatarUrl) return null;
+  if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") || avatarUrl.startsWith("data:")) {
+    return avatarUrl;
+  }
+  const normalizedPath = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  try {
+    const apiUrl = new URL(API_URL);
+    return `${apiUrl.origin}${normalizedPath}`;
+  } catch {
+    return `${API_URL.replace(/\/$/, "")}${normalizedPath}`;
+  }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseImageDataUrl(value: string): { mimeType: string; base64: string } | null {
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i.exec(value);
+  if (!match) return null;
+  return { mimeType: match[1].toLowerCase(), base64: match[2] };
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Failed to process image."));
+          return;
+        }
+        resolve(blob);
+      },
+      type,
+      quality,
+    );
+  });
+}
+
+async function shrinkImageToLimit(file: File, maxBytes: number): Promise<File> {
+  if (file.size <= maxBytes) return file;
+
+  const dataUrl = await fileToDataUrl(file);
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Invalid image file."));
+    img.src = dataUrl;
+  });
+
+  const canvas = document.createElement("canvas");
+  const maxDimension = 1400;
+  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Failed to process image.");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const candidates: Array<{ type: string; quality: number }> = [
+    { type: "image/webp", quality: 0.86 },
+    { type: "image/jpeg", quality: 0.84 },
+    { type: "image/jpeg", quality: 0.72 },
+    { type: "image/jpeg", quality: 0.62 },
+  ];
+
+  for (const candidate of candidates) {
+    const blob = await canvasToBlob(canvas, candidate.type, candidate.quality);
+    if (blob.size <= maxBytes) {
+      const extension = candidate.type === "image/webp" ? "webp" : "jpg";
+      return new File([blob], `avatar.${extension}`, { type: candidate.type });
+    }
+  }
+
+  throw new Error("Image is too large. Use a smaller image (max 2MB).");
+}
+
+function rowToEditForm(row: StudentRow): StudentFormState {
+  return {
+    full_name: row.full_name ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
+    cohort_id: "", // not used in edit — cohorts are managed via add/remove below
+    bio: row.bio ?? "",
+    avatar_url: row.avatar_url ?? "",
+    linkedin_url: row.linkedin_url ?? "",
+    github_url: row.github_url ?? "",
+    portfolio_url: row.portfolio_url ?? "",
+    company_work_for: row.company_work_for ?? "",
+    is_public: Boolean(row.is_public),
+    is_graduated: Boolean(row.is_graduated),
+    is_working: Boolean(row.is_working),
+    open_to_work: Boolean(row.open_to_work),
+  };
+}
+
 export function ProfilesStudentsPage() {
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
@@ -86,6 +233,24 @@ export function ProfilesStudentsPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
+
+  // Create modal state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<StudentFormState>(initialStudentForm);
+  const [creating, setCreating] = useState(false);
+  const [createAvatarUploading, setCreateAvatarUploading] = useState(false);
+  const [createAvatarLoadFailed, setCreateAvatarLoadFailed] = useState(false);
+
+  // Edit modal state
+  const [editTarget, setEditTarget] = useState<StudentRow | null>(null);
+  const [editForm, setEditForm] = useState<StudentFormState>(initialStudentForm);
+  const [editCurrentCohorts, setEditCurrentCohorts] = useState<StudentRow["cohorts"]>([]);
+  const [editAddCohortIds, setEditAddCohortIds] = useState<number[]>([]);
+  const [editRemoveCohortIds, setEditRemoveCohortIds] = useState<number[]>([]);
+  const [editCohortToAdd, setEditCohortToAdd] = useState<string>("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editAvatarUploading, setEditAvatarUploading] = useState(false);
+  const [editAvatarLoadFailed, setEditAvatarLoadFailed] = useState(false);
 
   const publicCount = useMemo(() => rows.filter((entry) => entry.is_public).length, [rows]);
   const activeCount = useMemo(() => rows.filter((entry) => getStudentStatus(entry) === "active").length, [rows]);
@@ -211,6 +376,216 @@ export function ProfilesStudentsPage() {
     };
   }, [details]);
 
+  const createAvatarSrc = useMemo(() => resolveAvatarUrl(createForm.avatar_url || null), [createForm.avatar_url]);
+  const createAvatarInitials = useMemo(() => toInitials(createForm.full_name), [createForm.full_name]);
+  const editAvatarSrc = useMemo(() => resolveAvatarUrl(editForm.avatar_url || null), [editForm.avatar_url]);
+  const editAvatarInitials = useMemo(() => toInitials(editForm.full_name), [editForm.full_name]);
+
+  useEffect(() => { setCreateAvatarLoadFailed(false); }, [createAvatarSrc]);
+  useEffect(() => { setEditAvatarLoadFailed(false); }, [editAvatarSrc]);
+
+  const uploadAvatarFromDataUrl = async (dataUrl: string): Promise<string> => {
+    const parsed = parseImageDataUrl(dataUrl);
+    if (!parsed) {
+      throw new Error("Invalid avatar image data. Please re-select the image.");
+    }
+    const uploaded = await api<{ avatar_url: string }>("/profiles/students/avatar", {
+      method: "POST",
+      body: JSON.stringify({
+        filename: "student-avatar",
+        mime_type: parsed.mimeType,
+        data_base64: parsed.base64,
+      }),
+    });
+    return uploaded.avatar_url;
+  };
+
+  const handleCreateAvatarUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    let file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      pushToast("error", "Only JPG, PNG, and WEBP files are allowed.");
+      return;
+    }
+    setCreateAvatarUploading(true);
+    try {
+      file = await shrinkImageToLimit(file, 2 * 1024 * 1024);
+      const dataUrl = await fileToDataUrl(file);
+      setCreateForm((current) => ({ ...current, avatar_url: dataUrl }));
+      setCreateAvatarLoadFailed(false);
+      pushToast("success", "Avatar ready. Save student to upload.");
+    } catch (err) {
+      pushToast("error", err instanceof Error ? err.message : "Failed to process avatar.");
+    } finally {
+      setCreateAvatarUploading(false);
+    }
+  };
+
+  const handleEditAvatarUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    let file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      pushToast("error", "Only JPG, PNG, and WEBP files are allowed.");
+      return;
+    }
+    setEditAvatarUploading(true);
+    try {
+      file = await shrinkImageToLimit(file, 2 * 1024 * 1024);
+      const dataUrl = await fileToDataUrl(file);
+      setEditForm((current) => ({ ...current, avatar_url: dataUrl }));
+      setEditAvatarLoadFailed(false);
+      pushToast("success", "Avatar ready. Save changes to upload.");
+    } catch (err) {
+      pushToast("error", err instanceof Error ? err.message : "Failed to process avatar.");
+    } finally {
+      setEditAvatarUploading(false);
+    }
+  };
+
+  const openEditModal = (row: StudentRow) => {
+    setEditTarget(row);
+    setEditForm(rowToEditForm(row));
+    setEditCurrentCohorts(Array.isArray(row.cohorts) ? row.cohorts : []);
+    setEditAddCohortIds([]);
+    setEditRemoveCohortIds([]);
+    setEditCohortToAdd("");
+    setEditAvatarLoadFailed(false);
+  };
+
+  const toggleRemoveCohort = (cohortId: number) => {
+    setEditRemoveCohortIds((current) => (current.includes(cohortId) ? current.filter((id) => id !== cohortId) : [...current, cohortId]));
+  };
+
+  const addCohortToEdit = () => {
+    const id = Number(editCohortToAdd);
+    if (!Number.isInteger(id) || id <= 0) {
+      pushToast("error", "Select a cohort to add.");
+      return;
+    }
+    const alreadyEnrolled = (editCurrentCohorts || []).some((entry) => entry.cohort_id === id);
+    const alreadyQueued = editAddCohortIds.includes(id);
+    if (alreadyEnrolled || alreadyQueued) {
+      pushToast("error", "This cohort is already assigned.");
+      return;
+    }
+    setEditAddCohortIds((current) => [...current, id]);
+    setEditCohortToAdd("");
+  };
+
+  const cancelAddCohort = (cohortId: number) => {
+    setEditAddCohortIds((current) => current.filter((id) => id !== cohortId));
+  };
+
+  const submitCreate = async () => {
+    if (!createForm.full_name.trim()) {
+      pushToast("error", "Full name is required.");
+      return;
+    }
+    if (!createForm.email.trim() && !createForm.phone.trim()) {
+      pushToast("error", "Email or phone is required.");
+      return;
+    }
+    if (!createForm.cohort_id) {
+      pushToast("error", "Please select a cohort before creating the student.");
+      return;
+    }
+    const cohortId = Number(createForm.cohort_id);
+    if (!Number.isInteger(cohortId) || cohortId <= 0) {
+      pushToast("error", "Please pick a cohort for this student.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      let avatarUrl = createForm.avatar_url;
+      if (avatarUrl.startsWith("data:image/")) {
+        avatarUrl = await uploadAvatarFromDataUrl(avatarUrl);
+        setCreateForm((current) => ({ ...current, avatar_url: avatarUrl }));
+      }
+
+      await api("/profiles/students", {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: createForm.full_name.trim(),
+          email: createForm.email.trim() || undefined,
+          phone: createForm.phone.trim() || undefined,
+          cohort_id: cohortId,
+          avatar_url: avatarUrl || undefined,
+          bio: createForm.bio.trim() || undefined,
+          linkedin_url: createForm.linkedin_url.trim() || undefined,
+          github_url: createForm.github_url.trim() || undefined,
+          portfolio_url: createForm.portfolio_url.trim() || undefined,
+          company_work_for: createForm.company_work_for.trim() || undefined,
+          is_public: createForm.is_public,
+          is_graduated: createForm.is_graduated,
+          is_working: createForm.is_working,
+          open_to_work: createForm.open_to_work,
+        }),
+      });
+      setCreateOpen(false);
+      setCreateForm(initialStudentForm);
+      setCreateAvatarLoadFailed(false);
+      setRefreshKey((v) => v + 1);
+      pushToast("success", "Student created and enrolled.");
+    } catch (err) {
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to create student.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const submitEdit = async () => {
+    if (!editTarget) return;
+    if (!editForm.full_name.trim()) {
+      pushToast("error", "Full name is required.");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      let avatarUrl = editForm.avatar_url;
+      if (avatarUrl.startsWith("data:image/")) {
+        avatarUrl = await uploadAvatarFromDataUrl(avatarUrl);
+        setEditForm((current) => ({ ...current, avatar_url: avatarUrl }));
+      }
+
+      const body: Record<string, unknown> = {
+        full_name: editForm.full_name.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim(),
+        avatar_url: avatarUrl || "",
+        bio: editForm.bio.trim(),
+        linkedin_url: editForm.linkedin_url.trim(),
+        github_url: editForm.github_url.trim(),
+        portfolio_url: editForm.portfolio_url.trim(),
+        company_work_for: editForm.company_work_for.trim(),
+        is_public: editForm.is_public,
+        is_graduated: editForm.is_graduated,
+        is_working: editForm.is_working,
+        open_to_work: editForm.open_to_work,
+      };
+      if (editAddCohortIds.length > 0) body.add_cohort_ids = editAddCohortIds;
+      if (editRemoveCohortIds.length > 0) body.remove_cohort_ids = editRemoveCohortIds;
+
+      await api(`/profiles/students/${editTarget.user_id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setEditTarget(null);
+      setEditAvatarLoadFailed(false);
+      setRefreshKey((v) => v + 1);
+      pushToast("success", "Student profile updated.");
+    } catch (err) {
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to update student.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const openStatusModal = (target: StudentRow, nextStatus: StudentStatus) => {
     setStatusTarget(target);
     setStatusNext(nextStatus);
@@ -304,7 +679,12 @@ export function ProfilesStudentsPage() {
   return (
     <PageShell
       title="Students"
-      subtitle="View student profiles, send messages, and manage student status."
+      subtitle="Add, edit, and manage student profiles, enrollments, and status."
+      actions={
+        <button className="btn btn--primary dh-btn dh-btn--add" type="button" onClick={() => setCreateOpen(true)}>
+          Add Student
+        </button>
+      }
     >
       <section className="students-layout">
         <StatusPanel
@@ -419,6 +799,7 @@ export function ProfilesStudentsPage() {
               })
             }
             onView={setDetails}
+            onEdit={openEditModal}
             onMessage={(row) => openMessageModal([row])}
             onSetDropout={(row) => openStatusModal(row, "dropout")}
             onSetActive={(row) => openStatusModal(row, "active")}
@@ -631,6 +1012,224 @@ export function ProfilesStudentsPage() {
             { id: "selected", label: "Selected", rows: selectedRows },
           ]}
         />
+      ) : null}
+
+      {createOpen ? (
+        <div className="modal-overlay modal-overlay--profile" role="presentation" onClick={() => !creating && !createAvatarUploading && setCreateOpen(false)}>
+          <div className="modal-card modal-card--profile" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header"><h3 className="modal-title">Add Student</h3></header>
+            <div className="profile-modal-sections">
+              <section className="profile-modal-section">
+                <h4 className="section-title">Identity</h4>
+                <div className="form-stack">
+                  <label className="field"><span className="field__label">Full Name</span><input className="field__control" value={createForm.full_name} onChange={(e) => setCreateForm((c) => ({ ...c, full_name: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Email</span><input className="field__control" type="email" value={createForm.email} onChange={(e) => setCreateForm((c) => ({ ...c, email: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Phone</span><input className="field__control" value={createForm.phone} onChange={(e) => setCreateForm((c) => ({ ...c, phone: e.target.value }))} /></label>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Cohort Enrollment</h4>
+                <div className="form-stack">
+                  <label className="field">
+                    <span className="field__label">Cohort <span aria-hidden>*</span></span>
+                    <select
+                      className="field__control"
+                      value={createForm.cohort_id}
+                      onChange={(e) => setCreateForm((c) => ({ ...c, cohort_id: e.target.value }))}
+                      disabled={loadingCohorts}
+                    >
+                      <option value="">{loadingCohorts ? "Loading cohorts..." : "Select a cohort"}</option>
+                      {cohorts.map((cohort) => (
+                        <option key={cohort.id} value={String(cohort.id)}>{cohort.name}</option>
+                      ))}
+                    </select>
+                    <small className="field__hint">The student will be enrolled in this cohort on creation.</small>
+                  </label>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Profile</h4>
+                <div className="form-stack">
+                  <div className="modal-avatar-preview" aria-live="polite">
+                    {createAvatarSrc && !createAvatarLoadFailed ? (
+                      <img
+                        className="profile-avatar profile-avatar--image modal-avatar-preview__media"
+                        src={createAvatarSrc}
+                        alt="Student avatar preview"
+                        onError={() => setCreateAvatarLoadFailed(true)}
+                      />
+                    ) : (
+                      <span className="profile-avatar modal-avatar-preview__media" aria-hidden>
+                        {createAvatarInitials}
+                      </span>
+                    )}
+                    <p className="modal-avatar-preview__hint">Avatar Preview</p>
+                  </div>
+                  <label className="field"><span className="field__label">Avatar Upload</span><input className="field__control" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={(event) => void handleCreateAvatarUpload(event)} disabled={createAvatarUploading || creating} /></label>
+                  <label className="field"><span className="field__label">Avatar URL</span><input className="field__control" type="url" value={createForm.avatar_url} onChange={(e) => { setCreateAvatarLoadFailed(false); setCreateForm((c) => ({ ...c, avatar_url: e.target.value })); }} /></label>
+                  <label className="field"><span className="field__label">Bio</span><textarea className="textarea-control" value={createForm.bio} onChange={(e) => setCreateForm((c) => ({ ...c, bio: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">LinkedIn URL</span><input className="field__control" type="url" value={createForm.linkedin_url} onChange={(e) => setCreateForm((c) => ({ ...c, linkedin_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">GitHub URL</span><input className="field__control" type="url" value={createForm.github_url} onChange={(e) => setCreateForm((c) => ({ ...c, github_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Portfolio URL</span><input className="field__control" type="url" value={createForm.portfolio_url} onChange={(e) => setCreateForm((c) => ({ ...c, portfolio_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Currently Working At</span><input className="field__control" value={createForm.company_work_for} onChange={(e) => setCreateForm((c) => ({ ...c, company_work_for: e.target.value }))} /></label>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Flags</h4>
+                <div className="form-stack">
+                  <label className="cohort-form-switch"><span className="field__label">Public Profile</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={createForm.is_public} onChange={(e) => setCreateForm((c) => ({ ...c, is_public: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Graduated</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={createForm.is_graduated} onChange={(e) => setCreateForm((c) => ({ ...c, is_graduated: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Currently Working</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={createForm.is_working} onChange={(e) => setCreateForm((c) => ({ ...c, is_working: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Open To Work</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={createForm.open_to_work} onChange={(e) => setCreateForm((c) => ({ ...c, open_to_work: e.target.checked }))} /></label>
+                </div>
+              </section>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn--secondary" type="button" onClick={() => setCreateOpen(false)} disabled={creating || createAvatarUploading}>Cancel</button>
+              <button className="btn btn--primary" type="button" onClick={() => void submitCreate()} disabled={creating || createAvatarUploading}>
+                {creating ? "Creating..." : createAvatarUploading ? "Preparing Avatar..." : "Create Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editTarget ? (
+        <div className="modal-overlay modal-overlay--profile" role="presentation" onClick={() => !savingEdit && !editAvatarUploading && setEditTarget(null)}>
+          <div className="modal-card modal-card--profile" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header"><h3 className="modal-title">Edit Student</h3></header>
+            <div className="profile-modal-sections">
+              <section className="profile-modal-section">
+                <h4 className="section-title">Identity</h4>
+                <div className="form-stack">
+                  <label className="field"><span className="field__label">Full Name</span><input className="field__control" value={editForm.full_name} onChange={(e) => setEditForm((c) => ({ ...c, full_name: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Email</span><input className="field__control" type="email" value={editForm.email} onChange={(e) => setEditForm((c) => ({ ...c, email: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Phone</span><input className="field__control" value={editForm.phone} onChange={(e) => setEditForm((c) => ({ ...c, phone: e.target.value }))} /></label>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Enrollments</h4>
+                <div className="form-stack">
+                  {editCurrentCohorts && editCurrentCohorts.length ? (
+                    <div className="student-cohort-list">
+                      {editCurrentCohorts.map((entry, index) => {
+                        const cohortId = entry.cohort_id;
+                        const isRemoved = cohortId !== null && editRemoveCohortIds.includes(cohortId);
+                        return (
+                          <div key={`${entry.enrollment_id}-${index}`} className="student-cohort-item">
+                            <p className="student-cohort-item__title">
+                              {[entry.program_title, entry.cohort_name].filter((value) => String(value || "").trim().length > 0).join(" - ") || "Assigned cohort"}
+                            </p>
+                            <p className="student-cohort-item__meta">
+                              Cohort Status: {asText(entry.cohort_status)} | Enrollment: {asText(entry.enrollment_status)}
+                              {isRemoved ? " | Will be removed on save" : ""}
+                            </p>
+                            {cohortId !== null ? (
+                              <button
+                                className={`btn btn--sm ${isRemoved ? "btn--secondary" : "btn--danger"}`}
+                                type="button"
+                                onClick={() => toggleRemoveCohort(cohortId)}
+                              >
+                                {isRemoved ? "Undo Remove" : "Remove"}
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="post-details__line">No current enrollments.</p>
+                  )}
+
+                  {editAddCohortIds.length ? (
+                    <div className="student-cohort-list">
+                      {editAddCohortIds.map((cohortId) => {
+                        const cohort = cohorts.find((c) => c.id === cohortId);
+                        return (
+                          <div key={`pending-add-${cohortId}`} className="student-cohort-item">
+                            <p className="student-cohort-item__title">{cohort?.name || `Cohort #${cohortId}`}</p>
+                            <p className="student-cohort-item__meta">Will be added on save</p>
+                            <button className="btn btn--sm btn--secondary" type="button" onClick={() => cancelAddCohort(cohortId)}>
+                              Cancel
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <div className="form-stack" style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+                    <label className="field" style={{ flex: 1 }}>
+                      <span className="field__label">Add Cohort</span>
+                      <select
+                        className="field__control"
+                        value={editCohortToAdd}
+                        onChange={(e) => setEditCohortToAdd(e.target.value)}
+                        disabled={loadingCohorts}
+                      >
+                        <option value="">{loadingCohorts ? "Loading cohorts..." : "Select a cohort"}</option>
+                        {cohorts.map((cohort) => (
+                          <option key={cohort.id} value={String(cohort.id)}>{cohort.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button className="btn btn--primary btn--sm" type="button" onClick={addCohortToEdit} disabled={!editCohortToAdd}>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Profile</h4>
+                <div className="form-stack">
+                  <div className="modal-avatar-preview" aria-live="polite">
+                    {editAvatarSrc && !editAvatarLoadFailed ? (
+                      <img
+                        className="profile-avatar profile-avatar--image modal-avatar-preview__media"
+                        src={editAvatarSrc}
+                        alt="Student avatar preview"
+                        onError={() => setEditAvatarLoadFailed(true)}
+                      />
+                    ) : (
+                      <span className="profile-avatar modal-avatar-preview__media" aria-hidden>
+                        {editAvatarInitials}
+                      </span>
+                    )}
+                    <p className="modal-avatar-preview__hint">Avatar Preview</p>
+                  </div>
+                  <label className="field"><span className="field__label">Avatar Upload</span><input className="field__control" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={(event) => void handleEditAvatarUpload(event)} disabled={editAvatarUploading || savingEdit} /></label>
+                  <label className="field"><span className="field__label">Avatar URL</span><input className="field__control" type="url" value={editForm.avatar_url} onChange={(e) => { setEditAvatarLoadFailed(false); setEditForm((c) => ({ ...c, avatar_url: e.target.value })); }} /></label>
+                  <label className="field"><span className="field__label">Bio</span><textarea className="textarea-control" value={editForm.bio} onChange={(e) => setEditForm((c) => ({ ...c, bio: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">LinkedIn URL</span><input className="field__control" type="url" value={editForm.linkedin_url} onChange={(e) => setEditForm((c) => ({ ...c, linkedin_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">GitHub URL</span><input className="field__control" type="url" value={editForm.github_url} onChange={(e) => setEditForm((c) => ({ ...c, github_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Portfolio URL</span><input className="field__control" type="url" value={editForm.portfolio_url} onChange={(e) => setEditForm((c) => ({ ...c, portfolio_url: e.target.value }))} /></label>
+                  <label className="field"><span className="field__label">Currently Working At</span><input className="field__control" value={editForm.company_work_for} onChange={(e) => setEditForm((c) => ({ ...c, company_work_for: e.target.value }))} /></label>
+                </div>
+              </section>
+
+              <section className="profile-modal-section">
+                <h4 className="section-title">Flags</h4>
+                <div className="form-stack">
+                  <label className="cohort-form-switch"><span className="field__label">Public Profile</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_public} onChange={(e) => setEditForm((c) => ({ ...c, is_public: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Graduated</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_graduated} onChange={(e) => setEditForm((c) => ({ ...c, is_graduated: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Currently Working</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.is_working} onChange={(e) => setEditForm((c) => ({ ...c, is_working: e.target.checked }))} /></label>
+                  <label className="cohort-form-switch"><span className="field__label">Open To Work</span><input className="cohort-form-switch__checkbox" type="checkbox" checked={editForm.open_to_work} onChange={(e) => setEditForm((c) => ({ ...c, open_to_work: e.target.checked }))} /></label>
+                </div>
+              </section>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn--secondary" type="button" onClick={() => setEditTarget(null)} disabled={savingEdit || editAvatarUploading}>Cancel</button>
+              <button className="btn btn--primary" type="button" onClick={() => void submitEdit()} disabled={savingEdit || editAvatarUploading}>
+                {savingEdit ? "Saving..." : editAvatarUploading ? "Preparing Avatar..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />

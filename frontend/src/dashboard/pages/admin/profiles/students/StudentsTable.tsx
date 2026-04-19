@@ -11,6 +11,7 @@ type StudentsTableProps = {
   selectedIds: Set<number>;
   onToggleRow: (id: number) => void;
   onView: (row: StudentRow) => void;
+  onEdit: (row: StudentRow) => void;
   onMessage: (row: StudentRow) => void;
   onSetDropout: (row: StudentRow) => void;
   onSetActive: (row: StudentRow) => void;
@@ -21,6 +22,7 @@ export function StudentsTable({
   selectedIds,
   onToggleRow,
   onView,
+  onEdit,
   onMessage,
   onSetDropout,
   onSetActive,
@@ -65,6 +67,9 @@ export function StudentsTable({
                       <div className="table-actions">
                         <button className="btn btn--secondary btn--sm" type="button" onClick={() => onView(row)}>
                           View
+                        </button>
+                        <button className="btn btn--secondary btn--sm btn--edit" type="button" onClick={() => onEdit(row)}>
+                          Edit
                         </button>
                         <button className="btn btn--primary btn--sm" type="button" onClick={() => onMessage(row)}>
                           Message

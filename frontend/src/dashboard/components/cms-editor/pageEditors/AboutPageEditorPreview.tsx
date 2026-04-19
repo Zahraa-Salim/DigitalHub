@@ -237,7 +237,7 @@ export function AboutPageEditorPreview() {
                 <h3 className="title">
                   <EditablePageSpan
                     pageKey="about"
-                    field="title"
+                    field="banner_title"
                     fallback="Build skills. Become employable."
                   />
                 </h3>
@@ -251,7 +251,7 @@ export function AboutPageEditorPreview() {
                     <i className="fas fa-angle-right"></i>
                   </span>
                   <span>
-                    <EditablePageSpan pageKey="about" field="label" fallback="About Us" />
+                    <EditablePageSpan pageKey="about" field="banner_subtitle" fallback="About Us" />
                   </span>
                 </nav>
               </div>

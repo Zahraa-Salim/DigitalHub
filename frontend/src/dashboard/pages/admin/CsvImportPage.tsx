@@ -68,7 +68,7 @@ const EXPORTABLE_SOURCES: ExportableSource[] = [
     key: "subscribers",
     label: "Subscribers",
     group: "Subscribers",
-    endpoint: "/admin/subscribers?page=1&limit=5000&sortBy=created_at&order=desc",
+    endpoint: "/api/admin/subscribers?page=1&limit=5000&sortBy=created_at&order=desc",
     columns: [
       { key: "phone", label: "Phone", getValue: (r) => r.phone ?? "" },
       { key: "name", label: "Name", getValue: (r) => r.name ?? "" },
@@ -1121,7 +1121,7 @@ export function CsvImportPage() {
         parseError: null,
         selectedTableKey: "",
         mapping: {},
-        step: 1,
+        step: 2,
         importResult: null,
         importError: null,
       }));
@@ -1159,6 +1159,7 @@ export function CsvImportPage() {
       mapping: detectAutoMapping(current.csvHeaders, table.columns),
       importResult: null,
       importError: null,
+      step: 3,
     }));
   };
 
@@ -1175,7 +1176,13 @@ export function CsvImportPage() {
   const handleImport = async () => {
     if (!selectedTable) return;
 
-    const rows = applyMapping(state.csvRows, state.mapping, selectedTable.columns);
+    // Filter mapping to only include valid columns for this table
+    const validDbColumns = new Set(selectedTable.columns.map((col) => col.key));
+    const cleanMapping = Object.fromEntries(
+      Object.entries(state.mapping).filter(([, dbColumn]) => validDbColumns.has(dbColumn)),
+    );
+
+    const rows = applyMapping(state.csvRows, cleanMapping, selectedTable.columns);
 
     setState((current) => ({
       ...current,
@@ -1307,6 +1314,7 @@ export function CsvImportPage() {
                   <div className="csv-dropzone__icon">OK</div>
                   <p className="csv-dropzone__loaded-name">{state.fileName}</p>
                   <p className="csv-dropzone__loaded-stats">{state.csvRows.length} rows · {state.csvHeaders.length} columns</p>
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "8px" }}>File loaded — select a table below to continue</p>
                   <button className="csv-dropzone__change-btn" type="button" onClick={resetAll}>Change file</button>
                 </>
               )}
@@ -1326,7 +1334,7 @@ export function CsvImportPage() {
           <section className="csv-panel">
             <div className="csv-panel__header">
               <h2>Step 2: Choose Table</h2>
-              <p>Select the target database table for this CSV file.</p>
+              <p>Click a table to select it and continue to column mapping.</p>
             </div>
 
             {Object.entries(groupedTables).map(([group, tables]) => (
@@ -1355,9 +1363,6 @@ export function CsvImportPage() {
             <div className="csv-actions">
               <button className="csv-button" type="button" onClick={() => setState((current) => ({ ...current, step: 1 }))}>
                 Back
-              </button>
-              <button className="csv-button csv-button--primary" type="button" disabled={!canGoToStep3} onClick={() => setState((current) => ({ ...current, step: 3 }))}>
-                Next
               </button>
             </div>
           </section>

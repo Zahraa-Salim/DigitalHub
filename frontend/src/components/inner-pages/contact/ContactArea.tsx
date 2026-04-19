@@ -128,9 +128,9 @@ const ContactArea: React.FC = () => {
   const info = contactInfo ?? DEFAULTS;
   const addressLines = (info.address || DEFAULTS.address).split("\n");
   const locationQuery = String(info.mapLocationQuery || "").trim() || DEFAULTS.mapLocationQuery;
-  const fallbackPinnedMapUrl = `https://www.google.com/maps?q=${encodeURIComponent(locationQuery)}&z=15&output=embed`;
+  const fallbackPinnedMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(locationQuery)}&z=15&output=embed`;
   const dbMapUrl = (info.mapEmbedUrl || "").trim();
-  const useDbMapUrl = dbMapUrl.length > 0;
+  const useDbMapUrl = dbMapUrl.length > 0 && (dbMapUrl.includes("output=embed") || dbMapUrl.includes("/maps/embed"));
   const mapSrc = useDbMapUrl ? dbMapUrl : fallbackPinnedMapUrl;
 
   return (

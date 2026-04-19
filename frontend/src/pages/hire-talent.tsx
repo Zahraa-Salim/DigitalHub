@@ -1,17 +1,18 @@
-﻿// File: frontend/src/pages/hire-talent.tsx
-// Purpose: Acts as the route entry for the hire talent page.
-// It composes the shared layout with the main section component for this route.
-
 import Wrapper from "@/layouts/Wrapper";
 import { HireTalent } from "@/sections/hire-talent.sections";
+import { PageMeta } from "@/components/PageMeta";
 
 const HireTalentPage = () => {
   return (
     <Wrapper>
+      <PageMeta
+        title="Hire Talent"
+        description="Discover and recruit skilled graduates from The Digital Hub programs."
+        canonicalPath="/hire-talent"
+      />
       <HireTalent />
     </Wrapper>
   );
 };
 
 export default HireTalentPage;
-

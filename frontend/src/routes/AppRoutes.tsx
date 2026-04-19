@@ -3,7 +3,8 @@
 // It maps URL paths to the React pages and layout wrappers used by the app.
 
 import NotFoundPage from "@/pages/not-found";
-import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
+import { usePublicTheme } from "@/hooks/usePublicTheme";
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { DashboardRouteElements } from "./DashboardRoutes";
 
@@ -42,6 +43,11 @@ const pageRoutes = Object.entries(pageModules)
     return a.routePath.localeCompare(b.routePath);
   });
 
+const PublicThemeBoundary = ({ children }: { children: ReactNode }) => {
+  usePublicTheme();
+  return <>{children}</>;
+};
+
 const AppRoutes = () => {
   return (
     <BrowserRouter
@@ -59,9 +65,11 @@ const AppRoutes = () => {
             key={routePath}
             path={routePath}
             element={
-              <Suspense fallback={null}>
-                <Page />
-              </Suspense>
+              <PublicThemeBoundary>
+                <Suspense fallback={null}>
+                  <Page />
+                </Suspense>
+              </PublicThemeBoundary>
             }
           />
         ))}

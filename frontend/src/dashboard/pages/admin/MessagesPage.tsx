@@ -242,7 +242,12 @@ export function MessagesPage() {
                 {
                   key: "status",
                   label: "Status",
-                  render: (row) => row.status,
+                  render: (row) =>
+                    row.channel === "whatsapp" && row.status === "sent" ? (
+                      <span title="Accepted by WhatsApp API. Actual delivery depends on recipient's phone registration and Meta account status.">
+                        {row.status}
+                      </span>
+                    ) : row.status,
                 },
                 {
                   key: "to",
@@ -311,7 +316,16 @@ export function MessagesPage() {
               </button>
             </header>
             <div className="post-details">
-              <p className="post-details__line"><strong>Status:</strong> {selected.status}</p>
+              <p className="post-details__line">
+                <strong>Status:</strong>{" "}
+                {selected.channel === "whatsapp" && selected.status === "sent" ? (
+                  <span title="Accepted by WhatsApp API. Actual delivery depends on recipient's phone registration and Meta account status.">
+                    {selected.status}
+                  </span>
+                ) : (
+                  selected.status
+                )}
+              </p>
               <p className="post-details__line"><strong>Channel:</strong> {selected.channel}</p>
               <p className="post-details__line"><strong>Recipient:</strong> {selected.to_value}</p>
               <p className="post-details__line"><strong>Subject:</strong> {selected.subject || "-"}</p>

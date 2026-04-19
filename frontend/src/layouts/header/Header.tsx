@@ -102,10 +102,10 @@ const Header = () => {
         if (primaryUrl) setPrimaryCtaHref(primaryUrl);
         if (secondaryLabel) setSecondaryCtaLabel(secondaryLabel);
         if (secondaryUrl) setSecondaryCtaHref(secondaryUrl);
-        if (headerLogoUrl) setLogoUrl(headerLogoUrl);
+        setLogoUrl(headerLogoUrl || logo);
         if (parsedMenuItems.length) setMenuItems(parsedMenuItems);
       } catch {
-        // Keep defaults on failure.
+        setLogoUrl(logo);
       }
     };
 
@@ -131,7 +131,7 @@ const Header = () => {
                   <nav className="tgmenu__nav dh-navbar__inner">
                     <div className="logo dh-navbar__logo">
                       <Link to="/">
-                        <Image src={logoUrl} alt="Logo" />
+                        {logoUrl && <Image src={logoUrl} alt="Logo" />}
                       </Link>
                     </div>
 
@@ -140,9 +140,6 @@ const Header = () => {
                     </div>
 
                     <div className="tgmenu__action dh-navbar__actions d-none d-lg-flex">
-                      <Link to={secondaryCtaHref} className="dh-auth-btn dh-auth-btn--ghost">
-                        {secondaryCtaLabel}
-                      </Link>
                       <Link to={primaryCtaHref} className="dh-auth-btn dh-auth-btn--special">
                         {primaryCtaLabel}
                       </Link>

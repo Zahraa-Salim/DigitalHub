@@ -5,9 +5,10 @@
 "use client";
 
 import Link from "@/components/common/Link";
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import ReactPaginate from "react-paginate";
 import { mapOpenCohortsToProgramCards, type CohortProgramCard } from "@/lib/cohortProgramMapper";
+import { getColorScheme } from "@/lib/programColorSchemes";
 import { getPublicHomeData, listPublicCohorts } from "@/lib/publicApi";
 import { DEFAULT_PROGRAM_CARD_STYLE, resolveProgramCardStyle, type ProgramCardStyle } from "@/lib/programCardStyle";
 import CourseSidebar from "./CourseSidebar";
@@ -137,26 +138,6 @@ export default function CourseArea() {
     );
   };
 
-  const getProgramIconClass = (programName: string) => {
-    const normalized = programName.toLowerCase();
-    if (normalized.includes("design") || normalized.includes("ui") || normalized.includes("ux")) {
-      return "fas fa-palette";
-    }
-    if (normalized.includes("data") || normalized.includes("analytics") || normalized.includes("analysis")) {
-      return "fas fa-chart-line";
-    }
-    if (normalized.includes("ai") || normalized.includes("ml") || normalized.includes("machine")) {
-      return "fas fa-robot";
-    }
-    if (normalized.includes("marketing") || normalized.includes("media")) {
-      return "fas fa-bullhorn";
-    }
-    if (normalized.includes("network") || normalized.includes("security")) {
-      return "fas fa-shield-alt";
-    }
-    return "fas fa-code";
-  };
-
   return (
     <section className="all-courses-area section-py-120">
       <div className="container">
@@ -210,16 +191,22 @@ export default function CourseArea() {
                       <div className={`courses__item dh-program-card dh-program-card--${item.status} dh-program-card--style-${programCardStyle}`}>
                         {programCardStyle === "modern" ? (
                           <>
-                            <div className="dh-program-card__hero">
+                            <div
+                              className="dh-program-card__hero"
+                              style={{
+                                background: getColorScheme(item.colorSchemeId).gradientStart,
+                                "--card-accent": getColorScheme(item.colorSchemeId).glowColor,
+                              } as CSSProperties}
+                            >
                               <span className="dh-program-card__icon">
-                                <i className={getProgramIconClass(item.category.name)}></i>
+                                <i className={`fas ${item.iconClass}`}></i>
                               </span>
                               <span className={`dh-program-card__status-pill dh-program-card__status-pill--${item.status}`}>
                                 {item.level}
                               </span>
                               <p className="dh-program-card__hero-program">{item.category.name}</p>
                               <span className="dh-program-card__hero-mark" aria-hidden="true">
-                                <i className={getProgramIconClass(item.category.name)}></i>
+                                <i className={`fas ${item.iconClass}`}></i>
                               </span>
                             </div>
                             <div className="dh-program-card__body">
@@ -349,16 +336,22 @@ export default function CourseArea() {
                       <div className={`courses__item dh-program-card dh-program-card--list dh-program-card--${item.status} dh-program-card--style-${programCardStyle}`}>
                         {programCardStyle === "modern" ? (
                           <>
-                            <div className="dh-program-card__hero dh-program-card__hero--list-modern">
+                            <div
+                              className="dh-program-card__hero dh-program-card__hero--list-modern"
+                              style={{
+                                background: getColorScheme(item.colorSchemeId).gradientStart,
+                                "--card-accent": getColorScheme(item.colorSchemeId).glowColor,
+                              } as CSSProperties}
+                            >
                               <span className="dh-program-card__icon">
-                                <i className={getProgramIconClass(item.category.name)}></i>
+                                <i className={`fas ${item.iconClass}`}></i>
                               </span>
                               <span className={`dh-program-card__status-pill dh-program-card__status-pill--${item.status}`}>
                                 {item.level}
                               </span>
                               <p className="dh-program-card__hero-program">{item.category.name}</p>
                               <span className="dh-program-card__hero-mark" aria-hidden="true">
-                                <i className={getProgramIconClass(item.category.name)}></i>
+                                <i className={`fas ${item.iconClass}`}></i>
                               </span>
                             </div>
                             <div className="dh-program-card__body dh-program-card__body--list">

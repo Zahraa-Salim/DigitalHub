@@ -7,10 +7,9 @@
     "module": "ESNext",
     "types": ["vite/client"],
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@dashboard/*": ["src/dashboard/*"]
+      "@/*": ["./src/*"],
+      "@dashboard/*": ["./src/dashboard/*"]
     },
 
     /* Bundler mode */

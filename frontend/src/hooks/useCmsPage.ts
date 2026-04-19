@@ -38,12 +38,12 @@ export const useCmsBreadcrumb = (
 
   const title = getCmsString(
     content,
-    ["hero_title", "heroTitle", "title", "heading"],
+    ["banner_title", "bannerTitle", "hero_title", "heroTitle", "title", "heading"],
     options.defaultsTitle,
   );
   const subTitle = getCmsString(
     content,
-    ["hero_subtitle", "heroSubtitle", "subtitle", "sub_title", "label"],
+    ["banner_subtitle", "bannerSubtitle", "hero_subtitle", "heroSubtitle", "subtitle", "sub_title", "label"],
     options.defaultsSubTitle,
   );
 

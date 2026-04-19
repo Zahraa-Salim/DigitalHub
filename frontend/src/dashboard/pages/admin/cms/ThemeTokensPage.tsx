@@ -19,6 +19,7 @@ type ThemeTokenRow = {
   purpose: string | null;
   value: string;
   scope: ThemeScope;
+  color_history: string[];
   updated_at: string;
 };
 
@@ -38,6 +39,9 @@ const EMPTY_DRAFT: ThemeTokenDraft = {
   scope: "web",
 };
 
+const COLOR_KEYWORD_PATTERN = /(color|primary|secondary|background|cyan|blue|aqua)/i;
+const COLOR_VALUE_PATTERN = /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i;
+
 const toDraft = (row: ThemeTokenRow): ThemeTokenDraft => ({
   id: row.id,
   key: row.key,
@@ -45,6 +49,51 @@ const toDraft = (row: ThemeTokenRow): ThemeTokenDraft => ({
   value: row.value,
   scope: row.scope,
 });
+
+const isColorToken = (key: string, value: string) =>
+  COLOR_KEYWORD_PATTERN.test(key) || COLOR_VALUE_PATTERN.test(String(value || "").trim());
+
+const normalizeHex = (value: string) => {
+  const trimmed = String(value || "").trim();
+  const match = trimmed.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+  if (!match) {
+    return null;
+  }
+
+  const hex = match[1];
+  if (hex.length === 3) {
+    return `#${hex.split("").map((char) => `${char}${char}`).join("").toLowerCase()}`;
+  }
+
+  return `#${hex.toLowerCase()}`;
+};
+
+const colorToHex = (value: string) => {
+  const normalizedHex = normalizeHex(value);
+  if (normalizedHex) {
+    return normalizedHex;
+  }
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return null;
+  }
+
+  context.fillStyle = "#000000";
+  context.fillStyle = value;
+  const resolved = context.fillStyle;
+  const rgbMatch = String(resolved).match(/^#([\da-f]{6})$/i);
+  if (!rgbMatch) {
+    return null;
+  }
+
+  return `#${rgbMatch[1].toLowerCase()}`;
+};
 
 export function CmsThemeTokensPage() {
   const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
@@ -60,6 +109,14 @@ export function CmsThemeTokensPage() {
     () => [...rows].sort((a, b) => String(a.key).localeCompare(String(b.key))),
     [rows],
   );
+  const selectedRow = useMemo(
+    () => (typeof selectedId === "number" ? rows.find((row) => row.id === selectedId) ?? null : null),
+    [rows, selectedId],
+  );
+  const isColorDraft = useMemo(() => isColorToken(draft.key, draft.value), [draft.key, draft.value]);
+  const pickerValue = useMemo(() => colorToHex(draft.value) ?? "#0255e0", [draft.value]);
+  const savedSwatchValue = selectedRow?.value ?? draft.value;
+  const colorHistory = selectedRow?.color_history ?? [];
 
   useEffect(() => {
     if (error) {
@@ -181,6 +238,19 @@ export function CmsThemeTokensPage() {
                 className={`cms-page-tab ${isActive ? "is-active" : ""}`}
                 onClick={() => handleSelect(row)}
               >
+                {isColorToken(row.key, row.value) ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "999px",
+                      background: row.value,
+                      border: "1px solid rgba(15, 23, 42, 0.12)",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
                 <span className="cms-page-tab__title">{row.key}</span>
                 <span className="cms-page-tab__meta">{row.purpose || "Theme token"}</span>
                 <span className="cms-page-tab__status is-published">{row.scope}</span>
@@ -251,15 +321,84 @@ export function CmsThemeTokensPage() {
               </label>
 
               <label className="field">
-                <span className="field__label">Value</span>
-                <input
-                  className="field__control"
-                  value={draft.value}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, value: event.target.value }))}
-                  placeholder="#0d6efd"
-                  disabled={saving}
-                />
+                <span
+                  className="field__label"
+                  style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+                >
+                  <span>Value</span>
+                  {isColorDraft ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        title={`Saved color: ${savedSwatchValue || "Not set"}`}
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          borderRadius: "999px",
+                          background: savedSwatchValue || "transparent",
+                          border: "1px solid rgba(15, 23, 42, 0.12)",
+                          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.35)",
+                        }}
+                      />
+                      <span className="field__hint" style={{ margin: 0 }}>
+                        Saved color: {savedSwatchValue || "Not set"}
+                      </span>
+                    </>
+                  ) : null}
+                </span>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                  {isColorDraft ? (
+                    <input
+                      type="color"
+                      value={pickerValue}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, value: event.target.value }))}
+                      disabled={saving}
+                      aria-label="Pick color value"
+                      style={{
+                        width: "56px",
+                        height: "44px",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(15, 23, 42, 0.12)",
+                        background: "#fff",
+                        padding: "4px",
+                        cursor: saving ? "not-allowed" : "pointer",
+                      }}
+                    />
+                  ) : null}
+                  <input
+                    className="field__control"
+                    value={draft.value}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, value: event.target.value }))}
+                    placeholder="#0d6efd"
+                    disabled={saving}
+                  />
+                </div>
                 <span className="field__hint">Use CSS-ready values like hex colors, spacing, gradients, or font stacks.</span>
+                {isColorDraft && colorHistory.length ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                    <span className="field__hint" style={{ margin: 0 }}>Recent colors</span>
+                    {colorHistory.slice(0, 10).map((historyValue, index) => (
+                      <button
+                        key={`${historyValue}-${index}`}
+                        type="button"
+                        onClick={() => setDraft((prev) => ({ ...prev, value: historyValue }))}
+                        title={`Use ${historyValue}`}
+                        disabled={saving}
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "999px",
+                          border: "1px solid rgba(15, 23, 42, 0.12)",
+                          background: historyValue,
+                          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.35)",
+                          cursor: saving ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        <span className="sr-only">{historyValue}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </label>
 
               {loading ? <PulseDots padding={24} label="Loading tokens" /> : null}

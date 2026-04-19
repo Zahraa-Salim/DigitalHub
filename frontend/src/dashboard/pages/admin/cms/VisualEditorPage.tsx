@@ -14,7 +14,7 @@ function EditorTopBar({ page, onPageChange }: { page: EditorPage; onPageChange: 
   return (
     <div className="cms-editor-topbar">
       <div className="cms-editor-topbar__left">
-        <span className="cms-editor-topbar__title">Visual Site Editor</span>
+        <span className="cms-editor-topbar__title">Visual Site Editor (Home & About)</span>
         <div className="cms-editor-tabs">
           {TABS.map((tab) => (
             <button

@@ -6,7 +6,6 @@ import { buildQueryString } from "../utils/query";
 type SearchResult = {
   id: string;
   entity: string;
-  icon: string;
   primary: string;
   secondary: string;
   badge?: string;
@@ -16,20 +15,101 @@ type SearchResult = {
 
 type SearchGroup = {
   entity: string;
-  icon: string;
   results: SearchResult[];
 };
+
+function EntityIcon({ entity }: { entity: string }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  switch (entity) {
+    case "Applications":
+      return (
+        <svg {...common}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="13" y2="17" />
+        </svg>
+      );
+    case "Programs":
+      return (
+        <svg {...common}>
+          <path d="M22 10 12 5 2 10l10 5 10-5Z" />
+          <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" />
+        </svg>
+      );
+    case "Cohorts":
+      return (
+        <svg {...common}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case "Events":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      );
+    case "Announcements":
+      return (
+        <svg {...common}>
+          <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6l-5 4H4a1 1 0 0 0-1 1Z" />
+          <path d="M18 8a5 5 0 0 1 0 8" />
+        </svg>
+      );
+    case "Admins":
+      return (
+        <svg {...common}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+        </svg>
+      );
+    case "Students":
+      return (
+        <svg {...common}>
+          <path d="M22 10v6" />
+          <path d="M2 10 12 5l10 5-10 5Z" />
+          <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" />
+        </svg>
+      );
+    case "Templates":
+      return (
+        <svg {...common}>
+          <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+          <polyline points="3 7 12 13 21 7" />
+        </svg>
+      );
+    case "Contact":
+      return (
+        <svg {...common}>
+          <path d="M4 4h16v12H5.17L4 17.17Z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 const SEARCH_SOURCES = [
   {
     entity: "Applications",
-    icon: "📋",
     endpoint: (q: string) =>
       `/applications${buildQueryString({ search: q, limit: 5, sortBy: "submitted_at", order: "desc" })}`,
     map: (row: any): SearchResult => ({
       id: `app-${row.id}`,
       entity: "Applications",
-      icon: "📋",
       primary: row.full_name || row.email || `Application #${row.id}`,
       secondary: row.email || row.phone || "",
       badge: row.status || row.stage,
@@ -42,12 +122,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Programs",
-    icon: "🎓",
     endpoint: (q: string) => `/programs${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `prog-${row.id}`,
       entity: "Programs",
-      icon: "🎓",
       primary: row.title || `Program #${row.id}`,
       secondary: row.summary ? String(row.summary).slice(0, 80) : row.slug || "",
       badge: row.is_published ? "Published" : "Draft",
@@ -57,12 +135,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Cohorts",
-    icon: "👥",
     endpoint: (q: string) => `/cohorts${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `cohort-${row.id}`,
       entity: "Cohorts",
-      icon: "👥",
       primary: row.name || `Cohort #${row.id}`,
       secondary: row.program_title || "",
       badge: row.status || "",
@@ -72,12 +148,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Events",
-    icon: "📅",
     endpoint: (q: string) => `/events${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `event-${row.id}`,
       entity: "Events",
-      icon: "📅",
       primary: row.title || `Event #${row.id}`,
       secondary: row.location
         ? `${row.location} · ${row.starts_at ? new Date(row.starts_at).toLocaleDateString() : ""}`
@@ -91,12 +165,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Announcements",
-    icon: "📢",
     endpoint: (q: string) => `/announcements${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `ann-${row.id}`,
       entity: "Announcements",
-      icon: "📢",
       primary: row.title || `Announcement #${row.id}`,
       secondary: row.body ? String(row.body).slice(0, 80) : "",
       badge: row.is_published ? "Published" : "Draft",
@@ -106,12 +178,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Admins",
-    icon: "🛡️",
     endpoint: (q: string) => `/admins${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `admin-${row.id || row.user_id}`,
       entity: "Admins",
-      icon: "🛡️",
       primary: row.full_name || row.email || `Admin #${row.id || row.user_id}`,
       secondary: row.email || "",
       badge: row.role || row.admin_role,
@@ -121,12 +191,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Students",
-    icon: "🎒",
     endpoint: (q: string) => `/profiles/students${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `student-${row.user_id || row.id}`,
       entity: "Students",
-      icon: "🎒",
       primary: row.full_name || row.email || `Student #${row.user_id || row.id}`,
       secondary: row.email || "",
       href: "/admin/profiles/students",
@@ -134,12 +202,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Templates",
-    icon: "✉️",
     endpoint: (q: string) => `/message-templates${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `tmpl-${row.id}`,
       entity: "Templates",
-      icon: "✉️",
       primary: row.label || row.name || row.key || `Template #${row.id}`,
       secondary: row.key || "",
       href: "/admin/message-templates",
@@ -147,12 +213,10 @@ const SEARCH_SOURCES = [
   },
   {
     entity: "Contact",
-    icon: "📬",
     endpoint: (q: string) => `/contact${buildQueryString({ search: q, limit: 5 })}`,
     map: (row: any): SearchResult => ({
       id: `contact-${row.id}`,
       entity: "Contact",
-      icon: "📬",
       primary: row.full_name || row.name || row.email || `Contact #${row.id}`,
       secondary: row.subject ? String(row.subject).slice(0, 60) : row.email || "",
       href: "/admin/contact",
@@ -265,7 +329,6 @@ export function GlobalSearch() {
         const data = await apiList<any>(source.endpoint(trimmed));
         return {
           entity: source.entity,
-          icon: source.icon,
           results: (data.data || []).map((row: any) => source.map(row)),
         };
       }),
@@ -278,7 +341,6 @@ export function GlobalSearch() {
       }
       filled.push({
         entity: result.value.entity,
-        icon: result.value.icon,
         results: result.value.results,
       });
     });
@@ -399,7 +461,9 @@ export function GlobalSearch() {
               {groups.map((group) => (
                 <div key={group.entity} className="gsearch__group">
                   <div className="gsearch__group-label">
-                    <span className="gsearch__group-icon">{group.icon}</span>
+                    <span className="gsearch__group-icon" aria-hidden="true">
+                      <EntityIcon entity={group.entity} />
+                    </span>
                     {group.entity}
                     <span className="gsearch__group-count">{group.results.length}</span>
                   </div>

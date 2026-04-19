@@ -4,7 +4,6 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Card } from "../../components/Card";
-import type { ChangeEvent } from "react";
 import { FilterBar } from "../../components/FilterBar";
 import { PageShell } from "../../components/PageShell";
 import { PulseDots } from "../../components/PulseDots";
@@ -16,7 +15,6 @@ import { ImageUpload } from "../../components/ImageUpload";
 import { ValidationMessage } from "../../components/ValidationMessage";
 import { BulkActionsToolbar } from "../../components/BulkActionsToolbar";
 import { QuickPreviewPanel, type PreviewField } from "../../components/QuickPreviewPanel";
-import { AdvancedFilterPanel, type FilterCondition } from "../../components/AdvancedFilterPanel";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { API_URL, ApiError, api, apiList } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
@@ -68,17 +66,6 @@ type ProgramFormState = {
 
 type FormMode = "create" | "edit" | null;
 
-// Filter fields for Programs
-const PROGRAM_FILTER_FIELDS = [
-  { name: "title", label: "Title", type: "text" as const },
-  { name: "slug", label: "Slug", type: "text" as const },
-  { name: "summary", label: "Summary", type: "text" as const },
-  { name: "is_published", label: "Published", type: "checkbox" as const },
-  { name: "default_capacity", label: "Capacity", type: "number" as const },
-  { name: "created_at", label: "Created Date", type: "date" as const },
-  { name: "updated_at", label: "Updated Date", type: "date" as const },
-];
-
 const initialForm: ProgramFormState = {
   slug: "",
   title: "",
@@ -108,19 +95,24 @@ function resolveProgramImageUrl(imageUrl: string | null | undefined): string | n
   }
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Failed to read image file."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function parseImageDataUrl(value: string): { mimeType: string; base64: string } | null {
   const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i.exec(value);
   if (!match) return null;
   return { mimeType: match[1].toLowerCase(), base64: match[2] };
+}
+
+function getFilenameFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case "image/jpeg":
+    case "image/jpg":
+      return "program-image.jpg";
+    case "image/png":
+      return "program-image.png";
+    case "image/webp":
+      return "program-image.webp";
+    default:
+      return "program-image";
+  }
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -171,7 +163,6 @@ export function ProgramsPage() {
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProgramRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [programCardStyle, setProgramCardStyle] = useState<ProgramCardStyle>("modern");
@@ -187,8 +178,6 @@ export function ProgramsPage() {
   // Phase 5: Preview panel state
   const [previewProgram, setPreviewProgram] = useState<ProgramRow | null>(null);
   
-  // Phase 5: Advanced filters state
-  const [advancedFilters, setAdvancedFilters] = useState<FilterCondition[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filterSheetOffset, setFilterSheetOffset] = useState(0);
   const [isFilterDragging, setIsFilterDragging] = useState(false);
@@ -249,10 +238,7 @@ export function ProgramsPage() {
   const totalPrograms = programs.length;
   const lastUpdated = programs[0]?.updated_at ?? "";
   const formTitle = formMode === "create" ? "Add Program" : "Edit Program";
-  const formImageSrc = useMemo(() => resolveProgramImageUrl(form.imageUrl || null), [form.imageUrl]);
   const rows = useMemo(() => programs, [programs]);
-
-  useEffect(() => { setImagePreviewFailed(false); }, [formImageSrc]);
 
   useEffect(() => {
     if (success) {
@@ -278,11 +264,16 @@ export function ProgramsPage() {
     }
   }, [programStyleError, pushToast]);
 
+  useEffect(() => {
+    if (!formMode) {
+      setIsUploadingImage(false);
+    }
+  }, [formMode]);
+
   const openCreate = () => {
     setFormMode("create");
     setEditing(null);
     setForm(initialForm);
-    setImagePreviewFailed(false);
     setFormError("");
     setSuccess("");
   };
@@ -291,7 +282,6 @@ export function ProgramsPage() {
     setFormMode("edit");
     setEditing(program);
     setForm(toFormState(program));
-    setImagePreviewFailed(false);
     setFormError("");
     setSuccess("");
   };
@@ -316,35 +306,19 @@ export function ProgramsPage() {
     if (!parsed) throw new Error("Invalid program image data.");
     const uploaded = await api<{ image_url: string }>("/programs/image", {
       method: "POST",
-      body: JSON.stringify({ filename: "program-image", mime_type: parsed.mimeType, data_base64: parsed.base64 }),
+      body: JSON.stringify({ filename: getFilenameFromMimeType(parsed.mimeType), mime_type: parsed.mimeType, data_base64: parsed.base64 }),
     });
     return uploaded.image_url;
   };
 
-  const handleProgramImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      setFormError("Only JPG, PNG, and WEBP files are allowed.");
-      return;
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      setFormError("Program image must be 3MB or less.");
-      return;
-    }
-    setIsUploadingImage(true);
-    setFormError("");
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setForm((current) => ({ ...current, imageUrl: dataUrl }));
-      setImagePreviewFailed(false);
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to process image.");
-    } finally {
-      setIsUploadingImage(false);
-    }
+  const uploadFeaturedImageFile = async (file: File): Promise<string> => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read image file."));
+      reader.readAsDataURL(file);
+    });
+    return uploadProgramImageFromDataUrl(dataUrl);
   };
 
   const handleSave = async () => {
@@ -366,11 +340,11 @@ export function ProgramsPage() {
       summary: form.summary.trim(),
       description: form.description.trim(),
       requirements: form.requirements.trim(),
-      image_url: form.imageUrl.trim(),
+      image_url: form.imageUrl.trim() || null,
       featured: form.featured,
       meta_title: form.metaTitle.trim(),
       meta_description: form.metaDescription.trim(),
-      featured_image_url: form.featuredImageUrl.trim(),
+      featured_image_url: form.featuredImageUrl.trim() || null,
     };
     if (defaultCapacity !== undefined) payload.default_capacity = defaultCapacity;
     if (form.featured && form.featuredRank.trim()) {
@@ -387,6 +361,13 @@ export function ProgramsPage() {
         const uploadedImage = await uploadProgramImageFromDataUrl(imageInput);
         payload.image_url = uploadedImage;
         setForm((current) => ({ ...current, imageUrl: uploadedImage }));
+      }
+
+      const featuredImageInput = String(payload.featured_image_url || "");
+      if (featuredImageInput.startsWith("data:image/")) {
+        const uploadedFeaturedImage = await uploadProgramImageFromDataUrl(featuredImageInput);
+        payload.featured_image_url = uploadedFeaturedImage;
+        setForm((current) => ({ ...current, featuredImageUrl: uploadedFeaturedImage }));
       }
 
       if (formMode === "create") {
@@ -508,9 +489,6 @@ export function ProgramsPage() {
     ];
   };
 
-  const handleAdvancedFilterApply = () => { setSuccess(`Applied ${advancedFilters.length} filter(s).`); };
-  const handleAdvancedFilterReset = () => { setAdvancedFilters([]); setSuccess("Filters reset."); };
-
   const openMobileFilters = () => { setShowFiltersMobile(true); setFilterSheetOffset(0); filterOffsetRef.current = 0; };
   const closeMobileFilters = () => { setShowFiltersMobile(false); setIsFilterDragging(false); setFilterSheetOffset(0); filterOffsetRef.current = 0; filterDragStartYRef.current = null; };
   const handleFilterDragStart = (event: ReactPointerEvent<HTMLDivElement>) => { filterDragStartYRef.current = event.clientY; setIsFilterDragging(true); };
@@ -578,10 +556,9 @@ export function ProgramsPage() {
             <FilterBar className="dh-form-grid" searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search program title"
               selects={[
                 { label: "Sort By", value: sortBy, options: [{ label: "Last Updated", value: "updated_at" }, { label: "Created Date", value: "created_at" }, { label: "Title", value: "title" }], onChange: (v) => setSortBy(v as "updated_at" | "created_at" | "title") },
-                { label: "Sort Order", value: sortOrder, options: [{ label: "Descending", value: "desc" }, { label: "Ascending", value: "asc" }], onChange: (v) => setSortOrder(v as "asc" | "desc") },
+                { label: "Sort Order", value: sortOrder, options: [{ label: "Ascending", value: "asc" }, { label: "Descending", value: "desc" }], onChange: (v) => setSortOrder(v as "asc" | "desc") },
               ]}
             />
-            <AdvancedFilterPanel filters={advancedFilters} onFiltersChange={setAdvancedFilters} availableFields={PROGRAM_FILTER_FIELDS} onApply={handleAdvancedFilterApply} onReset={handleAdvancedFilterReset} isLoading={loading} />
           </div>
           <div className="dh-filters-mobile-bar">
             <button className={`btn btn--secondary dh-btn dh-filters-toggle ${showFiltersMobile ? "dh-filters-toggle--active" : ""}`} type="button" onClick={openMobileFilters} aria-expanded={showFiltersMobile} aria-controls="program-filters-mobile-panel">
@@ -663,21 +640,10 @@ export function ProgramsPage() {
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header"><h3 className="modal-title">{formTitle}</h3></header>
             <div className="form-stack">
-              <label className="field">
-                <span className="field__label">Program Image Preview</span>
-                <div style={{ minHeight: "132px", display: "flex", alignItems: "center" }}>
-                  {formImageSrc && !imagePreviewFailed ? <img src={formImageSrc} alt="preview" onError={() => setImagePreviewFailed(true)} style={{ width: "100%", maxWidth: "380px", borderRadius: "12px" }} /> : <span className="dh-field-help">No image selected.</span>}
-                </div>
-              </label>
-              <label className="field">
-                <span className="field__label">Upload Image</span>
-                <input className="field__control" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={(e) => void handleProgramImageSelect(e)} disabled={isSubmitting || isUploadingImage} />
-              </label>
-              <label className="field"><span className="field__label">Image URL</span><input className="field__control" type="url" value={form.imageUrl} onChange={(e) => setForm((c) => ({ ...c, imageUrl: e.target.value }))} placeholder="https://..." disabled={isSubmitting || isUploadingImage} /></label>
               <label className="field"><span className="field__label">Title</span><input className="field__control" type="text" value={form.title} onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))} /></label>
               <label className="field"><span className="field__label">Slug</span><input className="field__control" type="text" autoComplete="off" value={form.slug} onChange={(e) => setForm((c) => ({ ...c, slug: e.target.value }))} placeholder="Leave blank to auto-generate" /></label>
               <label className="field"><span className="field__label">Summary</span><textarea className="textarea-control" value={form.summary} onChange={(e) => setForm((c) => ({ ...c, summary: e.target.value }))} /></label>
-              <label className="field"><span className="field__label">Description</span><RichTextEditor value={form.description} onChange={(content) => setForm((c) => ({ ...c, description: content }))} placeholder="Enter description..." disabled={isSubmitting || isUploadingImage} /></label>
+              <label className="field"><span className="field__label">Description</span><RichTextEditor key={`${formMode}-${editing?.id ?? "new"}`} value={form.description} onChange={(content) => setForm((c) => ({ ...c, description: content }))} placeholder="Enter description..." disabled={isSubmitting || isUploadingImage} /></label>
               <label className="field"><span className="field__label">Requirements</span><textarea className="textarea-control" value={form.requirements} onChange={(e) => setForm((c) => ({ ...c, requirements: e.target.value }))} /></label>
               <label className="field"><span className="field__label">Default Capacity</span><input className="field__control" type="number" min={0} step={1} value={form.defaultCapacity} onChange={(e) => setForm((c) => ({ ...c, defaultCapacity: e.target.value }))} /></label>
               <hr style={{ margin: "20px 0", border: "none", borderTop: "1px solid var(--tg-border-color)" }} />
@@ -687,7 +653,20 @@ export function ProgramsPage() {
               <label className="field"><span className="field__label">SEO Title</span><input className="field__control" type="text" value={form.metaTitle} onChange={(e) => setForm((c) => ({ ...c, metaTitle: e.target.value }))} maxLength={60} placeholder="Max 60 chars" /></label>
               <label className="field"><span className="field__label">SEO Description</span><textarea className="textarea-control" value={form.metaDescription} onChange={(e) => setForm((c) => ({ ...c, metaDescription: e.target.value }))} maxLength={160} placeholder="Max 160 chars" style={{ resize: "vertical", minHeight: "80px" }} /></label>
               <hr style={{ margin: "20px 0", border: "none", borderTop: "1px solid var(--tg-border-color)" }} />
-              <div className="field"><ImageUpload value={form.featuredImageUrl} onChange={(url) => setForm((c) => ({ ...c, featuredImageUrl: url }))} label="Featured Image" hint="Upload or paste URL" previewLabel="Preview" disabled={isSubmitting || isUploadingImage} /></div>
+              <div className="field"><ImageUpload value={form.featuredImageUrl} previewSrc={resolveProgramImageUrl(form.featuredImageUrl) ?? form.featuredImageUrl} onChange={(url) => setForm((c) => ({ ...c, featuredImageUrl: url }))} onUpload={async (file) => {
+                setIsUploadingImage(true);
+                setFormError("");
+                try {
+                  return await uploadFeaturedImageFile(file);
+                } catch (err) {
+                  const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Failed to upload featured image.";
+                  setFormError(message);
+                  pushToast("error", message);
+                  throw err;
+                } finally {
+                  setIsUploadingImage(false);
+                }
+              }} label="Featured Image" hint="Upload or paste URL" previewLabel="Preview" disabled={isSubmitting || isUploadingImage} /></div>
             </div>
             {formError && <ValidationMessage type="error" message={formError} dismissible onDismiss={() => setFormError("")} />}
             <div className="modal-actions">
@@ -718,7 +697,6 @@ export function ProgramsPage() {
             <FilterBar className="dh-form-grid dh-form-grid--mobile" searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search program title"
               selects={[
                 { label: "Sort By", value: sortBy, options: [{ label: "Last Updated", value: "updated_at" }, { label: "Created Date", value: "created_at" }, { label: "Title", value: "title" }], onChange: (v) => setSortBy(v as "updated_at" | "created_at" | "title") },
-                { label: "Sort Order", value: sortOrder, options: [{ label: "Descending", value: "desc" }, { label: "Ascending", value: "asc" }], onChange: (v) => setSortOrder(v as "asc" | "desc") },
               ]}
             />
           </div>

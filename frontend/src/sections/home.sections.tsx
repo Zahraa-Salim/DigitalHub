@@ -198,8 +198,89 @@ const resolveSectionContentMap = (sections: PublicHomeData["sections"] | undefin
   return contentMap;
 };
 
+const SKELETON_BLOCK_STYLE = {
+  background: "linear-gradient(90deg, rgba(2, 85, 224, 0.08) 0%, rgba(2, 85, 224, 0.16) 50%, rgba(2, 85, 224, 0.08) 100%)",
+  backgroundSize: "200% 100%",
+  animation: "homeSkeletonShimmer 1.2s ease-in-out infinite",
+} as const;
+
+function HomeSkeleton() {
+  return (
+    <main className="main-area fix" aria-busy="true" aria-label="Loading homepage content">
+      <style>
+        {`
+          @keyframes homeSkeletonShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+          @keyframes homeContentFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}
+      </style>
+      <section style={{ padding: "48px 0 28px" }}>
+        <div className="container">
+          <div
+            style={{
+              ...SKELETON_BLOCK_STYLE,
+              minHeight: "460px",
+              borderRadius: "32px",
+              marginBottom: "32px",
+            }}
+          />
+        </div>
+      </section>
+      <section style={{ padding: "8px 0 28px" }}>
+        <div className="container">
+          <div className="row g-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`home-skeleton-feature-${index}`} className="col-lg-4 col-md-6">
+                <div
+                  style={{
+                    ...SKELETON_BLOCK_STYLE,
+                    minHeight: "220px",
+                    borderRadius: "24px",
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section style={{ padding: "8px 0 72px" }}>
+        <div className="container">
+          <div
+            style={{
+              display: "grid",
+              gap: "20px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            }}
+          >
+            <div
+              style={{
+                ...SKELETON_BLOCK_STYLE,
+                minHeight: "280px",
+                borderRadius: "28px",
+              }}
+            />
+            <div
+              style={{
+                ...SKELETON_BLOCK_STYLE,
+                minHeight: "280px",
+                borderRadius: "28px",
+              }}
+            />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export const HomeOne = () => {
   const [sections, setSections] = useState<PublicHomeData["sections"]>([]);
+  const [homeReady, setHomeReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -213,6 +294,7 @@ export const HomeOne = () => {
         if (!active) return;
         setSections([]);
       }
+      if (active) setHomeReady(true);
     };
 
     void loadHomeSections();
@@ -231,17 +313,29 @@ export const HomeOne = () => {
   return (
     <>
       <HeaderOne />
-      <main className="main-area fix">
-        {orderedSectionIds.map((sectionId) => {
-          const renderer = SECTION_BY_ID.get(sectionId);
-          if (!renderer) return null;
-          return (
-            <Fragment key={sectionId}>
-              {renderer.render(sectionContentMap[sectionId] ?? null)}
-            </Fragment>
-          );
-        })}
-      </main>
+      {!homeReady ? (
+        <HomeSkeleton />
+      ) : (
+        <main className="main-area fix" style={{ animation: "homeContentFadeIn 0.2s ease" }}>
+          <style>
+            {`
+              @keyframes homeContentFadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+            `}
+          </style>
+          {orderedSectionIds.map((sectionId) => {
+            const renderer = SECTION_BY_ID.get(sectionId);
+            if (!renderer) return null;
+            return (
+              <Fragment key={sectionId}>
+                {renderer.render(sectionContentMap[sectionId] ?? null)}
+              </Fragment>
+            );
+          })}
+        </main>
+      )}
       <FooterOne />
     </>
   );

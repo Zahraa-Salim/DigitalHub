@@ -22,6 +22,22 @@ export function AboutPageEditor({ content, onChange }: Props) {
   return (
     <div className="cms-page-editor">
       <div className="cms-page-editor__section">
+        <h3 className="cms-page-editor__section-title">Page banner</h3>
+        <label className="cms-page-editor__field">
+          <span>Banner title</span>
+          <input
+            type="text"
+            value={str(content.banner_title, "Build skills. Become employable.")}
+            onChange={(e) => onChange("banner_title", e.target.value)}
+          />
+        </label>
+        <label className="cms-page-editor__field">
+          <span>Banner sub-label</span>
+          <input type="text" value={str(content.banner_subtitle, "About Us")} onChange={(e) => onChange("banner_subtitle", e.target.value)} />
+        </label>
+      </div>
+
+      <div className="cms-page-editor__section">
         <h3 className="cms-page-editor__section-title">Hero section</h3>
         <label className="cms-page-editor__field">
           <span>Tag / eyebrow</span>

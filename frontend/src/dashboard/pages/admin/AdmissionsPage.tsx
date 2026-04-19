@@ -935,6 +935,7 @@ export function AdmissionsPage() {
   const overviewNavigationRef = useRef(false);
   const overviewFallbackAttemptedRef = useRef(false);
   const overviewTargetStageRef = useRef<ApplicationStatus | null>(null);
+  const handledOverviewToastRef = useRef<string | null>(null);
   const confirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   const requestConfirmation = (title: string, message: string) =>
@@ -955,6 +956,7 @@ export function AdmissionsPage() {
     const focusParam = String(searchParams.get("focus") || "").trim().toLowerCase();
     const cohortIdParam = String(searchParams.get("cohort_id") || "").trim();
     const searchParam = searchParams.get("search");
+    const overviewToastKey = [sourceParam, stageParam, focusParam, cohortIdParam, searchParam ?? ""].join("|");
     overviewNavigationRef.current = sourceParam === "overview";
     overviewFallbackAttemptedRef.current = false;
     overviewTargetStageRef.current = stageParam && stageParam !== "all" && isApplicationStatus(stageParam) ? stageParam : null;
@@ -975,10 +977,15 @@ export function AdmissionsPage() {
 
     if (sourceParam === "overview") {
       setShowRescheduleOnly(focusParam === "reschedule_requests");
-      pushToast("success", overviewFocusMessage(focusParam));
+      if (handledOverviewToastRef.current !== overviewToastKey) {
+        handledOverviewToastRef.current = overviewToastKey;
+        pushToast("success", overviewFocusMessage(focusParam));
+      }
       setSelectedIds(new Set());
       setCurrentPage(1);
       setFilterPanelOpen(false);
+    } else {
+      handledOverviewToastRef.current = null;
     }
   }, [pushToast, searchParams]);
 

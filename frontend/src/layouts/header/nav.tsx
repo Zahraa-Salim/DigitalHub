@@ -154,7 +154,7 @@ export const MobileSidebar = ({
           </div>
           <div className="nav-logo">
             <Link to="/" onClick={() => setIsActive(false)}>
-              <Image src={logoSrc} alt="Logo" />
+              {logoSrc && <Image src={logoSrc} alt="Logo" />}
             </Link>
           </div>
 
@@ -164,13 +164,6 @@ export const MobileSidebar = ({
 
           <div className="dh-mobile-auth">
             <div className="dh-mobile-auth__grid">
-              <Link
-                to={secondaryCtaHref}
-                className="dh-mobile-auth__btn dh-mobile-auth__btn--secondary"
-                onClick={() => setIsActive(false)}
-              >
-                <span className="dh-mobile-auth__btn-label">{secondaryCtaLabel}</span>
-              </Link>
               <Link
                 to={primaryCtaHref}
                 className="dh-mobile-auth__btn"

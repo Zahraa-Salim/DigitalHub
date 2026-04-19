@@ -180,23 +180,17 @@ export function SubscribersPage() {
     >
       <div className="dh-page">
         <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
-        <div className="stats-grid stats-grid--compact dh-stats">
-          <Card className="stats-card">
-            <p className="stats-card__label">Active (Page)</p>
-            <p className="stats-card__value">{activeCount}</p>
-            <p className="stats-card__hint">Currently subscribed</p>
-          </Card>
-          <Card className="stats-card">
-            <p className="stats-card__label">Opted Out (Page)</p>
-            <p className="stats-card__value">{optedOutCount}</p>
-            <p className="stats-card__hint">Stopped receiving updates</p>
-          </Card>
-          <Card className="stats-card">
-            <p className="stats-card__label">Total</p>
-            <p className="stats-card__value">{pagination.total}</p>
-            <p className="stats-card__hint">Matching subscribers</p>
-          </Card>
-        </div>
+        <Card className="instructors-hero profile-hub-panel">
+          <div className="profile-hub-panel__content">
+            <h3 className="section-title">Subscriber Hub</h3>
+            <p className="info-text">Manage subscriptions, preferences, and opt-out status from one panel.</p>
+          </div>
+          <div className="profile-badges profile-hub-panel__badges">
+            <Badge tone="public">{`${activeCount} active`}</Badge>
+            <Badge tone="draft">{`${optedOutCount} opted out`}</Badge>
+            <Badge tone="default">{`${pagination.total} total`}</Badge>
+          </div>
+        </Card>
 
         <FilterBar
           className="dh-form-grid"

@@ -8,7 +8,6 @@ import { GlobalSearch } from '../GlobalSearch';
 import {
   UserCheck,
   Calendar,
-  MessageSquare,
   UserPlus,
   FolderPlus,
   LayoutList,
@@ -55,14 +54,6 @@ export function QuickActionsBar({ cohortId = null }: QuickActionsBarProps) {
       >
         <Calendar className="w-4 h-4 mr-2" />
         Schedule Interview
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => toGeneralApply({ tab: 'applications', stage: 'all', focus: 'messaging' })}
-      >
-        <MessageSquare className="w-4 h-4 mr-2" />
-        Send Message
       </Button>
       <Button
         variant="outline"

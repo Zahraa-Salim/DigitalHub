@@ -1,7 +1,8 @@
 ﻿// File: frontend/src/dashboard/pages/admin/ApplicationFormsPage.tsx
 // Purpose: Application Forms — General form, per-Program custom forms, per-Cohort custom forms.
 
-import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type DragEvent, type Ref, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PulseDots } from "../../components/PulseDots";
 import { ToastStack } from "../../components/ToastStack";
 import { useDashboardToasts } from "../../hooks/useDashboardToasts";
@@ -62,7 +63,7 @@ type FieldEditDraft = {
 };
 
 type PageTab = "general" | "program" | "cohort";
-type StartMode = "blank" | "copy";
+type StartMode = "blank" | "copy" | "program";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -184,97 +185,20 @@ type FieldEditorProps = {
   onSave: (fields: EditableField[]) => Promise<void>; onReload: () => Promise<void>;
 };
 
-function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorProps) {
-  const [localFields, setLocalFields] = useState<EditableField[]>(fields);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<FieldEditDraft | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newDraft, setNewDraft] = useState<NewFieldDraft>({
-    label: "", type: "text", required: false, placeholder: "", min_length: "", max_length: "", optionsText: "",
-  });
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const [dragOver, setDragOver] = useState<number | null>(null);
-  const addRef = useRef<HTMLDivElement | null>(null);
-  const addLabelRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => { setLocalFields(fields); }, [fields]);
-  useEffect(() => {
-    if (isAdding) {
-      setTimeout(() => { addRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); addLabelRef.current?.focus(); }, 50);
-    }
-  }, [isAdding]);
-
-  const persist = async (next: EditableField[]) => { setLocalFields(next); await onSave(next); };
-
-  const startEdit = (f: EditableField) => {
-    setIsAdding(false); setEditingId(f.id);
-    setEditDraft({
-      label: f.label, name: f.name, type: f.type, required: f.required,
-      placeholder: f.placeholder,
-      min_length: f.min_length != null ? String(f.min_length) : "",
-      max_length: f.max_length != null ? String(f.max_length) : "",
-      optionsText: toOptionsText(f.options), is_enabled: f.is_enabled,
-    });
-  };
-
-  const saveEdit = async (fieldId: string) => {
-    if (!editDraft) return;
-    const opts = HAS_OPTIONS.includes(editDraft.type)
-      ? editDraft.optionsText.split(",").map(v => v.trim()).filter(Boolean).map(v => ({ label: v, value: v })) : [];
-    const next = localFields.map(f => f.id !== fieldId ? f : {
-      ...f, label: editDraft.label.trim() || f.label,
-      name: toSafeFieldName(editDraft.name || editDraft.label) || f.name,
-      type: editDraft.type, required: editDraft.required, placeholder: editDraft.placeholder,
-      min_length: editDraft.min_length ? Number(editDraft.min_length) : null,
-      max_length: editDraft.max_length ? Number(editDraft.max_length) : null,
-      options: opts, is_enabled: editDraft.is_enabled,
-    });
-    await persist(next); setEditingId(null); setEditDraft(null);
-  };
-
-  const addField = async () => {
-    if (!newDraft.label.trim()) return;
-    const opts = HAS_OPTIONS.includes(newDraft.type)
-      ? newDraft.optionsText.split(",").map(v => v.trim()).filter(Boolean).map(v => ({ label: v, value: v })) : [];
-    await persist([...localFields, {
-      id: `new-${Date.now()}`, name: toSafeFieldName(newDraft.label) || `field_${localFields.length + 1}`,
-      label: newDraft.label, type: newDraft.type, required: newDraft.required,
-      placeholder: newDraft.placeholder,
-      min_length: newDraft.min_length ? Number(newDraft.min_length) : null,
-      max_length: newDraft.max_length ? Number(newDraft.max_length) : null,
-      options: opts, is_enabled: true,
-    }]);
-    setNewDraft({ label: "", type: "text", required: false, placeholder: "", min_length: "", max_length: "", optionsText: "" });
-    setIsAdding(false);
-  };
-
-  const deleteField = async (fieldId: string, label: string) => {
-    if (!window.confirm(`Delete field "${label}"?`)) return;
-    await persist(localFields.filter(f => f.id !== fieldId));
-    if (editingId === fieldId) { setEditingId(null); setEditDraft(null); }
-  };
-
-  const moveField = async (index: number, dir: -1 | 1) => {
-    const t = index + dir;
-    if (t < 0 || t >= localFields.length) return;
-    const clone = [...localFields]; const [item] = clone.splice(index, 1); clone.splice(t, 0, item);
-    await persist(clone);
-  };
-
-  const handleDrop = async (dropIndex: number) => {
-    if (dragFrom === null || dragFrom === dropIndex) { setDragFrom(null); setDragOver(null); return; }
-    const clone = [...localFields]; const [item] = clone.splice(dragFrom, 1); clone.splice(dropIndex, 0, item);
-    setDragFrom(null); setDragOver(null); await persist(clone);
-  };
-
-  const FieldForm = ({ draft, setDraft }: {
-    draft: NewFieldDraft | FieldEditDraft;
-    setDraft: (fn: (d: NewFieldDraft | FieldEditDraft) => NewFieldDraft | FieldEditDraft) => void;
-  }) => (
+function FieldForm({
+  draft,
+  setDraft,
+  labelRef,
+}: {
+  draft: NewFieldDraft | FieldEditDraft;
+  setDraft: (fn: (d: NewFieldDraft | FieldEditDraft) => NewFieldDraft | FieldEditDraft) => void;
+  labelRef?: Ref<HTMLInputElement>;
+}) {
+  return (
     <div className="afp-form-grid">
       <div className="afp-control">
         <label className="afp-label">Label *</label>
-        <input className="afp-input" value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="e.g. Full Name" ref={draft === newDraft ? addLabelRef : undefined} />
+        <input className="afp-input" value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="e.g. Full Name" ref={labelRef} />
       </div>
       {"name" in draft && (
         <div className="afp-control">
@@ -326,6 +250,90 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
       </div>
     </div>
   );
+}
+
+function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorProps) {
+  const [localFields, setLocalFields] = useState<EditableField[]>(fields);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<FieldEditDraft | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newDraft, setNewDraft] = useState<NewFieldDraft>({
+    label: "", type: "text", required: false, placeholder: "", min_length: "", max_length: "", optionsText: "",
+  });
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const addRef = useRef<HTMLDivElement | null>(null);
+  const addLabelRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { setLocalFields(fields); }, [fields]);
+  useEffect(() => {
+    if (isAdding) {
+      setTimeout(() => { addRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); addLabelRef.current?.focus(); }, 50);
+    }
+  }, [isAdding]);
+
+  const persist = (next: EditableField[]) => { setLocalFields(next); };
+
+  const startEdit = (f: EditableField) => {
+    setIsAdding(false); setEditingId(f.id);
+    setEditDraft({
+      label: f.label, name: f.name, type: f.type, required: f.required,
+      placeholder: f.placeholder,
+      min_length: f.min_length != null ? String(f.min_length) : "",
+      max_length: f.max_length != null ? String(f.max_length) : "",
+      optionsText: toOptionsText(f.options), is_enabled: f.is_enabled,
+    });
+  };
+
+  const saveEdit = (fieldId: string) => {
+    if (!editDraft) return;
+    const opts = HAS_OPTIONS.includes(editDraft.type)
+      ? editDraft.optionsText.split(",").map(v => v.trim()).filter(Boolean).map(v => ({ label: v, value: v })) : [];
+    const next = localFields.map(f => f.id !== fieldId ? f : {
+      ...f, label: editDraft.label.trim() || f.label,
+      name: toSafeFieldName(editDraft.name || editDraft.label) || f.name,
+      type: editDraft.type, required: editDraft.required, placeholder: editDraft.placeholder,
+      min_length: editDraft.min_length ? Number(editDraft.min_length) : null,
+      max_length: editDraft.max_length ? Number(editDraft.max_length) : null,
+      options: opts, is_enabled: editDraft.is_enabled,
+    });
+    persist(next); setEditingId(null); setEditDraft(null);
+  };
+
+  const addField = () => {
+    if (!newDraft.label.trim()) return;
+    const opts = HAS_OPTIONS.includes(newDraft.type)
+      ? newDraft.optionsText.split(",").map(v => v.trim()).filter(Boolean).map(v => ({ label: v, value: v })) : [];
+    persist([...localFields, {
+      id: `new-${Date.now()}`, name: toSafeFieldName(newDraft.label) || `field_${localFields.length + 1}`,
+      label: newDraft.label, type: newDraft.type, required: newDraft.required,
+      placeholder: newDraft.placeholder,
+      min_length: newDraft.min_length ? Number(newDraft.min_length) : null,
+      max_length: newDraft.max_length ? Number(newDraft.max_length) : null,
+      options: opts, is_enabled: true,
+    }]);
+    setNewDraft({ label: "", type: "text", required: false, placeholder: "", min_length: "", max_length: "", optionsText: "" });
+    setIsAdding(false);
+  };
+
+  const deleteField = (fieldId: string, label: string) => {
+    if (!window.confirm(`Delete field "${label}"?`)) return;
+    persist(localFields.filter(f => f.id !== fieldId));
+    if (editingId === fieldId) { setEditingId(null); setEditDraft(null); }
+  };
+
+  const moveField = (index: number, dir: -1 | 1) => {
+    const t = index + dir;
+    if (t < 0 || t >= localFields.length) return;
+    const clone = [...localFields]; const [item] = clone.splice(index, 1); clone.splice(t, 0, item);
+    persist(clone);
+  };
+
+  const handleDrop = (dropIndex: number) => {
+    if (dragFrom === null || dragFrom === dropIndex) { setDragFrom(null); setDragOver(null); return; }
+    const clone = [...localFields]; const [item] = clone.splice(dragFrom, 1); clone.splice(dropIndex, 0, item);
+    setDragFrom(null); setDragOver(null); persist(clone);
+  };
 
   return (
     <div className="afp-field-editor">
@@ -344,7 +352,7 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
       {isAdding && !readonly && (
         <div className="afp-add-card" ref={addRef}>
           <div className="afp-add-card__title">New Field</div>
-          <FieldForm draft={newDraft} setDraft={fn => setNewDraft(d => fn(d) as NewFieldDraft)} />
+          <FieldForm draft={newDraft} setDraft={fn => setNewDraft(d => fn(d) as NewFieldDraft)} labelRef={addLabelRef} />
           <div className="afp-add-card__footer">
             <button className="afp-btn afp-btn--ghost afp-btn--sm" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
             <button className="afp-btn afp-btn--primary afp-btn--sm" type="button" disabled={!newDraft.label.trim() || saving}
@@ -371,12 +379,12 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
               dragOver === index && dragFrom !== index ? "afp-field-row--drag-over" : "",
               readonly ? "afp-field-row--readonly" : "",
             ].filter(Boolean).join(" ")}
-            onDragOver={e => { if (dragFrom === null || saving || readonly) return; e.preventDefault(); if (dragOver !== index) setDragOver(index); }}
-            onDrop={e => { e.preventDefault(); void handleDrop(index); }}
+            onDragOver={e => { if (dragFrom === null || readonly) return; e.preventDefault(); if (dragOver !== index) setDragOver(index); }}
+            onDrop={e => { e.preventDefault(); handleDrop(index); }}
           >
             {!readonly && (
-              <div className="afp-drag-handle" draggable={!saving}
-                onDragStart={e => { if (saving) return; setDragFrom(index); setDragOver(index); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(index)); }}
+              <div className="afp-drag-handle" draggable
+                onDragStart={e => { setDragFrom(index); setDragOver(index); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(index)); }}
                 onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
                 title="Drag to reorder">
                 <GripIcon />
@@ -410,13 +418,13 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
                   <FieldForm draft={editDraft} setDraft={fn => setEditDraft(d => d ? fn(d) as FieldEditDraft : d)} />
                   <div className="afp-inline-edit__footer">
                     <div className="afp-inline-edit__actions">
-                      <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === 0 || saving} onClick={() => void moveField(index, -1)} title="Move up">↑</button>
-                      <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === localFields.length - 1 || saving} onClick={() => void moveField(index, 1)} title="Move down">↓</button>
-                      <button className="afp-btn afp-btn--sm afp-btn--primary" type="button" disabled={saving || !editDraft?.label.trim()} onClick={() => void saveEdit(field.id)}>
-                        <CheckIcon /> {saving ? "Saving…" : "Save Changes"}
+                      <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === 0} onClick={() => moveField(index, -1)} title="Move up">↑</button>
+                      <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === localFields.length - 1} onClick={() => moveField(index, 1)} title="Move down">↓</button>
+                      <button className="afp-btn afp-btn--sm afp-btn--primary" type="button" disabled={!editDraft?.label.trim()} onClick={() => saveEdit(field.id)}>
+                        <CheckIcon /> Save Changes
                       </button>
-                      <button className="afp-btn afp-btn--sm afp-btn--ghost" type="button" disabled={saving} onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button>
-                      <button className="afp-btn afp-btn--icon afp-btn--ghost afp-btn--danger" type="button" disabled={saving} onClick={() => void deleteField(field.id, field.label)} title="Delete"><TrashIcon /></button>
+                      <button className="afp-btn afp-btn--sm afp-btn--ghost" type="button" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button>
+                      <button className="afp-btn afp-btn--icon afp-btn--ghost afp-btn--danger" type="button" onClick={() => deleteField(field.id, field.label)} title="Delete"><TrashIcon /></button>
                     </div>
                   </div>
                 </div>
@@ -425,18 +433,27 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
 
             {editingId !== field.id && !readonly && (
               <div className="afp-field-actions">
-                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === 0 || saving} onClick={() => void moveField(index, -1)} title="Move up">↑</button>
-                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === localFields.length - 1 || saving} onClick={() => void moveField(index, 1)} title="Move down">↓</button>
-                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={saving} onClick={() => startEdit(field)} title="Edit"><EditIcon /></button>
-                <button className="afp-btn afp-btn--icon afp-btn--ghost afp-btn--danger" type="button" disabled={saving} onClick={() => void deleteField(field.id, field.label)} title="Delete"><TrashIcon /></button>
+                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === 0} onClick={() => moveField(index, -1)} title="Move up">↑</button>
+                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" disabled={index === localFields.length - 1} onClick={() => moveField(index, 1)} title="Move down">↓</button>
+                <button className="afp-btn afp-btn--icon afp-btn--ghost" type="button" onClick={() => startEdit(field)} title="Edit"><EditIcon /></button>
+                <button className="afp-btn afp-btn--icon afp-btn--ghost afp-btn--danger" type="button" onClick={() => deleteField(field.id, field.label)} title="Delete"><TrashIcon /></button>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {!readonly && localFields.length > 0 && (
-        <p className="afp-autosave-note">{saving ? "Saving changes…" : "Changes save automatically."}</p>
+      {!readonly && (
+        <div className="afp-footer-actions">
+          <button
+            className="afp-btn afp-btn--primary"
+            type="button"
+            disabled={saving}
+            onClick={() => void onSave(localFields)}
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -444,7 +461,17 @@ function FieldEditor({ fields, saving, readonly = false, onSave }: FieldEditorPr
 
 // ─── Start-mode modal (shared) ────────────────────────────────────────────────
 
-function StartModal({ entityLabel, onStart, onClose }: { entityLabel: string; onStart: (mode: StartMode) => void; onClose: () => void }) {
+function StartModal({
+  entityLabel,
+  onStart,
+  onClose,
+  showProgramOption = false,
+}: {
+  entityLabel: string;
+  onStart: (mode: StartMode) => void;
+  onClose: () => void;
+  showProgramOption?: boolean;
+}) {
   return (
     <div className="afp-start-modal">
       <div className="afp-start-modal__title">How do you want to start?</div>
@@ -460,6 +487,13 @@ function StartModal({ entityLabel, onStart, onClose }: { entityLabel: string; on
           <strong>Start with Blank Form</strong>
           <span>Start from scratch and build your own field set.</span>
         </button>
+        {showProgramOption && (
+          <button className="afp-start-option" type="button" onClick={() => onStart("program")}>
+            <div className="afp-start-option__icon"><CopyIcon /></div>
+            <strong>Copy from Program Form</strong>
+            <span>Start with the fields from this cohort&apos;s program form.</span>
+          </button>
+        )}
       </div>
       <button className="afp-btn afp-btn--ghost afp-btn--sm" type="button" onClick={onClose}>Cancel</button>
     </div>
@@ -513,7 +547,7 @@ function GeneralFormTab() {
       <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
       <div className="afp-tab-header">
         <div>
-          <h2 className="afp-section-title">General Application Form</h2>
+          <h2 className="afp-section-title">General Form</h2>
           <p className="afp-section-desc">The default form used by all programs and cohorts unless they have a custom override.</p>
         </div>
         <span className="afp-form-mode-badge afp-form-mode-badge--general">Default</span>
@@ -696,12 +730,14 @@ function ProgramFormTab() {
 
 // ─── CohortFormTab ────────────────────────────────────────────────────────────
 
-function CohortFormTab() {
+function CohortFormTab({ initialCohortId }: { initialCohortId?: string | null }) {
   const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const [cohorts, setCohorts] = useState<CohortOption[]>([]);
   const [loadingCohorts, setLoadingCohorts] = useState(true);
   const [cohortsError, setCohortsError] = useState("");
-  const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null);
+  const initialSelectedCohortId =
+    initialCohortId && Number.isFinite(Number(initialCohortId)) ? Number(initialCohortId) : null;
+  const [selectedCohortId, setSelectedCohortId] = useState<number | null>(initialSelectedCohortId);
   const [cohortForm, setCohortForm] = useState<CohortFormResponse | null>(null);
   const [loadingForm, setLoadingForm] = useState(false);
   const [formError, setFormError] = useState("");
@@ -716,7 +752,12 @@ function CohortFormTab() {
         const result = await api<CohortOption[]>("/forms/cohorts/options");
         const rows = Array.isArray(result) ? result : [];
         setCohorts(rows);
-        if (rows.length) setSelectedCohortId(rows[0].id);
+        if (rows.length) {
+          setSelectedCohortId((current) => {
+            if (current && rows.some((row) => row.id === current)) return current;
+            return rows[0].id;
+          });
+        }
       } catch (e) { setCohortsError(e instanceof Error ? e.message : "Failed to load cohorts."); }
       finally { setLoadingCohorts(false); }
     };
@@ -754,24 +795,54 @@ function CohortFormTab() {
 
   const resetToGeneral = async () => {
     if (!selectedCohortId) return;
+    const confirmed = window.confirm(
+      "This will reset the cohort to use the program's form when available, or the general form if no program form exists. Continue?"
+    );
+    if (!confirmed) return;
     setSaving(true); setFormError(""); setSaveSuccess("");
     try {
       const data = await api<CohortFormResponse>(`/forms/cohorts/${selectedCohortId}`, { method: "PUT", body: JSON.stringify({ mode: "general" }) });
-      setCohortForm(data); setSaveSuccess("Cohort reset to general form.");
+      setCohortForm(data); setSaveSuccess("Cohort reset to program/general fallback.");
     } catch (e) { setFormError(e instanceof Error ? e.message : "Failed."); }
     finally { setSaving(false); }
   };
 
   const startCustomize = async (mode: StartMode) => {
     if (!selectedCohortId || !cohortForm) return;
+    if (mode === "program" && hasCustom) {
+      const confirmed = window.confirm(
+        "This will overwrite the cohort's current custom fields with the program form's current fields. Continue?"
+      );
+      if (!confirmed) return;
+    }
     setShowStartModal(false); setSaving(true); setFormError(""); setSaveSuccess("");
     try {
-      const baseFields = mode === "copy" ? toPayloadFields(mapFields(cohortForm.general_form.fields ?? [])) : [];
+      const baseFields =
+        mode === "copy" ? toPayloadFields(mapFields(cohortForm.general_form.fields ?? []))
+        : mode === "program" ? []
+        : [];
+      const body =
+        mode === "program"
+          ? { mode: "program" as const }
+          : {
+              mode: "custom" as const,
+              form: {
+                title: cohortForm.suggested_custom_form.title,
+                description: null,
+                is_active: true,
+                fields: baseFields,
+              },
+            };
       const data = await api<CohortFormResponse>(`/forms/cohorts/${selectedCohortId}`, {
         method: "PUT",
-        body: JSON.stringify({ mode: "custom", form: { title: cohortForm.suggested_custom_form.title, description: null, is_active: true, fields: baseFields } }),
+        body: JSON.stringify(body),
       });
-      setCohortForm(data); setSaveSuccess(mode === "copy" ? "Custom form created from general form." : "Blank custom form created.");
+      setCohortForm(data);
+      setSaveSuccess(
+        mode === "copy" ? "Custom form created from general form."
+        : mode === "program" ? "Custom form created from program form."
+        : "Blank custom form created.",
+      );
     } catch (e) { setFormError(e instanceof Error ? e.message : "Failed."); }
     finally { setSaving(false); }
   };
@@ -838,17 +909,30 @@ function CohortFormTab() {
                       {isUsingGeneral ? "Using General Form" : "Custom Form"}
                     </span>
                     {!isUsingGeneral && (
-                      <button className="afp-btn afp-btn--outline afp-btn--sm" type="button" disabled={saving} onClick={() => void resetToGeneral()}>Reset to General</button>
+                      <>
+                        <button className="afp-btn afp-btn--outline afp-btn--sm" type="button" disabled={saving} onClick={() => void resetToGeneral()}>Reset to Program/General Fallback</button>
+                        {hasCustom && activeCohort && (
+                          <button
+                            className="afp-btn afp-btn--secondary afp-btn--sm"
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void startCustomize("program")}
+                            title="Re-copy the current program form fields into this cohort's custom form"
+                          >
+                            Sync from Program Form
+                          </button>
+                        )}
+                      </>
                     )}
                     {isUsingGeneral && (
                       <button className="afp-btn afp-btn--primary afp-btn--sm" type="button" disabled={saving} onClick={() => setShowStartModal(true)}>Customize</button>
                     )}
                   </div>
                 </div>
-                {showStartModal && <StartModal entityLabel={activeCohort.name} onStart={startCustomize} onClose={() => setShowStartModal(false)} />}
+                {showStartModal && <StartModal entityLabel={activeCohort.name} onStart={startCustomize} onClose={() => setShowStartModal(false)} showProgramOption={true} />}
                 {isUsingGeneral && !showStartModal && (
                   <div className="afp-info-banner">
-                    <span>This cohort uses the general application form. Click "Customize" to create a cohort-specific form.</span>
+                    <span>This cohort uses the program's form (or general form if no program form exists). Click "Customize" to create a cohort-specific form.</span>
                   </div>
                 )}
                 <FieldEditor
@@ -868,8 +952,11 @@ function CohortFormTab() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export function ApplicationFormsPage() {
-  const [activeTab, setActiveTab] = useState<PageTab>("general");
+export function FormBuilderPage() {
+  const [searchParams] = useSearchParams();
+  const initialCohortId = searchParams.get("cohort_id");
+  const initialTab: PageTab = initialCohortId ? "cohort" : "general";
+  const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
 
   const TABS = [
     { id: "general" as PageTab, label: "General Form",   desc: "Default fallback" },
@@ -879,8 +966,11 @@ export function ApplicationFormsPage() {
 
   return (
     <div className="afp-page">
+      <div className="afp-page-title">
+        <h1>Form Builder</h1>
+      </div>
       <header className="afp-topnav">
-        <nav className="afp-tabs" aria-label="Application Forms tabs">
+        <nav className="afp-tabs" aria-label="Form Builder tabs">
           {TABS.map(tab => (
             <button key={tab.id} type="button"
               className={activeTab === tab.id ? "afp-tab afp-tab--active" : "afp-tab"}
@@ -894,7 +984,7 @@ export function ApplicationFormsPage() {
       <main className="afp-main">
         {activeTab === "general" && <GeneralFormTab />}
         {activeTab === "program" && <ProgramFormTab />}
-        {activeTab === "cohort"  && <CohortFormTab />}
+        {activeTab === "cohort"  && <CohortFormTab initialCohortId={initialCohortId} />}
       </main>
     </div>
   );

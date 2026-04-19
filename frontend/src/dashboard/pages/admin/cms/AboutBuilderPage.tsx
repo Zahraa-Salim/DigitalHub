@@ -1,8 +1,6 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -12,35 +10,79 @@ import { PageShell } from "../../../components/PageShell";
 import { api, apiList } from "../../../utils/api";
 import "../../../styles/about-builder.css";
 
-type SectionType =
-  | "hero"
-  | "stats"
-  | "section_head"
-  | "card_grid"
-  | "steps"
-  | "table"
-  | "text_block"
-  | "image_full"
-  | "two_col"
-  | "list"
-  | "spacer";
+// ---------- Types ----------
 
-type AboutSection = {
-  id: string;
-  type: SectionType;
-  enabled: boolean;
-  bgColor: string;
-  data: Record<string, unknown>;
+type MetricCard = {
+  _id: string;
+  metric_key: string;
+  label: string;
+  description: string;
+  prefix: string;
+  suffix: string;
+  value_override: string;
 };
 
-type BuilderState = {
-  sections: AboutSection[];
-  pageId: number | null;
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-  success: string | null;
-  dirty: boolean;
+type KpiCard = {
+  _id: string;
+  metric_key: string;
+  label: string;
+  description: string;
+  prefix: string;
+  suffix: string;
+  value_override: string;
+};
+
+type FocusCard = {
+  _id: string;
+  title: string;
+  description: string;
+};
+
+type JourneyCard = {
+  _id: string;
+  step: string;
+  title: string;
+  description: string;
+};
+
+type AboutContent = {
+  // Page banner
+  banner_title: string;
+  banner_subtitle: string;
+  // Hero
+  hero_tag: string;
+  hero_title_primary: string;
+  hero_title_highlight: string;
+  hero_subtitle: string;
+  hero_pills: string[];
+  hero_image_url: string;
+  primary_cta_text: string;
+  primary_cta_link: string;
+  secondary_cta_text: string;
+  secondary_cta_link: string;
+  // Stats
+  metric_cards: MetricCard[];
+  // Outcomes
+  outcomes_eyebrow: string;
+  outcomes_title: string;
+  outcomes_description: string;
+  outcome_kpi_cards: KpiCard[];
+  // Programs
+  programs_eyebrow: string;
+  programs_title: string;
+  programs_description: string;
+  program_names_limit: number;
+  program_names: string[];
+  // Focus
+  focus_eyebrow: string;
+  focus_title: string;
+  focus_description: string;
+  focus_cards: FocusCard[];
+  // Journey
+  journey_eyebrow: string;
+  journey_title: string;
+  journey_description: string;
+  journey_cards: JourneyCard[];
 };
 
 type CmsPageRow = {
@@ -52,71 +94,63 @@ type CmsPageRow = {
   updated_at: string;
 };
 
-type SectionFieldProps = {
-  section: AboutSection;
-  update: (field: string, value: unknown) => void;
+type PageState = {
+  pageId: number | null;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  success: string | null;
+  dirty: boolean;
 };
 
-const SECTION_TYPE_LABELS: Record<SectionType, string> = {
-  hero: "Hero banner",
-  stats: "Stats row",
-  section_head: "Section heading",
-  card_grid: "Card grid",
-  steps: "Steps / Journey",
-  table: "Data table",
-  text_block: "Text block",
-  image_full: "Full-width image",
-  two_col: "Two columns",
-  list: "List",
-  spacer: "Spacer",
-};
+// ---------- Constants ----------
 
-const SECTION_TYPE_ACCENTS: Record<SectionType, string> = {
-  hero: "#4361ee",
-  stats: "#0ea5e9",
-  section_head: "#7c3aed",
-  card_grid: "#f59e0b",
-  steps: "#10b981",
-  table: "#f97316",
-  text_block: "#6366f1",
-  image_full: "#ec4899",
-  two_col: "#14b8a6",
-  list: "#8b5cf6",
-  spacer: "#94a3b8",
-};
-
-const SECTION_TYPE_CATALOG: Array<{ type: SectionType; label: string; icon: string; desc: string }> = [
-  { type: "hero", label: "Hero banner", icon: "⬛", desc: "Large header with image and CTAs" },
-  { type: "stats", label: "Stats row", icon: "📊", desc: "Metric cards with numbers" },
-  { type: "section_head", label: "Section heading", icon: "📝", desc: "Eyebrow, title, description" },
-  { type: "card_grid", label: "Card grid", icon: "⊞", desc: "Grid of feature or focus cards" },
-  { type: "steps", label: "Steps / Journey", icon: "→", desc: "Numbered step sequence" },
-  { type: "table", label: "Data table", icon: "⊟", desc: "Rows and columns of data" },
-  { type: "text_block", label: "Text block", icon: "¶", desc: "Free text with background color" },
-  { type: "image_full", label: "Full-width image", icon: "🖼", desc: "Image with caption" },
-  { type: "two_col", label: "Two columns", icon: "⊞", desc: "Side-by-side content" },
-  { type: "list", label: "List", icon: "≡", desc: "Bullet, numbered, or checklist" },
-  { type: "spacer", label: "Spacer", icon: "↕", desc: "Vertical space between sections" },
+const METRIC_KEY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Auto-detect from label" },
+  { value: "team_number", label: "Team Members (live)" },
+  { value: "programs", label: "Programs (live)" },
+  { value: "cohorts_made", label: "Cohorts Made (live)" },
+  { value: "participants", label: "Participants (live)" },
+  { value: "students", label: "Students (live)" },
+  { value: "open_cohorts", label: "Open Cohorts (live)" },
 ];
 
-const INITIAL_STATE: BuilderState = {
-  sections: [],
-  pageId: null,
-  loading: true,
-  saving: false,
-  error: null,
-  success: null,
-  dirty: false,
+const DEFAULT_CONTENT: AboutContent = {
+  banner_title: "Build skills. Become employable.",
+  banner_subtitle: "About Us",
+  hero_tag: "About Digital Hub",
+  hero_title_primary: "Practical Training For",
+  hero_title_highlight: "Career Outcomes",
+  hero_subtitle:
+    "Digital Hub helps learners move from theory to execution through project-based programs, hands-on mentorship, and structured support.",
+  hero_pills: ["Industry-led tracks", "Portfolio-focused delivery", "Career readiness support"],
+  hero_image_url: "",
+  primary_cta_text: "Apply Now",
+  primary_cta_link: "/apply",
+  secondary_cta_text: "Browse Programs",
+  secondary_cta_link: "/programs",
+  metric_cards: [],
+  outcomes_eyebrow: "How We Measure Outcomes",
+  outcomes_title: "Delivery Metrics",
+  outcomes_description: "These KPI cards are calculated from live platform data and tracked continuously.",
+  outcome_kpi_cards: [],
+  programs_eyebrow: "Programs",
+  programs_title: "Program Names",
+  programs_description: "Current programs delivered across the Digital Hub learning model.",
+  program_names_limit: 8,
+  program_names: [],
+  focus_eyebrow: "What We Deliver",
+  focus_title: "How The Learning Experience Works",
+  focus_description:
+    "Our model combines technical depth, mentor support, and clear execution standards so learners build real momentum.",
+  focus_cards: [],
+  journey_eyebrow: "Mission In Action",
+  journey_title: "From Learning To Delivery",
+  journey_description: "Every step is designed to move participants from core skills to real project execution.",
+  journey_cards: [],
 };
 
-const METRIC_OPTIONS = [
-  { value: "team_number", label: "Team Number" },
-  { value: "programs", label: "Programs" },
-  { value: "cohorts_made", label: "Cohorts Made" },
-  { value: "participants", label: "Participants" },
-  { value: "students", label: "Students" },
-  { value: "open_cohorts", label: "Open Cohorts" },
-];
+// ---------- Helpers ----------
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -126,348 +160,182 @@ function str(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function createSectionId(): string {
+function num(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function stringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  return value.map((item) => (typeof item === "string" ? item : "")).filter((item) => item.length > 0);
+}
+
+function createId(): string {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function createDefaultSectionData(type: SectionType): Record<string, unknown> {
-  switch (type) {
-    case "hero":
-      return {
-        tag: "About Digital Hub",
-        title: "Practical Training For",
-        highlight: "Career Outcomes",
-        description: "",
-        pills: ["Industry-led tracks", "Portfolio delivery", "Career support"],
-        cta_primary_label: "Apply Now",
-        cta_primary_link: "/apply",
-        cta_secondary_label: "Browse Programs",
-        cta_secondary_link: "/programs",
-        image_url: "",
-      };
-    case "stats":
-      return {
-        items: [{ _id: createSectionId(), metric_key: "team_number", label: "Team Members", description: "", suffix: "+", prefix: "" }],
-      };
-    case "section_head":
-      return { eyebrow: "Eyebrow", title: "Section title", description: "" };
-    case "card_grid":
-      return {
-        title: "Card grid",
-        cards: [{ _id: createSectionId(), title: "Feature", description: "", accent: "" }],
-      };
-    case "steps":
-      return {
-        title: "Journey",
-        steps: [{ _id: createSectionId(), step_label: "Step 1", title: "Milestone", description: "" }],
-      };
-    case "table":
-      return {
-        caption: "",
-        headers: ["Name", "Role"],
-        rows: [{ Name: "", Role: "" }],
-      };
-    case "text_block":
-      return { content: "", align: "left", font_size: "base" };
-    case "image_full":
-      return { image_url: "", caption: "", alt: "", max_width: "full" };
-    case "two_col":
-      return {
-        left: { title: "", description: "", image_url: "" },
-        right: { title: "", description: "", image_url: "" },
-      };
-    case "list":
-      return { style: "bullet", title: "", items: ["First item", "Second item"] };
-    case "spacer":
-      return { height: "md" };
-    default:
-      return {};
-  }
-}
-
-function createSection(type: SectionType): AboutSection {
+function normalizeMetricCard(value: unknown): MetricCard {
+  const record = isRecord(value) ? value : {};
   return {
-    id: createSectionId(),
-    type,
-    enabled: true,
-    bgColor: "",
-    data: createDefaultSectionData(type),
+    _id: str(record._id, createId()),
+    metric_key: str(record.metric_key ?? record.metricKey),
+    label: str(record.label ?? record.title),
+    description: str(record.description ?? record.text),
+    prefix: str(record.prefix),
+    suffix: str(record.suffix, "+"),
+    value_override: str(record.value_override ?? record.valueOverride),
   };
 }
 
-function normalizeSection(value: unknown): AboutSection | null {
-  if (!isRecord(value)) return null;
-  const type = str(value.type) as SectionType;
-  if (!(type in SECTION_TYPE_LABELS)) return null;
+function normalizeKpiCard(value: unknown): KpiCard {
+  return normalizeMetricCard(value);
+}
+
+function normalizeFocusCard(value: unknown): FocusCard {
+  const record = isRecord(value) ? value : {};
   return {
-    id: str(value.id, createSectionId()),
-    type,
-    enabled: value.enabled !== false,
-    bgColor: str(value.bgColor),
-    data: isRecord(value.data) ? value.data : {},
+    _id: str(record._id, createId()),
+    title: str(record.title),
+    description: str(record.description ?? record.text),
   };
 }
 
-function getSectionPreview(section: AboutSection): string {
-  const data = section.data;
-  switch (section.type) {
-    case "hero":
-      return [str(data.tag), str(data.title), str(data.highlight)].filter(Boolean).join(" · ") || "Hero banner";
-    case "stats":
-      return `${Array.isArray(data.items) ? data.items.length : 0} stat card(s)`;
-    case "section_head":
-      return str(data.title) || str(data.eyebrow) || "Section heading";
-    case "card_grid":
-      return str(data.title) || `${Array.isArray(data.cards) ? data.cards.length : 0} card(s)`;
-    case "steps":
-      return str(data.title) || `${Array.isArray(data.steps) ? data.steps.length : 0} step(s)`;
-    case "table":
-      return str(data.caption) || `${Array.isArray(data.headers) ? data.headers.length : 0} column(s)`;
-    case "text_block":
-      return str(data.content).slice(0, 100) || "Text block";
-    case "image_full":
-      return str(data.caption) || str(data.alt) || "Full-width image";
-    case "two_col":
-      return str((data.left as Record<string, unknown> | undefined)?.title) || str((data.right as Record<string, unknown> | undefined)?.title) || "Two columns";
-    case "list":
-      return str(data.title) || `${Array.isArray(data.items) ? data.items.length : 0} item(s)`;
-    case "spacer":
-      return `Spacer: ${str(data.height, "md")}`;
-    default:
-      return SECTION_TYPE_LABELS[section.type];
-  }
+function normalizeJourneyCard(value: unknown): JourneyCard {
+  const record = isRecord(value) ? value : {};
+  return {
+    _id: str(record._id, createId()),
+    step: str(record.step ?? record.step_label ?? record.stepLabel),
+    title: str(record.title),
+    description: str(record.description ?? record.text),
+  };
 }
 
-function getSpacerHeight(height: string): string {
-  switch (height) {
-    case "sm":
-      return "24px";
-    case "lg":
-      return "80px";
-    case "xl":
-      return "120px";
-    default:
-      return "48px";
-  }
+function contentFromCms(content: Record<string, unknown>): AboutContent {
+  const metricCardsRaw = Array.isArray(content.metric_cards)
+    ? content.metric_cards
+    : Array.isArray(content.metricCards)
+      ? content.metricCards
+      : [];
+  const kpiRaw = Array.isArray(content.outcome_kpi_cards)
+    ? content.outcome_kpi_cards
+    : Array.isArray(content.outcomeKpiCards)
+      ? content.outcomeKpiCards
+      : [];
+  const focusRaw = Array.isArray(content.focus_cards)
+    ? content.focus_cards
+    : Array.isArray(content.focusCards)
+      ? content.focusCards
+      : [];
+  const journeyRaw = Array.isArray(content.journey_cards)
+    ? content.journey_cards
+    : Array.isArray(content.journeyCards)
+      ? content.journeyCards
+      : [];
+
+  return {
+    banner_title: str(content.banner_title ?? content.bannerTitle, DEFAULT_CONTENT.banner_title),
+    banner_subtitle: str(content.banner_subtitle ?? content.bannerSubtitle, DEFAULT_CONTENT.banner_subtitle),
+    hero_tag: str(content.hero_tag ?? content.heroTag, DEFAULT_CONTENT.hero_tag),
+    hero_title_primary: str(content.hero_title_primary ?? content.heroTitlePrimary, DEFAULT_CONTENT.hero_title_primary),
+    hero_title_highlight: str(
+      content.hero_title_highlight ?? content.heroTitleHighlight,
+      DEFAULT_CONTENT.hero_title_highlight,
+    ),
+    hero_subtitle: str(content.hero_subtitle ?? content.heroSubtitle, DEFAULT_CONTENT.hero_subtitle),
+    hero_pills: stringArray(content.hero_pills ?? content.heroPills, DEFAULT_CONTENT.hero_pills),
+    hero_image_url: str(content.hero_image_url ?? content.heroImageUrl),
+    primary_cta_text: str(content.primary_cta_text ?? content.primaryCtaText, DEFAULT_CONTENT.primary_cta_text),
+    primary_cta_link: str(content.primary_cta_link ?? content.primaryCtaLink, DEFAULT_CONTENT.primary_cta_link),
+    secondary_cta_text: str(content.secondary_cta_text ?? content.secondaryCtaText, DEFAULT_CONTENT.secondary_cta_text),
+    secondary_cta_link: str(content.secondary_cta_link ?? content.secondaryCtaLink, DEFAULT_CONTENT.secondary_cta_link),
+
+    metric_cards: metricCardsRaw.map(normalizeMetricCard),
+
+    outcomes_eyebrow: str(content.outcomes_eyebrow ?? content.outcomesEyebrow, DEFAULT_CONTENT.outcomes_eyebrow),
+    outcomes_title: str(content.outcomes_title ?? content.outcomesTitle, DEFAULT_CONTENT.outcomes_title),
+    outcomes_description: str(
+      content.outcomes_description ?? content.outcomesDescription,
+      DEFAULT_CONTENT.outcomes_description,
+    ),
+    outcome_kpi_cards: kpiRaw.map(normalizeKpiCard),
+
+    programs_eyebrow: str(content.programs_eyebrow ?? content.programsEyebrow, DEFAULT_CONTENT.programs_eyebrow),
+    programs_title: str(content.programs_title ?? content.programsTitle, DEFAULT_CONTENT.programs_title),
+    programs_description: str(
+      content.programs_description ?? content.programsDescription,
+      DEFAULT_CONTENT.programs_description,
+    ),
+    program_names_limit: num(content.program_names_limit ?? content.programNamesLimit, DEFAULT_CONTENT.program_names_limit),
+    program_names: stringArray(content.program_names ?? content.programNames, DEFAULT_CONTENT.program_names),
+
+    focus_eyebrow: str(content.focus_eyebrow ?? content.focusEyebrow, DEFAULT_CONTENT.focus_eyebrow),
+    focus_title: str(content.focus_title ?? content.focusTitle, DEFAULT_CONTENT.focus_title),
+    focus_description: str(content.focus_description ?? content.focusDescription, DEFAULT_CONTENT.focus_description),
+    focus_cards: focusRaw.map(normalizeFocusCard),
+
+    journey_eyebrow: str(content.journey_eyebrow ?? content.journeyEyebrow, DEFAULT_CONTENT.journey_eyebrow),
+    journey_title: str(content.journey_title ?? content.journeyTitle, DEFAULT_CONTENT.journey_title),
+    journey_description: str(
+      content.journey_description ?? content.journeyDescription,
+      DEFAULT_CONTENT.journey_description,
+    ),
+    journey_cards: journeyRaw.map(normalizeJourneyCard),
+  };
 }
 
-function getImageMaxWidth(value: string): string {
-  switch (value) {
-    case "sm":
-      return "400px";
-    case "md":
-      return "640px";
-    case "lg":
-      return "860px";
-    default:
-      return "100%";
-  }
+function contentToCms(content: AboutContent): Record<string, unknown> {
+  const stripIds = <T extends { _id: string }>(items: T[]): Array<Omit<T, "_id">> =>
+    items.map((item) => {
+      const { _id: _unused, ...rest } = item;
+      return rest;
+    });
+
+  return {
+    banner_title: content.banner_title,
+    banner_subtitle: content.banner_subtitle,
+    hero_tag: content.hero_tag,
+    hero_title_primary: content.hero_title_primary,
+    hero_title_highlight: content.hero_title_highlight,
+    hero_subtitle: content.hero_subtitle,
+    hero_pills: content.hero_pills,
+    hero_image_url: content.hero_image_url,
+    primary_cta_text: content.primary_cta_text,
+    primary_cta_link: content.primary_cta_link,
+    secondary_cta_text: content.secondary_cta_text,
+    secondary_cta_link: content.secondary_cta_link,
+    metric_cards: stripIds(content.metric_cards),
+    outcomes_eyebrow: content.outcomes_eyebrow,
+    outcomes_title: content.outcomes_title,
+    outcomes_description: content.outcomes_description,
+    outcome_kpi_cards: stripIds(content.outcome_kpi_cards),
+    programs_eyebrow: content.programs_eyebrow,
+    programs_title: content.programs_title,
+    programs_description: content.programs_description,
+    program_names_limit: content.program_names_limit,
+    program_names: content.program_names,
+    focus_eyebrow: content.focus_eyebrow,
+    focus_title: content.focus_title,
+    focus_description: content.focus_description,
+    focus_cards: stripIds(content.focus_cards),
+    journey_eyebrow: content.journey_eyebrow,
+    journey_title: content.journey_title,
+    journey_description: content.journey_description,
+    journey_cards: stripIds(content.journey_cards),
+  };
 }
 
-function TopBar({ state, onSave }: { state: BuilderState; onSave: () => void }) {
-  return (
-    <div className="ab-topbar">
-      <div className="ab-topbar__left">
-        <span className="ab-topbar__title">About Page Builder</span>
-        <span className="ab-topbar__hint">Click a section to edit · Reorder with the arrow buttons</span>
-      </div>
-      <div className="ab-topbar__right">
-        {state.error ? <span className="ab-topbar__error">{state.error}</span> : null}
-        {state.success ? <span className="ab-topbar__success">{state.success}</span> : null}
-        <button
-          className="ab-save-btn"
-          type="button"
-          onClick={onSave}
-          disabled={state.saving || state.loading || !state.dirty}
-        >
-          {state.saving ? "Saving..." : state.dirty ? "Save Changes" : "No Changes"}
-        </button>
-        <span style={{ fontSize: "11px", color: "var(--text-muted, #718096)", marginLeft: "6px" }}>
-          Saved content appears on the public site within ~60 seconds.
-        </span>
-      </div>
-    </div>
-  );
-}
+// ---------- UI primitives ----------
 
-function AddBetweenButton({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="ab-add-between">
-      <button className="ab-add-between__btn" type="button" onClick={onClick}>
-        + Add Section
-      </button>
-    </div>
-  );
-}
-
-function SectionCard({
-  section,
-  isActive,
-  isFirst,
-  isLast,
-  onSelect,
-  onMoveUp,
-  onMoveDown,
-  onDelete,
-  onToggle,
-}: {
-  section: AboutSection;
-  isActive: boolean;
-  isFirst: boolean;
-  isLast: boolean;
-  onSelect: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onDelete: () => void;
-  onToggle: () => void;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const typeLabel = SECTION_TYPE_LABELS[section.type] ?? section.type;
-  const preview = getSectionPreview(section);
-
-  return (
-    <div
-      className={[
-        "ab-section-card",
-        isActive ? "ab-section-card--active" : "",
-        !section.enabled ? "ab-section-card--hidden" : "",
-      ].filter(Boolean).join(" ")}
-      style={{ borderLeftColor: section.bgColor || SECTION_TYPE_ACCENTS[section.type] }}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      <div className="ab-section-card__type">{typeLabel}</div>
-      <div className="ab-section-card__preview">{preview}</div>
-      <div className="ab-section-card__actions" onClick={(event) => event.stopPropagation()}>
-        <button className="ab-icon-btn" type="button" onClick={onMoveUp} disabled={isFirst} title="Move up">↑</button>
-        <button className="ab-icon-btn" type="button" onClick={onMoveDown} disabled={isLast} title="Move down">↓</button>
-        <button
-          className={`ab-icon-btn${!section.enabled ? " is-hidden" : ""}`}
-          type="button"
-          onClick={onToggle}
-          title={section.enabled ? "Hide" : "Show"}
-        >
-          {section.enabled ? "○" : "●"}
-        </button>
-        {confirmDelete ? (
-          <>
-            <span className="ab-delete-confirm">Delete?</span>
-            <button className="ab-icon-btn ab-icon-btn--danger" type="button" onClick={onDelete}>Yes</button>
-            <button className="ab-icon-btn" type="button" onClick={() => setConfirmDelete(false)}>No</button>
-          </>
-        ) : (
-          <button className="ab-icon-btn ab-icon-btn--del" type="button" onClick={() => setConfirmDelete(true)} title="Delete">✕</button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AddSectionMenu({ onSelect, onClose }: { onSelect: (type: SectionType) => void; onClose: () => void }) {
-  return (
-    <div className="ab-add-menu-overlay" onClick={onClose}>
-      <div className="ab-add-menu" onClick={(event) => event.stopPropagation()}>
-        <div className="ab-add-menu__header">
-          <span>Add section</span>
-          <button className="ab-icon-btn" type="button" onClick={onClose}>✕</button>
-        </div>
-        <div className="ab-add-menu__grid">
-          {SECTION_TYPE_CATALOG.map((item) => (
-            <button
-              key={item.type}
-              className="ab-add-menu__item"
-              type="button"
-              onClick={() => onSelect(item.type)}
-            >
-              <span className="ab-add-menu__item-icon">{item.icon}</span>
-              <span className="ab-add-menu__item-label">{item.label}</span>
-              <span className="ab-add-menu__item-desc">{item.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Canvas({
-  sections,
-  activeId,
-  onSelect,
-  onMove,
-  onDelete,
-  onToggle,
-  onOpenAdd,
-  addMenuIndex,
-  onSelectAddType,
-  onCloseAddMenu,
-}: {
-  sections: AboutSection[];
-  activeId: string | null;
-  onSelect: (id: string) => void;
-  onMove: (id: string, dir: "up" | "down") => void;
-  onDelete: (id: string) => void;
-  onToggle: (id: string) => void;
-  onOpenAdd: (index: number) => void;
-  addMenuIndex: number | null;
-  onSelectAddType: (type: SectionType) => void;
-  onCloseAddMenu: () => void;
-}) {
-  return (
-    <div className="ab-canvas">
-      <AddBetweenButton onClick={() => onOpenAdd(0)} />
-      {sections.map((section, index) => (
-        <Fragment key={section.id}>
-          <SectionCard
-            section={section}
-            isActive={section.id === activeId}
-            isFirst={index === 0}
-            isLast={index === sections.length - 1}
-            onSelect={() => onSelect(section.id)}
-            onMoveUp={() => onMove(section.id, "up")}
-            onMoveDown={() => onMove(section.id, "down")}
-            onDelete={() => onDelete(section.id)}
-            onToggle={() => onToggle(section.id)}
-          />
-          <AddBetweenButton onClick={() => onOpenAdd(index + 1)} />
-        </Fragment>
-      ))}
-      {sections.length === 0 ? (
-        <div className="ab-canvas__empty">
-          <p>No sections yet.</p>
-          <button className="ab-add-btn" type="button" onClick={() => onOpenAdd(0)}>
-            + Add first section
-          </button>
-        </div>
-      ) : null}
-      {addMenuIndex !== null ? <AddSectionMenu onSelect={onSelectAddType} onClose={onCloseAddMenu} /> : null}
-    </div>
-  );
-}
-
-function EmptyPanel() {
-  return (
-    <aside className="ab-empty-panel">
-      <div className="ab-empty-panel__inner">
-        <h3>Section properties</h3>
-        <p>Select a section from the canvas to edit its fields, colors, and content.</p>
-      </div>
-    </aside>
-  );
-}
-
-function PropField({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="ab-props__field">
-      <label className="ab-props__field-label">{label}</label>
+      <span className="ab-props__field-label">{label}</span>
       {children}
+      {hint ? <span className="ab-field-hint">{hint}</span> : null}
     </div>
   );
 }
@@ -475,81 +343,107 @@ function PropField({ label, children }: { label: string; children: ReactNode }) 
 function TextInput({
   value,
   onChange,
-  placeholder = "",
-  label,
+  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  label?: string;
 }) {
-  const input = (
+  return (
     <input
-      className="ab-text-input"
       type="text"
+      className="ab-text-input"
       value={value}
-      onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
     />
   );
-  return label ? <PropField label={label}>{input}</PropField> : input;
 }
 
-function TextArea({
+function Textarea({
   value,
   onChange,
   rows = 3,
-  placeholder = "",
-  label,
+  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
   rows?: number;
   placeholder?: string;
-  label?: string;
 }) {
-  const textarea = (
+  return (
     <textarea
       className="ab-textarea"
       rows={rows}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
     />
   );
-  return label ? <PropField label={label}>{textarea}</PropField> : textarea;
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function NumberInput({
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+}) {
   return (
-    <PropField label={label}>
-      <div className="ab-color-row">
-        <input
-          type="color"
-          className="ab-color-input"
-          value={value || "#4361ee"}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <input
-          type="text"
-          className="ab-text-input"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="#4361ee"
-        />
-      </div>
-    </PropField>
+    <input
+      type="number"
+      className="ab-text-input"
+      value={value}
+      min={min}
+      max={max}
+      onChange={(event) => {
+        const parsed = Number(event.target.value);
+        onChange(Number.isFinite(parsed) ? parsed : 0);
+      }}
+    />
   );
 }
 
-function ImageField({ value, onChange, label }: { value: string; onChange: (value: string) => void; label?: string }) {
+function SelectInput({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <select className="ab-select" value={value} onChange={(event) => onChange(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ImageField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
+    setUploadError(null);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -570,13 +464,15 @@ function ImageField({ value, onChange, label }: { value: string; onChange: (valu
         }),
       });
       onChange(result.public_url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
       event.target.value = "";
     }
   };
 
-  const inner = (
+  return (
     <div className="ab-image-field">
       {value ? (
         <img
@@ -599,27 +495,101 @@ function ImageField({ value, onChange, label }: { value: string; onChange: (valu
         <input type="file" accept="image/*" style={{ display: "none" }} onChange={(event) => void handleUpload(event)} disabled={uploading} />
         {uploading ? "Uploading..." : "Upload image"}
       </label>
+      {uploadError ? <span className="ab-topbar__error">{uploadError}</span> : null}
     </div>
   );
-
-  return label ? <PropField label={label}>{inner}</PropField> : inner;
 }
 
-function ItemListEditor({
-  label,
+function StringListEditor({
+  items,
+  onChange,
+  itemPlaceholder,
+  addLabel,
+}: {
+  items: string[];
+  onChange: (items: string[]) => void;
+  itemPlaceholder?: string;
+  addLabel?: string;
+}) {
+  const updateAt = (index: number, value: string) => {
+    const next = [...items];
+    next[index] = value;
+    onChange(next);
+  };
+  const removeAt = (index: number) => onChange(items.filter((_, i) => i !== index));
+  const moveAt = (index: number, dir: "up" | "down") => {
+    const target = dir === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+
+  return (
+    <div className="ab-item-list">
+      {items.length === 0 ? <span className="ab-item-list__empty">No items yet.</span> : null}
+      {items.map((item, index) => (
+        <div key={`${index}-${item.slice(0, 8)}`} className="ab-item-list__inline-row">
+          <input
+            type="text"
+            className="ab-text-input"
+            value={item}
+            placeholder={itemPlaceholder}
+            onChange={(event) => updateAt(index, event.target.value)}
+          />
+          <div className="ab-item-list__item-controls">
+            <button
+              type="button"
+              className="ab-icon-btn"
+              onClick={() => moveAt(index, "up")}
+              disabled={index === 0}
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="ab-icon-btn"
+              onClick={() => moveAt(index, "down")}
+              disabled={index === items.length - 1}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button type="button" className="ab-icon-btn ab-icon-btn--del" onClick={() => removeAt(index)} aria-label="Remove">
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="ab-add-item-btn" onClick={() => onChange([...items, ""])}>
+        + {addLabel ?? "Add item"}
+      </button>
+    </div>
+  );
+}
+
+function CardListEditor<T extends { _id: string }>({
   items,
   onChange,
   renderItem,
-  defaultItem,
+  createItem,
+  addLabel,
+  itemLabel,
 }: {
-  label: string;
-  items: Record<string, unknown>[];
-  onChange: (items: Record<string, unknown>[]) => void;
-  renderItem: (item: Record<string, unknown>, updateItem: (field: string, value: unknown) => void, index: number) => ReactNode;
-  defaultItem: Record<string, unknown>;
+  items: T[];
+  onChange: (items: T[]) => void;
+  renderItem: (item: T, updateItem: (patch: Partial<T>) => void, index: number) => ReactNode;
+  createItem: () => T;
+  addLabel: string;
+  itemLabel: (item: T, index: number) => string;
 }) {
-  const addItem = () => onChange([...items, { ...defaultItem, _id: createSectionId() }]);
-  const removeItem = (index: number) => onChange(items.filter((_, currentIndex) => currentIndex !== index));
+  const updateItem = (index: number, patch: Partial<T>) => {
+    const next = [...items];
+    next[index] = { ...next[index], ...patch };
+    onChange(next);
+  };
+  const removeItem = (index: number) => onChange(items.filter((_, i) => i !== index));
   const moveItem = (index: number, dir: "up" | "down") => {
     const target = dir === "up" ? index - 1 : index + 1;
     if (target < 0 || target >= items.length) return;
@@ -627,517 +597,173 @@ function ItemListEditor({
     [next[index], next[target]] = [next[target], next[index]];
     onChange(next);
   };
-  const updateItem = (index: number, field: string, value: unknown) => {
-    onChange(items.map((item, currentIndex) => (currentIndex === index ? { ...item, [field]: value } : item)));
-  };
 
   return (
     <div className="ab-item-list">
-      <div className="ab-item-list__header">
-        <span className="ab-props__section-label">{label}</span>
-        <button className="ab-add-item-btn" type="button" onClick={addItem}>+ Add</button>
-      </div>
+      {items.length === 0 ? <span className="ab-item-list__empty">No cards yet.</span> : null}
       {items.map((item, index) => (
-        <div key={str(item._id, String(index))} className="ab-item-list__item">
-          <div className="ab-item-list__item-controls">
-            <button className="ab-icon-btn" type="button" onClick={() => moveItem(index, "up")} disabled={index === 0}>↑</button>
-            <button className="ab-icon-btn" type="button" onClick={() => moveItem(index, "down")} disabled={index === items.length - 1}>↓</button>
-            <span className="ab-item-list__item-num">#{index + 1}</span>
-            <button className="ab-icon-btn ab-icon-btn--del" type="button" onClick={() => removeItem(index)}>✕</button>
+        <div key={item._id} className="ab-item-list__item">
+          <div className="ab-item-list__header">
+            <span className="ab-item-list__item-num">{itemLabel(item, index)}</span>
+            <div className="ab-item-list__item-controls">
+              <button
+                type="button"
+                className="ab-icon-btn"
+                onClick={() => moveItem(index, "up")}
+                disabled={index === 0}
+                aria-label="Move up"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="ab-icon-btn"
+                onClick={() => moveItem(index, "down")}
+                disabled={index === items.length - 1}
+                aria-label="Move down"
+              >
+                ↓
+              </button>
+              <button type="button" className="ab-icon-btn ab-icon-btn--del" onClick={() => removeItem(index)} aria-label="Remove">
+                Delete
+              </button>
+            </div>
           </div>
-          {renderItem(item, (field: string, value: unknown) => updateItem(index, field, value), index)}
+          <div className="ab-item-list__body">{renderItem(item, (patch) => updateItem(index, patch), index)}</div>
         </div>
       ))}
-      {items.length === 0 ? <p className="ab-item-list__empty">No items. Click "+ Add" to start.</p> : null}
+      <button type="button" className="ab-add-item-btn" onClick={() => onChange([...items, createItem()])}>
+        + {addLabel}
+      </button>
     </div>
   );
 }
 
-function TableRowEditor({
-  headers,
-  rows,
-  onChange,
+function Panel({
+  title,
+  description,
+  defaultOpen = false,
+  children,
 }: {
-  headers: string[];
-  rows: Record<string, string>[];
-  onChange: (rows: Record<string, string>[]) => void;
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
 }) {
-  const addRow = () => onChange([...rows, Object.fromEntries(headers.map((header) => [header, ""]))]);
-  const removeRow = (index: number) => onChange(rows.filter((_, currentIndex) => currentIndex !== index));
-  const updateCell = (rowIdx: number, col: string, value: string) => {
-    onChange(rows.map((row, index) => (index === rowIdx ? { ...row, [col]: value } : row)));
-  };
-
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="ab-table-editor">
-      {headers.length === 0 ? <p className="ab-item-list__empty">Define column headers above first.</p> : null}
-      {rows.map((row, index) => (
-        <div key={`${index}-${headers.join("-")}`} className="ab-table-editor__row">
-          <span className="ab-item-list__item-num">Row {index + 1}</span>
-          {headers.map((header) => (
-            <input
-              key={`${index}-${header}`}
-              className="ab-text-input"
-              type="text"
-              value={String(row[header] ?? "")}
-              onChange={(event) => updateCell(index, header, event.target.value)}
-              placeholder={header}
-            />
-          ))}
-          <button className="ab-icon-btn ab-icon-btn--del" type="button" onClick={() => removeRow(index)}>✕</button>
+    <section className={`ab-panel${open ? " is-open" : ""}`}>
+      <button type="button" className="ab-panel__header" onClick={() => setOpen((prev) => !prev)} aria-expanded={open}>
+        <div className="ab-panel__heading">
+          <span className="ab-panel__title">{title}</span>
+          {description ? <span className="ab-panel__desc">{description}</span> : null}
         </div>
-      ))}
-      <button className="ab-add-item-btn" type="button" onClick={addRow}>+ Add row</button>
+        <span className="ab-panel__chevron" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open ? <div className="ab-panel__body">{children}</div> : null}
+    </section>
+  );
+}
+
+function TopBar({ state, onSave }: { state: PageState; onSave: () => void }) {
+  return (
+    <div className="ab-topbar">
+      <div className="ab-topbar__left">
+        <span className="ab-topbar__title">About Page Builder</span>
+        <span className="ab-topbar__hint">Edit the content of the public /about page. Changes appear within ~60 seconds of saving.</span>
+      </div>
+      <div className="ab-topbar__right">
+        {state.error ? <span className="ab-topbar__error">{state.error}</span> : null}
+        {state.success ? <span className="ab-topbar__success">{state.success}</span> : null}
+        <button
+          className="ab-save-btn"
+          type="button"
+          onClick={onSave}
+          disabled={state.saving || state.loading || !state.dirty}
+        >
+          {state.saving ? "Saving..." : state.dirty ? "Save Changes" : "No Changes"}
+        </button>
+      </div>
     </div>
   );
 }
 
-function SectionFields({ section, update }: SectionFieldProps) {
-  const data = section.data;
+// ---------- Card renderers ----------
 
-  switch (section.type) {
-    case "hero":
-      return (
-        <>
-          <PropField label="Tag / eyebrow">
-            <TextInput value={str(data.tag)} onChange={(value) => update("tag", value)} placeholder="About Digital Hub" />
-          </PropField>
-          <PropField label="Title — main text">
-            <TextInput value={str(data.title)} onChange={(value) => update("title", value)} />
-          </PropField>
-          <PropField label="Title — highlighted words">
-            <TextInput value={str(data.highlight)} onChange={(value) => update("highlight", value)} />
-          </PropField>
-          <PropField label="Description">
-            <TextArea value={str(data.description)} onChange={(value) => update("description", value)} rows={3} />
-          </PropField>
-          <PropField label="Pills (one per line)">
-            <TextArea
-              value={Array.isArray(data.pills) ? (data.pills as string[]).join("\n") : str(data.pills)}
-              onChange={(value) => update("pills", value.split("\n").map((entry) => entry.trim()).filter(Boolean))}
-              rows={4}
-              placeholder={"Industry-led tracks\nPortfolio delivery\nCareer support"}
-            />
-          </PropField>
-          <PropField label="Primary button label">
-            <TextInput value={str(data.cta_primary_label, "Apply Now")} onChange={(value) => update("cta_primary_label", value)} />
-          </PropField>
-          <PropField label="Primary button link">
-            <TextInput value={str(data.cta_primary_link, "/apply")} onChange={(value) => update("cta_primary_link", value)} />
-          </PropField>
-          <PropField label="Secondary button label">
-            <TextInput value={str(data.cta_secondary_label, "Browse Programs")} onChange={(value) => update("cta_secondary_label", value)} />
-          </PropField>
-          <PropField label="Secondary button link">
-            <TextInput value={str(data.cta_secondary_link, "/programs")} onChange={(value) => update("cta_secondary_link", value)} />
-          </PropField>
-          <PropField label="Hero image URL">
-            <ImageField value={str(data.image_url)} onChange={(value) => update("image_url", value)} />
-          </PropField>
-        </>
-      );
-    case "stats":
-      return (
-        <ItemListEditor
-          label="Stat cards"
-          items={Array.isArray(data.items) ? (data.items as Record<string, unknown>[]) : []}
-          onChange={(items) => update("items", items)}
-          renderItem={(item, updateItem) => (
-            <>
-              <PropField label="Metric key">
-                <select className="ab-select" value={str(item.metric_key, "team_number")} onChange={(event) => updateItem("metric_key", event.target.value)}>
-                  {METRIC_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </PropField>
-              <TextInput label="Label" value={str(item.label)} onChange={(value) => updateItem("label", value)} />
-              <TextInput label="Description" value={str(item.description)} onChange={(value) => updateItem("description", value)} />
-              <TextInput label="Suffix (+)" value={str(item.suffix, "+")} onChange={(value) => updateItem("suffix", value)} />
-              <TextInput label="Prefix" value={str(item.prefix)} onChange={(value) => updateItem("prefix", value)} />
-            </>
-          )}
-          defaultItem={{ metric_key: "team_number", label: "Metric", description: "", suffix: "+", prefix: "" }}
+function renderMetricFields(item: MetricCard, update: (patch: Partial<MetricCard>) => void) {
+  return (
+    <>
+      <Field label="Label">
+        <TextInput value={item.label} onChange={(value) => update({ label: value })} placeholder="e.g. Team Members" />
+      </Field>
+      <Field label="Description">
+        <Textarea value={item.description} onChange={(value) => update({ description: value })} rows={2} />
+      </Field>
+      <Field label="Metric source" hint="Picks which live number to display. Auto-detect infers from the label.">
+        <SelectInput value={item.metric_key} onChange={(value) => update({ metric_key: value })} options={METRIC_KEY_OPTIONS} />
+      </Field>
+      <div className="ab-two-col">
+        <Field label="Prefix">
+          <TextInput value={item.prefix} onChange={(value) => update({ prefix: value })} placeholder="e.g. $" />
+        </Field>
+        <Field label="Suffix">
+          <TextInput value={item.suffix} onChange={(value) => update({ suffix: value })} placeholder="e.g. +" />
+        </Field>
+      </div>
+      <Field label="Value override" hint="Leave empty to use the live number.">
+        <TextInput
+          value={item.value_override}
+          onChange={(value) => update({ value_override: value })}
+          placeholder="e.g. 500"
         />
-      );
-    case "section_head":
-      return (
-        <>
-          <PropField label="Eyebrow"><TextInput value={str(data.eyebrow)} onChange={(value) => update("eyebrow", value)} /></PropField>
-          <PropField label="Title"><TextInput value={str(data.title)} onChange={(value) => update("title", value)} /></PropField>
-          <PropField label="Description"><TextArea value={str(data.description)} onChange={(value) => update("description", value)} rows={3} /></PropField>
-        </>
-      );
-    case "card_grid":
-      return (
-        <>
-          <PropField label="Section title"><TextInput value={str(data.title)} onChange={(value) => update("title", value)} /></PropField>
-          <ItemListEditor
-            label="Cards"
-            items={Array.isArray(data.cards) ? (data.cards as Record<string, unknown>[]) : []}
-            onChange={(cards) => update("cards", cards)}
-            renderItem={(item, updateItem) => (
-              <>
-                <TextInput label="Title" value={str(item.title)} onChange={(value) => updateItem("title", value)} />
-                <TextArea label="Description" value={str(item.description)} onChange={(value) => updateItem("description", value)} rows={2} />
-                <ColorField label="Accent color" value={str(item.accent)} onChange={(value) => updateItem("accent", value)} />
-              </>
-            )}
-            defaultItem={{ title: "Feature", description: "", accent: "" }}
-          />
-        </>
-      );
-    case "steps":
-      return (
-        <>
-          <PropField label="Section title"><TextInput value={str(data.title)} onChange={(value) => update("title", value)} /></PropField>
-          <ItemListEditor
-            label="Steps"
-            items={Array.isArray(data.steps) ? (data.steps as Record<string, unknown>[]) : []}
-            onChange={(steps) => update("steps", steps)}
-            renderItem={(item, updateItem, index) => (
-              <>
-                <TextInput label="Step label" value={str(item.step_label, `Step ${index + 1}`)} onChange={(value) => updateItem("step_label", value)} />
-                <TextInput label="Title" value={str(item.title)} onChange={(value) => updateItem("title", value)} />
-                <TextArea label="Description" value={str(item.description)} onChange={(value) => updateItem("description", value)} rows={2} />
-              </>
-            )}
-            defaultItem={{ step_label: "", title: "", description: "" }}
-          />
-        </>
-      );
-    case "table":
-      return (
-        <>
-          <PropField label="Caption"><TextInput value={str(data.caption)} onChange={(value) => update("caption", value)} placeholder="Optional table title" /></PropField>
-          <PropField label="Column headers (one per line)">
-            <TextArea
-              value={Array.isArray(data.headers) ? (data.headers as string[]).join("\n") : ""}
-              onChange={(value) => update("headers", value.split("\n").map((entry) => entry.trim()).filter(Boolean))}
-              rows={3}
-              placeholder={"Name\nRole\nStatus"}
-            />
-          </PropField>
-          <PropField label="Rows">
-            <TableRowEditor
-              headers={Array.isArray(data.headers) ? (data.headers as string[]) : []}
-              rows={Array.isArray(data.rows) ? (data.rows as Record<string, string>[]) : []}
-              onChange={(rows) => update("rows", rows)}
-            />
-          </PropField>
-        </>
-      );
-    case "text_block":
-      return (
-        <>
-          <PropField label="Content">
-            <TextArea value={str(data.content)} onChange={(value) => update("content", value)} rows={8} placeholder="Enter text. Use line breaks for paragraphs." />
-          </PropField>
-          <PropField label="Text alignment">
-            <select className="ab-select" value={str(data.align, "left")} onChange={(event) => update("align", event.target.value)}>
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </PropField>
-          <PropField label="Font size">
-            <select className="ab-select" value={str(data.font_size, "base")} onChange={(event) => update("font_size", event.target.value)}>
-              <option value="sm">Small</option>
-              <option value="base">Normal</option>
-              <option value="lg">Large</option>
-              <option value="xl">Extra large</option>
-            </select>
-          </PropField>
-        </>
-      );
-    case "image_full":
-      return (
-        <>
-          <PropField label="Image"><ImageField value={str(data.image_url)} onChange={(value) => update("image_url", value)} /></PropField>
-          <PropField label="Caption"><TextInput value={str(data.caption)} onChange={(value) => update("caption", value)} /></PropField>
-          <PropField label="Alt text"><TextInput value={str(data.alt)} onChange={(value) => update("alt", value)} /></PropField>
-          <PropField label="Max width">
-            <select className="ab-select" value={str(data.max_width, "full")} onChange={(event) => update("max_width", event.target.value)}>
-              <option value="full">Full width</option>
-              <option value="lg">Large (860px)</option>
-              <option value="md">Medium (640px)</option>
-              <option value="sm">Small (400px)</option>
-            </select>
-          </PropField>
-        </>
-      );
-    case "two_col": {
-      const left = isRecord(data.left) ? data.left : {};
-      const right = isRecord(data.right) ? data.right : {};
-      return (
-        <>
-          <div className="ab-props__section">
-            <span className="ab-props__section-label">Left column</span>
-            <TextInput label="Title" value={str(left.title)} onChange={(value) => update("left", { ...left, title: value })} />
-            <TextArea label="Description" value={str(left.description)} onChange={(value) => update("left", { ...left, description: value })} rows={3} />
-            <ImageField label="Image URL" value={str(left.image_url)} onChange={(value) => update("left", { ...left, image_url: value })} />
-          </div>
-          <div className="ab-props__section">
-            <span className="ab-props__section-label">Right column</span>
-            <TextInput label="Title" value={str(right.title)} onChange={(value) => update("right", { ...right, title: value })} />
-            <TextArea label="Description" value={str(right.description)} onChange={(value) => update("right", { ...right, description: value })} rows={3} />
-            <ImageField label="Image URL" value={str(right.image_url)} onChange={(value) => update("right", { ...right, image_url: value })} />
-          </div>
-        </>
-      );
-    }
-    case "list":
-      return (
-        <>
-          <PropField label="Title"><TextInput value={str(data.title)} onChange={(value) => update("title", value)} /></PropField>
-          <PropField label="Style">
-            <div className="ab-radio-group">
-              {["bullet", "numbered", "checkmark"].map((styleOption) => (
-                <label key={styleOption} className="ab-radio-label">
-                  <input
-                    type="radio"
-                    name={`list-style-${section.id}`}
-                    value={styleOption}
-                    checked={str(data.style, "bullet") === styleOption}
-                    onChange={() => update("style", styleOption)}
-                  />
-                  {styleOption.charAt(0).toUpperCase() + styleOption.slice(1)}
-                </label>
-              ))}
-            </div>
-          </PropField>
-          <PropField label="Items (one per line)">
-            <TextArea
-              value={Array.isArray(data.items) ? (data.items as string[]).join("\n") : ""}
-              onChange={(value) => update("items", value.split("\n").map((entry) => entry.trim()).filter(Boolean))}
-              rows={6}
-              placeholder={"First item\nSecond item\nThird item"}
-            />
-          </PropField>
-        </>
-      );
-    case "spacer":
-      return (
-        <PropField label="Height">
-          <select className="ab-select" value={str(data.height, "md")} onChange={(event) => update("height", event.target.value)}>
-            <option value="sm">Small (24px)</option>
-            <option value="md">Medium (48px)</option>
-            <option value="lg">Large (80px)</option>
-            <option value="xl">Extra large (120px)</option>
-          </select>
-        </PropField>
-      );
-    default:
-      return null;
-  }
-}
-
-function PropertiesPanel({
-  section,
-  onChange,
-  onClose,
-}: {
-  section: AboutSection;
-  onChange: (sectionId: string, field: string, value: unknown) => void;
-  onClose: () => void;
-}) {
-  const update = (field: string, value: unknown) => {
-    onChange(section.id, field, value);
-  };
-
-  return (
-    <aside className="ab-props">
-      <div className="ab-props__header">
-        <span className="ab-props__title">{SECTION_TYPE_LABELS[section.type]}</span>
-        <button className="ab-icon-btn" type="button" onClick={onClose} title="Close panel">✕</button>
-      </div>
-
-      <div className="ab-props__section">
-        <span className="ab-props__section-label">Background</span>
-        <div className="ab-color-row">
-          <input
-            type="color"
-            className="ab-color-input"
-            value={section.bgColor || "#ffffff"}
-            onChange={(event) => onChange(section.id, "__bgColor", event.target.value)}
-          />
-          <input
-            type="text"
-            className="ab-text-input"
-            value={section.bgColor}
-            onChange={(event) => onChange(section.id, "__bgColor", event.target.value)}
-            placeholder="#ffffff or transparent"
-          />
-          {section.bgColor ? (
-            <button className="ab-icon-btn" type="button" onClick={() => onChange(section.id, "__bgColor", "")} title="Clear">✕</button>
-          ) : null}
-        </div>
-      </div>
-
-      <SectionFields section={section} update={update} />
-    </aside>
+      </Field>
+    </>
   );
 }
 
-function BuilderPreview({ section }: { section: AboutSection }) {
-  const data = section.data;
-  const style = section.bgColor ? { background: section.bgColor } : undefined;
-
-  switch (section.type) {
-    case "hero":
-      return (
-        <div className="ab-preview ab-preview--hero" style={style}>
-          <span className="ab-preview__eyebrow">{str(data.tag, "About Digital Hub")}</span>
-          <h2>{str(data.title, "Practical Training For")} <span>{str(data.highlight, "Career Outcomes")}</span></h2>
-          <p>{str(data.description, "Describe the hero section here.")}</p>
-        </div>
-      );
-    case "stats":
-      return (
-        <div className="ab-preview ab-preview--stats" style={style}>
-          {(Array.isArray(data.items) ? data.items as Record<string, unknown>[] : []).map((item, index) => (
-            <div key={str(item._id, String(index))} className="ab-preview__stat">
-              <strong>{str(item.prefix)}99{str(item.suffix, "+")}</strong>
-              <span>{str(item.label, "Metric")}</span>
-            </div>
-          ))}
-        </div>
-      );
-    case "section_head":
-      return (
-        <div className="ab-preview ab-preview--head" style={style}>
-          <span className="ab-preview__eyebrow">{str(data.eyebrow, "Eyebrow")}</span>
-          <h3>{str(data.title, "Section title")}</h3>
-          <p>{str(data.description, "Section description.")}</p>
-        </div>
-      );
-    case "card_grid":
-      return (
-        <div className="ab-preview ab-preview--grid" style={style}>
-          <h3>{str(data.title, "Card grid")}</h3>
-          <div className="ab-preview__grid">
-            {(Array.isArray(data.cards) ? data.cards as Record<string, unknown>[] : []).map((card, index) => (
-              <article key={str(card._id, String(index))} className="ab-preview__card" style={{ borderTopColor: str(card.accent) || undefined }}>
-                <h4>{str(card.title, "Card")}</h4>
-                <p>{str(card.description, "Description")}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      );
-    case "steps":
-      return (
-        <div className="ab-preview ab-preview--steps" style={style}>
-          <h3>{str(data.title, "Journey")}</h3>
-          <div className="ab-preview__steps">
-            {(Array.isArray(data.steps) ? data.steps as Record<string, unknown>[] : []).map((step, index) => (
-              <div key={str(step._id, String(index))} className="ab-preview__step">
-                <span>{str(step.step_label, `Step ${index + 1}`)}</span>
-                <strong>{str(step.title, "Milestone")}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    case "table": {
-      const headers = Array.isArray(data.headers) ? data.headers as string[] : [];
-      const rows = Array.isArray(data.rows) ? data.rows as Record<string, string>[] : [];
-      return (
-        <div className="ab-preview ab-preview--table" style={style}>
-          {str(data.caption) ? <h3>{str(data.caption)}</h3> : null}
-          <div className="ab-preview__table-wrap">
-            <table>
-              <thead>
-                <tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr>
-              </thead>
-              <tbody>
-                {rows.slice(0, 3).map((row, rowIndex) => (
-                  <tr key={rowIndex}>
-                    {headers.map((header) => <td key={`${rowIndex}-${header}`}>{String(row[header] ?? "")}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      );
-    }
-    case "text_block":
-      return (
-        <div className={`ab-preview ab-preview--text is-${str(data.align, "left")} is-${str(data.font_size, "base")}`} style={style}>
-          {str(data.content, "Text block content.").split("\n").map((line, index) => (
-            <p key={index}>{line || "\u00A0"}</p>
-          ))}
-        </div>
-      );
-    case "image_full":
-      return (
-        <div className="ab-preview ab-preview--image" style={style}>
-          {str(data.image_url) ? (
-            <img
-              src={str(data.image_url)}
-              alt={str(data.alt)}
-              style={{ maxWidth: getImageMaxWidth(str(data.max_width, "full")) }}
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-              }}
-            />
-          ) : (
-            <div className="ab-preview__image-placeholder">No image selected</div>
-          )}
-          {str(data.caption) ? <p>{str(data.caption)}</p> : null}
-        </div>
-      );
-    case "two_col": {
-      const left = isRecord(data.left) ? data.left : {};
-      const right = isRecord(data.right) ? data.right : {};
-      return (
-        <div className="ab-preview ab-preview--two-col" style={style}>
-          {[left, right].map((column, index) => (
-            <article key={index} className="ab-preview__two-col-card">
-              {str(column.image_url) ? (
-                <img
-                  src={str(column.image_url)}
-                  alt=""
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : null}
-              <h4>{str(column.title, index === 0 ? "Left column" : "Right column")}</h4>
-              <p>{str(column.description, "Column description")}</p>
-            </article>
-          ))}
-        </div>
-      );
-    }
-    case "list": {
-      const items = Array.isArray(data.items) ? data.items as string[] : [];
-      const styleType = str(data.style, "bullet");
-      return (
-        <div className="ab-preview ab-preview--list" style={style}>
-          {str(data.title) ? <h3>{str(data.title)}</h3> : null}
-          <ul className={`ab-preview__list ab-preview__list--${styleType}`}>
-            {items.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </div>
-      );
-    }
-    case "spacer":
-      return (
-        <div className="ab-preview ab-preview--spacer" style={{ ...style, minHeight: getSpacerHeight(str(data.height, "md")) }}>
-          <span>{SECTION_TYPE_LABELS.spacer}</span>
-        </div>
-      );
-    default:
-      return null;
-  }
+function renderFocusFields(item: FocusCard, update: (patch: Partial<FocusCard>) => void) {
+  return (
+    <>
+      <Field label="Title">
+        <TextInput value={item.title} onChange={(value) => update({ title: value })} />
+      </Field>
+      <Field label="Description">
+        <Textarea value={item.description} onChange={(value) => update({ description: value })} rows={3} />
+      </Field>
+    </>
+  );
 }
+
+function renderJourneyFields(item: JourneyCard, update: (patch: Partial<JourneyCard>) => void) {
+  return (
+    <>
+      <Field label="Step label">
+        <TextInput value={item.step} onChange={(value) => update({ step: value })} placeholder="e.g. Step 01" />
+      </Field>
+      <Field label="Title">
+        <TextInput value={item.title} onChange={(value) => update({ title: value })} />
+      </Field>
+      <Field label="Description">
+        <Textarea value={item.description} onChange={(value) => update({ description: value })} rows={3} />
+      </Field>
+    </>
+  );
+}
+
+// ---------- Main page ----------
 
 export function AboutBuilderPage() {
-  const [state, setState] = useState<BuilderState>(INITIAL_STATE);
-  const [addMenuIndex, setAddMenuIndex] = useState<number | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [state, setState] = useState<PageState>({
+    pageId: null,
+    loading: true,
+    saving: false,
+    error: null,
+    success: null,
+    dirty: false,
+  });
+  const [content, setContent] = useState<AboutContent>(DEFAULT_CONTENT);
   const pageContentRef = useRef<Record<string, unknown>>({});
 
   useEffect(() => {
@@ -1150,26 +776,22 @@ export function AboutBuilderPage() {
         const aboutPage = result.data.find((page) => page.key === "about") ?? null;
         if (!aboutPage) {
           pageContentRef.current = {};
+          setContent(DEFAULT_CONTENT);
           setState((prev) => ({
             ...prev,
             loading: false,
             pageId: null,
-            sections: [],
             error: 'Create a page with the key "about" in CMS > Pages first.',
           }));
           return;
         }
-        const content = isRecord(aboutPage.content) ? aboutPage.content : {};
-        pageContentRef.current = content;
-        const savedSections = Array.isArray(content.__builder_sections)
-          ? (content.__builder_sections as unknown[]).map(normalizeSection).filter((section): section is AboutSection => Boolean(section))
-          : [];
-
+        const pageContent = isRecord(aboutPage.content) ? aboutPage.content : {};
+        pageContentRef.current = pageContent;
+        setContent(contentFromCms(pageContent));
         setState((prev) => ({
           ...prev,
           loading: false,
           pageId: aboutPage.id,
-          sections: savedSections,
           dirty: false,
           error: null,
         }));
@@ -1188,95 +810,36 @@ export function AboutBuilderPage() {
     };
   }, []);
 
-  const activeSection = useMemo(
-    () => state.sections.find((section) => section.id === activeId) ?? null,
-    [activeId, state.sections],
-  );
+  useEffect(() => {
+    if (!state.dirty) return undefined;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [state.dirty]);
 
-  const handleChange = useCallback((sectionId: string, field: string, value: unknown) => {
-    setState((prev) => ({
-      ...prev,
-      dirty: true,
-      sections: prev.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-        if (field === "__bgColor") {
-          return { ...section, bgColor: String(value) };
-        }
-        return { ...section, data: { ...section.data, [field]: value } };
-      }),
-    }));
+  const patch = useCallback(<K extends keyof AboutContent>(key: K, value: AboutContent[K]) => {
+    setContent((prev) => ({ ...prev, [key]: value }));
+    setState((prev) => ({ ...prev, dirty: true, success: null }));
   }, []);
-
-  const handleMove = useCallback((sectionId: string, dir: "up" | "down") => {
-    setState((prev) => {
-      const index = prev.sections.findIndex((section) => section.id === sectionId);
-      const target = dir === "up" ? index - 1 : index + 1;
-      if (index < 0 || target < 0 || target >= prev.sections.length) return prev;
-      const next = [...prev.sections];
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, sections: next, dirty: true };
-    });
-  }, []);
-
-  const handleDelete = useCallback((sectionId: string) => {
-    setState((prev) => ({
-      ...prev,
-      sections: prev.sections.filter((section) => section.id !== sectionId),
-      dirty: true,
-    }));
-    setActiveId((prev) => (prev === sectionId ? null : prev));
-  }, []);
-
-  const handleToggle = useCallback((sectionId: string) => {
-    setState((prev) => ({
-      ...prev,
-      dirty: true,
-      sections: prev.sections.map((section) =>
-        section.id === sectionId ? { ...section, enabled: !section.enabled } : section,
-      ),
-    }));
-  }, []);
-
-  const handleOpenAdd = useCallback((index: number) => {
-    setAddMenuIndex(index);
-  }, []);
-
-  const handleSelectAddType = useCallback((type: SectionType) => {
-    setState((prev) => {
-      const nextSection = createSection(type);
-      const insertAt = addMenuIndex ?? prev.sections.length;
-      const nextSections = [...prev.sections];
-      nextSections.splice(insertAt, 0, nextSection);
-      setActiveId(nextSection.id);
-      return {
-        ...prev,
-        dirty: true,
-        sections: nextSections,
-      };
-    });
-    setAddMenuIndex(null);
-  }, [addMenuIndex]);
 
   const handleSave = useCallback(async () => {
     if (!state.pageId) return;
     setState((prev) => ({ ...prev, saving: true, error: null, success: null }));
 
     try {
+      const cmsFields = contentToCms(content);
+      const nextContent = {
+        ...pageContentRef.current,
+        ...cmsFields,
+      };
       await api(`/cms/pages/${state.pageId}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          content: {
-            ...pageContentRef.current,
-            __builder_sections: state.sections,
-            __builder_version: 1,
-          },
-        }),
+        body: JSON.stringify({ content: nextContent }),
       });
-      pageContentRef.current = {
-        ...pageContentRef.current,
-        __builder_sections: state.sections,
-        __builder_version: 1,
-      };
+      pageContentRef.current = nextContent;
       setState((prev) => ({ ...prev, saving: false, dirty: false, success: "Saved!" }));
       window.setTimeout(() => {
         setState((prev) => ({ ...prev, success: null }));
@@ -1288,77 +851,256 @@ export function AboutBuilderPage() {
         error: err instanceof Error ? err.message : "Save failed.",
       }));
     }
-  }, [state.pageId, state.sections]);
+  }, [state.pageId, content]);
 
   return (
     <PageShell>
       <div className="ab-page">
         <TopBar state={state} onSave={() => void handleSave()} />
-        {!state.loading && state.pageId === null ? (
-          <div style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "60px 24px",
-            gap: "12px",
-            textAlign: "center",
-          }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="4" y="3" width="16" height="18" rx="2" />
-              <path d="M8 7h8M8 11h8M8 15h5" />
-              <circle cx="18" cy="18" r="4" fill="var(--surface)" stroke="var(--danger)" />
-              <path d="M18 16v2M18 20v.5" stroke="var(--danger)" strokeWidth="1.8" />
-            </svg>
-            <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text)", margin: 0 }}>
-              No "about" page found in the CMS
-            </p>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", margin: 0, maxWidth: "360px" }}>
-              Create a page with the key <code style={{ background: "var(--surface-soft)", padding: "1px 6px", borderRadius: "4px", fontFamily: "monospace" }}>about</code> in{" "}
-              <strong>CMS → Pages</strong> first, then return here to build the About page layout.
-            </p>
+
+        {state.loading ? (
+          <div className="ab-empty-panel">
+            <div className="ab-empty-panel__inner">
+              <h3>Loading...</h3>
+              <p>Fetching the about page from CMS.</p>
+            </div>
+          </div>
+        ) : state.pageId === null ? (
+          <div className="ab-empty-panel">
+            <div className="ab-empty-panel__inner">
+              <h3>No "about" page found in the CMS</h3>
+              <p>
+                Create a page with the key <code>about</code> in <strong>CMS → Pages</strong> first, then return here to edit content.
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="ab-layout">
-            <Canvas
-              sections={state.sections}
-              activeId={activeId}
-              onSelect={setActiveId}
-              onMove={handleMove}
-              onDelete={handleDelete}
-              onToggle={handleToggle}
-              onOpenAdd={handleOpenAdd}
-              addMenuIndex={addMenuIndex}
-              onSelectAddType={handleSelectAddType}
-              onCloseAddMenu={() => setAddMenuIndex(null)}
-            />
-            <div className="ab-side">
-              {activeSection ? (
-                <PropertiesPanel
-                  key={activeSection.id}
-                  section={activeSection}
-                  onChange={handleChange}
-                  onClose={() => setActiveId(null)}
+          <div className="ab-panels">
+            <Panel
+              title="Page Banner"
+              description="The breadcrumb banner at the very top of the page - title and sub-label visible on all screen sizes."
+              defaultOpen
+            >
+              <Field label="Banner title">
+                <TextInput
+                  value={content.banner_title}
+                  onChange={(value) => patch("banner_title", value)}
+                  placeholder="Build skills. Become employable."
                 />
-              ) : (
-                <EmptyPanel />
-              )}
-            </div>
+              </Field>
+              <Field label="Banner sub-label" hint="Shown in the breadcrumb nav path, e.g. 'About Us'.">
+                <TextInput
+                  value={content.banner_subtitle}
+                  onChange={(value) => patch("banner_subtitle", value)}
+                  placeholder="About Us"
+                />
+              </Field>
+            </Panel>
+
+            <Panel title="Hero" description="Top banner with title, pills, image, and CTAs." defaultOpen>
+              <Field label="Tag">
+                <TextInput value={content.hero_tag} onChange={(value) => patch("hero_tag", value)} />
+              </Field>
+              <Field label="Title (primary part)">
+                <TextInput
+                  value={content.hero_title_primary}
+                  onChange={(value) => patch("hero_title_primary", value)}
+                />
+              </Field>
+              <Field label="Title (highlighted part)" hint="Rendered with the blue highlight.">
+                <TextInput
+                  value={content.hero_title_highlight}
+                  onChange={(value) => patch("hero_title_highlight", value)}
+                />
+              </Field>
+              <Field label="Subtitle">
+                <Textarea
+                  value={content.hero_subtitle}
+                  onChange={(value) => patch("hero_subtitle", value)}
+                  rows={3}
+                />
+              </Field>
+              <Field label="Pills" hint="Short tags displayed under the subtitle.">
+                <StringListEditor
+                  items={content.hero_pills}
+                  onChange={(next) => patch("hero_pills", next)}
+                  itemPlaceholder="Pill label"
+                  addLabel="Add pill"
+                />
+              </Field>
+              <Field label="Hero image">
+                <ImageField value={content.hero_image_url} onChange={(value) => patch("hero_image_url", value)} />
+              </Field>
+              <div className="ab-two-col">
+                <Field label="Primary CTA text">
+                  <TextInput
+                    value={content.primary_cta_text}
+                    onChange={(value) => patch("primary_cta_text", value)}
+                  />
+                </Field>
+                <Field label="Primary CTA link">
+                  <TextInput
+                    value={content.primary_cta_link}
+                    onChange={(value) => patch("primary_cta_link", value)}
+                    placeholder="/apply"
+                  />
+                </Field>
+              </div>
+              <div className="ab-two-col">
+                <Field label="Secondary CTA text">
+                  <TextInput
+                    value={content.secondary_cta_text}
+                    onChange={(value) => patch("secondary_cta_text", value)}
+                  />
+                </Field>
+                <Field label="Secondary CTA link">
+                  <TextInput
+                    value={content.secondary_cta_link}
+                    onChange={(value) => patch("secondary_cta_link", value)}
+                    placeholder="/programs"
+                  />
+                </Field>
+              </div>
+            </Panel>
+
+            <Panel title="Stats row" description="Summary metric cards shown under the hero.">
+              <CardListEditor
+                items={content.metric_cards}
+                onChange={(next) => patch("metric_cards", next)}
+                renderItem={(item, update) => renderMetricFields(item, update)}
+                createItem={() => ({
+                  _id: createId(),
+                  metric_key: "",
+                  label: "",
+                  description: "",
+                  prefix: "",
+                  suffix: "+",
+                  value_override: "",
+                })}
+                addLabel="Add metric card"
+                itemLabel={(item, index) => item.label || `Metric ${index + 1}`}
+              />
+            </Panel>
+
+            <Panel title="Outcomes section" description="Section heading + KPI cards.">
+              <Field label="Eyebrow">
+                <TextInput value={content.outcomes_eyebrow} onChange={(value) => patch("outcomes_eyebrow", value)} />
+              </Field>
+              <Field label="Title">
+                <TextInput value={content.outcomes_title} onChange={(value) => patch("outcomes_title", value)} />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={content.outcomes_description}
+                  onChange={(value) => patch("outcomes_description", value)}
+                  rows={3}
+                />
+              </Field>
+              <Field label="KPI cards">
+                <CardListEditor
+                  items={content.outcome_kpi_cards}
+                  onChange={(next) => patch("outcome_kpi_cards", next)}
+                  renderItem={(item, update) => renderMetricFields(item, update)}
+                  createItem={() => ({
+                    _id: createId(),
+                    metric_key: "",
+                    label: "",
+                    description: "",
+                    prefix: "",
+                    suffix: "+",
+                    value_override: "",
+                  })}
+                  addLabel="Add KPI card"
+                  itemLabel={(item, index) => item.label || `KPI ${index + 1}`}
+                />
+              </Field>
+            </Panel>
+
+            <Panel title="Programs section" description="Section heading and program name list.">
+              <Field label="Eyebrow">
+                <TextInput value={content.programs_eyebrow} onChange={(value) => patch("programs_eyebrow", value)} />
+              </Field>
+              <Field label="Title">
+                <TextInput value={content.programs_title} onChange={(value) => patch("programs_title", value)} />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={content.programs_description}
+                  onChange={(value) => patch("programs_description", value)}
+                  rows={3}
+                />
+              </Field>
+              <Field label="Max program cards to show" hint="Between 1 and 24.">
+                <NumberInput
+                  value={content.program_names_limit}
+                  onChange={(value) => patch("program_names_limit", value)}
+                  min={1}
+                  max={24}
+                />
+              </Field>
+              <Field label="Program names (fallback)" hint="Live program titles from the database override this list if available.">
+                <StringListEditor
+                  items={content.program_names}
+                  onChange={(next) => patch("program_names", next)}
+                  itemPlaceholder="Program name"
+                  addLabel="Add program name"
+                />
+              </Field>
+            </Panel>
+
+            <Panel title="Focus section" description="Feature cards for 'What We Deliver'.">
+              <Field label="Eyebrow">
+                <TextInput value={content.focus_eyebrow} onChange={(value) => patch("focus_eyebrow", value)} />
+              </Field>
+              <Field label="Title">
+                <TextInput value={content.focus_title} onChange={(value) => patch("focus_title", value)} />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={content.focus_description}
+                  onChange={(value) => patch("focus_description", value)}
+                  rows={3}
+                />
+              </Field>
+              <Field label="Focus cards">
+                <CardListEditor
+                  items={content.focus_cards}
+                  onChange={(next) => patch("focus_cards", next)}
+                  renderItem={(item, update) => renderFocusFields(item, update)}
+                  createItem={() => ({ _id: createId(), title: "", description: "" })}
+                  addLabel="Add focus card"
+                  itemLabel={(item, index) => item.title || `Focus ${index + 1}`}
+                />
+              </Field>
+            </Panel>
+
+            <Panel title="Journey section" description="Step cards for the learner journey.">
+              <Field label="Eyebrow">
+                <TextInput value={content.journey_eyebrow} onChange={(value) => patch("journey_eyebrow", value)} />
+              </Field>
+              <Field label="Title">
+                <TextInput value={content.journey_title} onChange={(value) => patch("journey_title", value)} />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={content.journey_description}
+                  onChange={(value) => patch("journey_description", value)}
+                  rows={3}
+                />
+              </Field>
+              <Field label="Journey steps">
+                <CardListEditor
+                  items={content.journey_cards}
+                  onChange={(next) => patch("journey_cards", next)}
+                  renderItem={(item, update) => renderJourneyFields(item, update)}
+                  createItem={() => ({ _id: createId(), step: "", title: "", description: "" })}
+                  addLabel="Add journey step"
+                  itemLabel={(item, index) => item.title || item.step || `Step ${index + 1}`}
+                />
+              </Field>
+            </Panel>
           </div>
         )}
-        <div className="ab-preview-pane">
-          <div className="ab-preview-pane__header">
-            <span className="ab-preview-pane__title">Selected section preview</span>
-            <span className="ab-preview-pane__hint">This is a lightweight builder preview.</span>
-          </div>
-          {activeSection ? (
-            <BuilderPreview section={activeSection} />
-          ) : (
-            <div className="ab-preview ab-preview--empty">
-              <p>Select a section to preview it here.</p>
-            </div>
-          )}
-        </div>
       </div>
     </PageShell>
   );

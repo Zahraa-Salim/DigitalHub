@@ -15,7 +15,7 @@ import shape_4 from "@/assets/img/others/breadcrumb_shape04.svg";
 
 type BreadcrumbOneProps = {
   title: string;
-  sub_title: string;
+  sub_title?: string;
 };
 
 const BreadcrumbOne = ({ title, sub_title }: BreadcrumbOneProps) => {
@@ -31,15 +31,17 @@ const BreadcrumbOne = ({ title, sub_title }: BreadcrumbOneProps) => {
           <div className="col-xl-6 col-lg-8">
             <div className="breadcrumb__content">
               <h3 className="title">{title}</h3>
-              <nav className="breadcrumb">
-                <span>
-                  <Link to="/">Home</Link>
-                </span>
-                <span className="breadcrumb-separator">
-                  <i className="fas fa-angle-right"></i>
-                </span>
-                <span>{sub_title}</span>
-              </nav>
+              {sub_title ? (
+                <nav className="breadcrumb">
+                  <span>
+                    <Link to="/">Home</Link>
+                  </span>
+                  <span className="breadcrumb-separator">
+                    <i className="fas fa-angle-right"></i>
+                  </span>
+                  <span>{sub_title}</span>
+                </nav>
+              ) : null}
             </div>
           </div>
         </div>

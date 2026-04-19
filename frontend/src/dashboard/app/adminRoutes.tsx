@@ -20,7 +20,7 @@ const CsvImportPage = lazy(() => import("../pages/admin/CsvImportPage").then((mo
 const CohortsPage = lazy(() => import("../pages/admin/CohortsPage").then((module) => ({ default: module.CohortsPage })));
 const ContactInboxPage = lazy(() => import("../pages/admin/ContactInboxPage").then((module) => ({ default: module.ContactInboxPage })));
 const EventsPage = lazy(() => import("../pages/admin/EventsPage").then((module) => ({ default: module.EventsPage })));
-const FormsPage = lazy(() => import("../pages/admin/FormsPage").then((module) => ({ default: module.ApplicationFormsPage })));
+const FormsPage = lazy(() => import("../pages/admin/FormsPage").then((module) => ({ default: module.FormBuilderPage })));
 const AttendancePage = lazy(() => import("../pages/admin/AttendancePage").then((module) => ({ default: module.AttendancePage })));
 const AdminManagementPage = lazy(() => import("../pages/admin/AdminManagementPage").then((module) => ({ default: module.AdminManagementPage })));
 const MyProfilePage = lazy(() => import("../pages/admin/MyProfilePage").then((module) => ({ default: module.MyProfilePage })));
@@ -57,7 +57,7 @@ export const navConfig: NavItem[] = [
   { label: "Dashboard", path: "/admin" },
   { label: "Applications", path: "/admin/admissions" },
   { label: "General Apply", path: "/admin/general-apply" },
-  { label: "Application Forms", path: "/admin/forms" },
+  { label: "Form Builder", path: "/admin/forms" },
   { label: "Message Templates", path: "/admin/message-templates" },
   {
     label: "Operations",
@@ -72,7 +72,7 @@ export const navConfig: NavItem[] = [
   {
     label: "CMS",
     children: [
-      { label: "Visual Editor", path: "/admin/cms/visual-editor" },
+      { label: "Visual Editor (Home & About)", path: "/admin/cms/visual-editor" },
       { label: "About Builder", path: "/admin/cms/about-builder" },
       { label: "Site Settings", path: "/admin/cms/site-settings" },
       { label: "Pages", path: "/admin/cms/pages" },

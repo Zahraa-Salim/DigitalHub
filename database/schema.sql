@@ -18,6 +18,13 @@ ADD COLUMN IF NOT EXISTS meta_description TEXT;
 ALTER TABLE IF EXISTS programs
 ADD COLUMN IF NOT EXISTS featured_image_url TEXT;
 
+-- Programs: Add color scheme and icon for cohort cards
+ALTER TABLE IF EXISTS programs
+ADD COLUMN IF NOT EXISTS color_scheme_id INTEGER DEFAULT 1 CHECK (color_scheme_id >= 1 AND color_scheme_id <= 6);
+
+ALTER TABLE IF EXISTS programs
+ADD COLUMN IF NOT EXISTS icon_class TEXT DEFAULT 'fa-code';
+
 CREATE INDEX IF NOT EXISTS idx_programs_featured
   ON programs (featured, featured_rank) WHERE featured = TRUE;
 

@@ -300,14 +300,23 @@ textarea.afp-input {
   border-color: var(--accent, #4361ee); color: var(--accent, #4361ee);
 }
 
+.afp-btn--secondary {
+  background: #eef2ff; color: var(--accent, #4361ee);
+  border-color: #c7d2fe;
+}
+.afp-btn--secondary:hover {
+  background: #dfe7ff; border-color: #a5b4fc;
+}
+
 .afp-btn--danger:hover {
   background: #fff5f5; color: #c53030; border-color: #fecaca;
 }
 
-/* ── Autosave notice ────────────────────────────────────────── */
-.afp-autosave-note {
-  font-size: 0.8rem; color: var(--text-muted, #a0aec0); text-align: center;
-  padding: 13px 24px; margin: 0; border-top: 1px solid var(--border, #e2e8f0);
+/* ── Footer actions ─────────────────────────────────────────── */
+.afp-footer-actions {
+  display: flex; justify-content: flex-end;
+  padding: 16px 24px; margin: 0; border-top: 1px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
 }
 
 /* ── Sidebar + panel two-column layout ──────────────────────── */

@@ -17,6 +17,8 @@ import {
 } from "../../lib/api";
 import { ApiError } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
+import { RichTextEditor } from "../../components/RichTextEditor";
+import { getPlainTextFromHtml, insertTokenIntoEditor } from "../../components/RichTextEditor.utils";
 import "../../styles/message-templates.css";
 
 type TemplateDraft = {
@@ -25,6 +27,7 @@ type TemplateDraft = {
   channel: MessageTemplateChannel;
   subject: string;
   body: string;
+  body_html: string;
   is_active: boolean;
   sort_order: number;
 };
@@ -36,6 +39,7 @@ type CreateTemplateDraft = {
   channel: MessageTemplateChannel;
   subject: string;
   body: string;
+  body_html: string;
   is_active: boolean;
   sort_order: number;
 };
@@ -58,6 +62,7 @@ const EMPTY_CREATE_DRAFT: CreateTemplateDraft = {
   channel: "all",
   subject: "",
   body: "Hello {name},\n\n\n\nBest regards,\nDigital Hub Team",
+  body_html: "",
   is_active: true,
   sort_order: 0,
 };
@@ -109,13 +114,51 @@ function normalizeMessageBody(input: string): string {
   );
 }
 
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function textBodyToHtml(input: string): string {
+  const normalized = normalizeMessageBody(input).trim();
+  if (!normalized) return "";
+
+  return normalized
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function normalizeHtmlForComparison(input: string): string {
+  const html = input.trim();
+  if (!html) return "";
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return container.innerHTML.trim();
+}
+
+function slugifyTemplateKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function toDraft(template: MessageTemplate): TemplateDraft {
+  const normalizedBody = normalizeMessageBody(template.body);
   return {
     label: template.label,
     description: template.description ?? "",
     channel: template.channel,
     subject: template.subject ?? "",
-    body: normalizeMessageBody(template.body),
+    body: normalizedBody,
+    body_html: template.body_html?.trim() || textBodyToHtml(normalizedBody),
     is_active: template.is_active,
     sort_order: template.sort_order,
   };
@@ -124,12 +167,15 @@ function toDraft(template: MessageTemplate): TemplateDraft {
 function isDraftDirty(template: MessageTemplate, draft: TemplateDraft | undefined): boolean {
   if (!draft) return false;
   const original = toDraft(template);
+  const originalHtml = normalizeHtmlForComparison(original.body_html);
+  const draftHtml = normalizeHtmlForComparison(draft.body_html);
   return (
     original.label !== draft.label ||
     original.description !== draft.description ||
     original.channel !== draft.channel ||
     original.subject !== draft.subject ||
     original.body !== draft.body ||
+    originalHtml !== draftHtml ||
     original.is_active !== draft.is_active ||
     original.sort_order !== draft.sort_order
   );
@@ -149,11 +195,20 @@ function insertToken(value: string, token: string, start: number, end: number): 
   };
 }
 
+function handleTokenButtonClick(
+  _event: React.MouseEvent<HTMLButtonElement>,
+  insert: () => void,
+) {
+  insert();
+}
+
 export function MessageTemplatesPage() {
   const { toasts, exitingIds, pushToast, dismissToast } = useDashboardToasts();
   const navigate = useNavigate();
   const activeBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const createBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const activeEditorRef = useRef<Parameters<typeof insertTokenIntoEditor>[0] | null>(null);
+  const createEditorRef = useRef<Parameters<typeof insertTokenIntoEditor>[0] | null>(null);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [draftsByKey, setDraftsByKey] = useState<Record<string, TemplateDraft>>({});
   const [activeKey, setActiveKey] = useState("");
@@ -166,6 +221,9 @@ export function MessageTemplatesPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const ensureRichDraftHtml = (draft: Pick<TemplateDraft, "body" | "body_html">) =>
+    draft.body_html.trim() ? draft.body_html : textBodyToHtml(draft.body);
 
   const sortedTemplates = useMemo(
     () => [...templates].sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label)),
@@ -212,6 +270,8 @@ export function MessageTemplatesPage() {
 
   const dirtyCount = useMemo(() => Object.values(dirtyByKey).filter(Boolean).length, [dirtyByKey]);
   const activeIsDirty = activeTemplate ? dirtyByKey[activeTemplate.key] : false;
+  const isCreateRte = createDraft.channel === "email" || createDraft.channel === "all";
+  const isActiveRte = activeDraft ? activeDraft.channel === "email" || activeDraft.channel === "all" : false;
 
   const previewSubject = useMemo(() => {
     if (!activeDraft) return "";
@@ -223,6 +283,13 @@ export function MessageTemplatesPage() {
     () => (activeDraft ? applyPreviewTokens(activeDraft.body) : ""),
     [activeDraft],
   );
+  const previewBodyHtml = useMemo(() => {
+    if (!activeDraft) return "";
+    if (isActiveRte) {
+      return applyPreviewTokens(activeDraft.body_html || textBodyToHtml(activeDraft.body));
+    }
+    return "";
+  }, [activeDraft, isActiveRte]);
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -258,6 +325,24 @@ export function MessageTemplatesPage() {
   }, []);
 
   useEffect(() => {
+    if (!templates.length) return;
+
+    const id = window.setTimeout(() => {
+      setDraftsByKey((current) => {
+        const next = { ...current };
+        templates.forEach((template) => {
+          if (next[template.key]) {
+            next[template.key] = toDraft(template);
+          }
+        });
+        return next;
+      });
+    }, 50);
+
+    return () => window.clearTimeout(id);
+  }, [templates]);
+
+  useEffect(() => {
     if (!filteredTemplates.length) return;
     if (!activeKey || !filteredTemplates.some((template) => template.key === activeKey)) {
       setActiveKey(filteredTemplates[0].key);
@@ -275,6 +360,10 @@ export function MessageTemplatesPage() {
       pushToast("success", success);
     }
   }, [pushToast, success]);
+
+  useEffect(() => {
+    activeEditorRef.current = null;
+  }, [activeKey]);
 
   const setDraftField = <K extends keyof TemplateDraft>(key: string, field: K, value: TemplateDraft[K]) => {
     setDraftsByKey((current) => {
@@ -301,7 +390,8 @@ export function MessageTemplatesPage() {
         description: activeDraft.description.trim() || null,
         channel: activeDraft.channel,
         subject: activeDraft.subject.trim() || null,
-        body: activeDraft.body,
+        body: isActiveRte ? (getPlainTextFromHtml(activeDraft.body_html) || activeDraft.body) : activeDraft.body,
+        body_html: isActiveRte && activeDraft.body_html.trim() ? activeDraft.body_html : undefined,
         is_active: activeDraft.is_active,
         sort_order: Number.isFinite(activeDraft.sort_order) ? activeDraft.sort_order : activeTemplate.sort_order,
       });
@@ -327,6 +417,10 @@ export function MessageTemplatesPage() {
   };
 
   const insertCreateToken = (token: string) => {
+    if (isCreateRte && createEditorRef.current) {
+      insertTokenIntoEditor(createEditorRef.current, token);
+      return;
+    }
     const control = createBodyRef.current;
     const start = control?.selectionStart ?? createDraft.body.length;
     const end = control?.selectionEnd ?? createDraft.body.length;
@@ -341,6 +435,10 @@ export function MessageTemplatesPage() {
 
   const insertActiveToken = (token: string) => {
     if (!activeTemplate || !activeDraft) return;
+    if (isActiveRte && activeEditorRef.current) {
+      insertTokenIntoEditor(activeEditorRef.current, token);
+      return;
+    }
     const control = activeBodyRef.current;
     const start = control?.selectionStart ?? activeDraft.body.length;
     const end = control?.selectionEnd ?? activeDraft.body.length;
@@ -354,7 +452,8 @@ export function MessageTemplatesPage() {
   };
 
   const createTemplate = async () => {
-    if (!createDraft.label.trim() || !createDraft.body.trim()) return;
+    const hasContent = isCreateRte ? getPlainTextFromHtml(createDraft.body_html).length > 0 : createDraft.body.trim().length > 0;
+    if (!createDraft.label.trim() || !hasContent) return;
     setCreating(true);
     setError("");
     setSuccess("");
@@ -365,7 +464,8 @@ export function MessageTemplatesPage() {
         description: createDraft.description.trim() || null,
         channel: createDraft.channel,
         subject: createDraft.subject.trim() || null,
-        body: normalizeMessageBody(createDraft.body),
+        body: isCreateRte ? getPlainTextFromHtml(createDraft.body_html) : normalizeMessageBody(createDraft.body),
+        body_html: isCreateRte && createDraft.body_html ? createDraft.body_html : undefined,
         is_active: createDraft.is_active,
         sort_order: Number.isFinite(createDraft.sort_order) ? createDraft.sort_order : 0,
       });
@@ -478,7 +578,16 @@ export function MessageTemplatesPage() {
                   <input
                     className="field__control"
                     value={createDraft.label}
-                    onChange={(event) => setCreateDraft((current) => ({ ...current, label: event.target.value }))}
+                    onChange={(event) =>
+                      setCreateDraft((current) => {
+                        const label = event.target.value;
+                        return {
+                          ...current,
+                          label,
+                          key: current.key || slugifyTemplateKey(label),
+                        };
+                      })
+                    }
                     placeholder="Interview Reminder"
                   />
                 </label>
@@ -498,7 +607,19 @@ export function MessageTemplatesPage() {
                   <select
                     className="field__control"
                     value={createDraft.channel}
-                    onChange={(event) => setCreateDraft((current) => ({ ...current, channel: event.target.value as MessageTemplateChannel }))}
+                    onChange={(event) =>
+                      setCreateDraft((current) => {
+                        const nextChannel = event.target.value as MessageTemplateChannel;
+                        return {
+                          ...current,
+                          channel: nextChannel,
+                          body_html:
+                            nextChannel === "email" || nextChannel === "all"
+                              ? ensureRichDraftHtml(current)
+                              : current.body_html,
+                        };
+                      })
+                    }
                   >
                     <option value="all">All</option>
                     <option value="email">Email</option>
@@ -541,7 +662,7 @@ export function MessageTemplatesPage() {
                   />
                 </label>
 
-                <label className="field field--full">
+                <div className="field field--full">
                   <span className="field__label">Message Body</span>
                   <div className="mtpl-token-actions">
                     <span className="mtpl-token-actions__label">Insert token:</span>
@@ -551,22 +672,33 @@ export function MessageTemplatesPage() {
                         className="mtpl-token-btn"
                         type="button"
                         title={token.purpose}
-                        onClick={() => insertCreateToken(token.token)}
+                        tabIndex={-1}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={(event) => handleTokenButtonClick(event, () => insertCreateToken(token.token))}
                       >
                         {token.token}
                       </button>
                     ))}
                   </div>
-                  <textarea
-                    className="textarea-control"
-                    rows={8}
-                    ref={createBodyRef}
-                    value={createDraft.body}
-                    onChange={(event) =>
-                      setCreateDraft((current) => ({ ...current, body: normalizeMessageBody(event.target.value) }))
-                    }
-                  />
-                </label>
+                  {isCreateRte ? (
+                    <RichTextEditor
+                      value={ensureRichDraftHtml(createDraft)}
+                      onChange={(html) => setCreateDraft((current) => ({ ...current, body_html: html, body: getPlainTextFromHtml(html) }))}
+                      placeholder="Compose your template message..."
+                      onEditorReady={(e) => { createEditorRef.current = e; }}
+                    />
+                  ) : (
+                    <textarea
+                      className="textarea-control"
+                      rows={8}
+                      ref={createBodyRef}
+                      value={createDraft.body}
+                      onChange={(event) =>
+                        setCreateDraft((current) => ({ ...current, body: normalizeMessageBody(event.target.value) }))
+                      }
+                    />
+                  )}
+                </div>
 
                 <label className="checkbox-row field--full">
                   <input
@@ -586,7 +718,7 @@ export function MessageTemplatesPage() {
                   className="btn btn--primary"
                   type="button"
                   onClick={() => void createTemplate()}
-                  disabled={creating || !createDraft.label.trim() || !createDraft.body.trim()}
+                  disabled={creating || !createDraft.label.trim() || (isCreateRte ? getPlainTextFromHtml(createDraft.body_html).length === 0 : !createDraft.body.trim())}
                 >
                   {creating ? "Creating..." : "Create Template"}
                 </button>
@@ -649,7 +781,7 @@ export function MessageTemplatesPage() {
                     type="button"
                     onClick={() => void saveActiveTemplate()}
                     disabled={
-                      savingKey === activeTemplate.key || !activeDraft.label.trim() || !activeDraft.body.trim() || !activeIsDirty
+                      savingKey === activeTemplate.key || !activeDraft.label.trim() || (isActiveRte ? getPlainTextFromHtml(activeDraft.body_html).length === 0 : !activeDraft.body.trim()) || !activeIsDirty
                     }
                   >
                     {savingKey === activeTemplate.key ? "Saving..." : "Save Changes"}
@@ -672,7 +804,24 @@ export function MessageTemplatesPage() {
                   <select
                     className="field__control"
                     value={activeDraft.channel}
-                    onChange={(event) => setDraftField(activeTemplate.key, "channel", event.target.value as MessageTemplateChannel)}
+                    onChange={(event) => {
+                      const nextChannel = event.target.value as MessageTemplateChannel;
+                      setDraftsByKey((current) => {
+                        const existing = current[activeTemplate.key];
+                        if (!existing) return current;
+                        return {
+                          ...current,
+                          [activeTemplate.key]: {
+                            ...existing,
+                            channel: nextChannel,
+                            body_html:
+                              nextChannel === "email" || nextChannel === "all"
+                                ? ensureRichDraftHtml(existing)
+                                : existing.body_html,
+                          },
+                        };
+                      });
+                    }}
                   >
                     <option value="all">All</option>
                     <option value="email">Email</option>
@@ -722,7 +871,7 @@ export function MessageTemplatesPage() {
                   />
                 </label>
 
-                <label className="field field--full">
+                <div className="field field--full">
                   <span className="field__label">Message Body</span>
                   <div className="mtpl-token-actions">
                     <span className="mtpl-token-actions__label">Insert token:</span>
@@ -732,20 +881,35 @@ export function MessageTemplatesPage() {
                         className="mtpl-token-btn"
                         type="button"
                         title={token.purpose}
-                        onClick={() => insertActiveToken(token.token)}
+                        tabIndex={-1}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={(event) => handleTokenButtonClick(event, () => insertActiveToken(token.token))}
                       >
                         {token.token}
                       </button>
                     ))}
                   </div>
-                  <textarea
-                    className="textarea-control"
-                    rows={10}
-                    ref={activeBodyRef}
-                    value={activeDraft.body}
-                    onChange={(event) => setDraftField(activeTemplate.key, "body", normalizeMessageBody(event.target.value))}
-                  />
-                </label>
+                  {isActiveRte ? (
+                    <RichTextEditor
+                      key={activeTemplate.key}
+                      value={ensureRichDraftHtml(activeDraft)}
+                      onChange={(html) => {
+                        setDraftField(activeTemplate.key, "body_html", html);
+                        setDraftField(activeTemplate.key, "body", getPlainTextFromHtml(html));
+                      }}
+                      placeholder="Compose your template message..."
+                      onEditorReady={(e) => { activeEditorRef.current = e; }}
+                    />
+                  ) : (
+                    <textarea
+                      className="textarea-control"
+                      rows={10}
+                      ref={activeBodyRef}
+                      value={activeDraft.body}
+                      onChange={(event) => setDraftField(activeTemplate.key, "body", normalizeMessageBody(event.target.value))}
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="mtpl-preview">
@@ -757,7 +921,14 @@ export function MessageTemplatesPage() {
                 </div>
                 <div className="mtpl-preview__block">
                   <span className="mtpl-preview__label">Body</span>
-                  <p className="mtpl-preview__content mtpl-preview__content--multiline">{previewBody}</p>
+                  {isActiveRte ? (
+                    <div
+                      className="mtpl-preview__content mtpl-preview__content--html"
+                      dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
+                    />
+                  ) : (
+                    <p className="mtpl-preview__content mtpl-preview__content--multiline">{previewBody}</p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -767,4 +938,3 @@ export function MessageTemplatesPage() {
     </PageShell>
   );
 }
-

@@ -114,7 +114,7 @@ export function ProfilesManagersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [visibility, setVisibility] = useState<"all" | "public" | "private">("all");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
-  const [sortBy, setSortBy] = useState<"created_at" | "full_name" | "sort_order">("sort_order");
+  const [sortBy, setSortBy] = useState<"created_at" | "full_name">("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const [editTarget, setEditTarget] = useState<ManagerRow | null>(null);
@@ -311,11 +311,10 @@ export function ProfilesManagersPage() {
               label: "Sort By",
               value: sortBy,
               options: [
-                { label: "Sort Order", value: "sort_order" },
                 { label: "Newest", value: "created_at" },
                 { label: "Name", value: "full_name" },
               ],
-              onChange: (value) => setSortBy(value as "created_at" | "full_name" | "sort_order"),
+              onChange: (value) => setSortBy(value as "created_at" | "full_name"),
             },
             {
               label: "Order",
