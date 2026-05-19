@@ -81,15 +81,27 @@ async function insertStudentProfiles(row: Row, idx: number): Promise<RowResult> 
   const userId = num(row.user_id);
   if (userId === null) return { ok: false, error: `Row ${idx + 1}: user_id is required` };
 
+  const userCheck = await pool.query(
+    "SELECT id FROM users WHERE id = $1 AND is_student = TRUE",
+    [userId],
+  );
+  if (!userCheck.rowCount) {
+    return { ok: false, error: `Row ${idx + 1}: No student user found with user_id = ${userId}. Create the user first via the Users import.` };
+  }
+
+  const cvUrl = str(row.cv_url);
+  const cvUpdatedAt = cvUrl ? new Date().toISOString() : null;
+
   try {
     await pool.query(
       `INSERT INTO student_profiles (
          user_id, full_name, avatar_url, bio, linkedin_url, github_url, portfolio_url,
          public_slug, is_public, featured, featured_rank,
          is_graduated, is_working, open_to_work, company_work_for,
+         cv_url, cv_updated_at,
          created_at, updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          full_name = COALESCE(EXCLUDED.full_name, student_profiles.full_name),
          avatar_url = COALESCE(EXCLUDED.avatar_url, student_profiles.avatar_url),
@@ -105,6 +117,11 @@ async function insertStudentProfiles(row: Row, idx: number): Promise<RowResult> 
          is_working = COALESCE(EXCLUDED.is_working, student_profiles.is_working),
          open_to_work = COALESCE(EXCLUDED.open_to_work, student_profiles.open_to_work),
          company_work_for = COALESCE(EXCLUDED.company_work_for, student_profiles.company_work_for),
+         cv_url = COALESCE(EXCLUDED.cv_url, student_profiles.cv_url),
+         cv_updated_at = CASE
+           WHEN EXCLUDED.cv_url IS NOT NULL THEN NOW()
+           ELSE student_profiles.cv_updated_at
+         END,
          updated_at = NOW()`,
       [
         userId,
@@ -122,11 +139,73 @@ async function insertStudentProfiles(row: Row, idx: number): Promise<RowResult> 
         bool(row.is_working) ?? false,
         bool(row.open_to_work) ?? false,
         str(row.company_work_for),
+        cvUrl,
+        cvUpdatedAt,
       ],
     );
     return { ok: true };
   } catch (e) {
     return { ok: false, error: `Row ${idx + 1}: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+async function insertEnrollments(row: Row, idx: number): Promise<RowResult> {
+  const studentUserId = num(row.student_user_id);
+  const cohortId = num(row.cohort_id);
+
+  if (studentUserId === null) {
+    return { ok: false, error: `Row ${idx + 1}: student_user_id is required and must be a number` };
+  }
+  if (cohortId === null) {
+    return { ok: false, error: `Row ${idx + 1}: cohort_id is required and must be a number` };
+  }
+
+  const userCheck = await pool.query(
+    "SELECT id FROM users WHERE id = $1 AND is_student = TRUE AND is_active = TRUE",
+    [studentUserId],
+  );
+  if (!userCheck.rowCount) {
+    return {
+      ok: false,
+      error: `Row ${idx + 1}: No active student found with user_id = ${studentUserId}. Check the ID or ensure the user is a student.`,
+    };
+  }
+
+  const cohortCheck = await pool.query(
+    "SELECT id, name FROM cohorts WHERE id = $1 AND deleted_at IS NULL",
+    [cohortId],
+  );
+  if (!cohortCheck.rowCount) {
+    return {
+      ok: false,
+      error: `Row ${idx + 1}: No cohort found with cohort_id = ${cohortId}. Export Cohorts to find valid IDs.`,
+    };
+  }
+
+  const allowedStatuses = ["active", "paused", "completed", "dropped"];
+  const status = str(row.status) ?? "active";
+  if (!allowedStatuses.includes(status)) {
+    return {
+      ok: false,
+      error: `Row ${idx + 1}: status must be one of: ${allowedStatuses.join(", ")} — got "${status}"`,
+    };
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO enrollments (student_user_id, cohort_id, status, enrolled_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         updated_at = NOW()`,
+      [studentUserId, cohortId, status],
+    );
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Row ${idx + 1}: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }
 
@@ -318,6 +397,7 @@ async function insertMediaAssets(row: Row, idx: number): Promise<RowResult> {
 const TABLE_HANDLERS: Record<string, (row: Row, idx: number) => Promise<RowResult>> = {
   users: insertUsers,
   student_profiles: insertStudentProfiles,
+  enrollments: insertEnrollments,
   instructor_profiles: insertInstructorProfiles,
   programs: insertPrograms,
   cohorts: insertCohorts,

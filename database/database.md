@@ -106,6 +106,8 @@ This document reflects the database state currently enforced by the codebase:
 - `dropout_reason TEXT`
 - `status_updated_at TIMESTAMPTZ`
 - `status_updated_by BIGINT`
+- `cv_url TEXT` — nullable, stores a URL to the student's CV/resume
+- `cv_updated_at TIMESTAMPTZ` — nullable, updated whenever cv_url is set or changed
 
 ### `instructor_profiles`
 - `skills TEXT`

@@ -263,6 +263,8 @@ async function ensureSoftDeleteColumns(client: typeof pool | DbClient) {
       ALTER TABLE message_templates ADD COLUMN IF NOT EXISTS body_html TEXT;
       ALTER TABLE IF EXISTS theme_tokens
         ADD COLUMN IF NOT EXISTS color_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS cv_url TEXT;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS cv_updated_at TIMESTAMPTZ;
     `);
 }
 

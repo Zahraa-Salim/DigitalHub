@@ -214,6 +214,14 @@ const normalizeExternalUrl = (value: string | null | undefined) => {
   return `https://${raw}`;
 };
 
+const normalizeCvEmbedUrl = (url: string) => {
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  if (driveMatch) {
+    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+  }
+  return url;
+};
+
 const mapPublicStudentToDirectoryItem = (student: PublicStudent, index: number): DirectoryItem => {
   const status = resolveStudentStatus(student);
   const cohorts = normalizeCohorts(student.cohorts);
@@ -283,6 +291,7 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
   const [currentPage, setCurrentPage] = useState(1);
   const [activeStudent, setActiveStudent] = useState<DirectoryItem | null>(null);
   const [activeTeamMember, setActiveTeamMember] = useState<DirectoryItem | null>(null);
+  const [cvViewerUrl, setCvViewerUrl] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, PublicStudentDetail>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -634,16 +643,20 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
   }, [activeStudentSlug, detailCache, profileErrorText]);
 
   useEffect(() => {
-    if (!activeStudent && !activeTeamMember) return;
+    if (!activeStudent && !activeTeamMember && !cvViewerUrl) return;
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActiveStudent(null);
-        setActiveTeamMember(null);
+        if (cvViewerUrl) {
+          setCvViewerUrl(null);
+        } else {
+          setActiveStudent(null);
+          setActiveTeamMember(null);
+        }
       }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [activeStudent, activeTeamMember]);
+  }, [activeStudent, activeTeamMember, cvViewerUrl]);
 
   useEffect(() => {
     if (!activeTeamMember) return;
@@ -689,9 +702,26 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
         .concat(modalProgram ? [modalProgram] : [])
     )
   );
+  const modalCompany = String(activeDetail?.company_work_for || "").trim();
+  const modalStatus = activeStudent?.status || "";
+  const modalCohortName = String(activeStudent?.cohortName || activeDetail?.cohort_name || "").trim();
+
   const modalQuickFacts = [
     modalProgram ? { label: "Current Program", value: modalProgram, modifier: "program" } : null,
-  ].filter(Boolean) as Array<{ label: string; value: string; modifier: string }>;
+    modalCohortName && modalCohortName !== modalProgram
+      ? { label: "Cohort", value: modalCohortName, modifier: "cohort" }
+      : null,
+    modalStatus === "Open to Work"
+      ? { label: "Status", value: "Open to Work", modifier: "is-open" }
+      : null,
+    modalStatus === "Working" && modalCompany
+      ? { label: "Working At", value: modalCompany, modifier: "company" }
+      : null,
+    modalStatus === "Working" && !modalCompany
+      ? { label: "Status", value: "Working", modifier: "is-working" }
+      : null,
+    modalLocation ? { label: "Location", value: modalLocation, modifier: "location" } : null,
+  ].filter((item): item is { label: string; value: string; modifier: string } => Boolean(item));
   const modalAvatar = (() => {
     const fromDetail = String(activeDetail?.avatar_url || "").trim();
     if (fromDetail && !isPlaceholderParticipantAvatar(fromDetail)) {
@@ -1059,6 +1089,55 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
           </div>
         </section>
       )}
+      {cvViewerUrl && (
+        <div
+          className="cv-viewer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="CV viewer"
+          onClick={() => setCvViewerUrl(null)}
+        >
+          <div className="cv-viewer__dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="cv-viewer__toolbar">
+              <a
+                href={cvViewerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="cv-viewer__toolbar-btn"
+                aria-label="Open CV in new tab"
+              >
+                <i className="fas fa-external-link-alt" />
+                Open in tab
+              </a>
+              <a
+                href={cvViewerUrl}
+                download={modalCvFileName}
+                className="cv-viewer__toolbar-btn"
+                aria-label="Download CV"
+              >
+                <i className="fas fa-download" />
+                Download
+              </a>
+              <button
+                type="button"
+                className="cv-viewer__close"
+                onClick={() => setCvViewerUrl(null)}
+                aria-label="Close CV viewer"
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="cv-viewer__frame-wrap">
+              <iframe
+                src={normalizeCvEmbedUrl(cvViewerUrl)}
+                title="CV preview"
+                className="cv-viewer__frame"
+                allow="fullscreen"
+              />
+            </div>
+          </div>
+        </div>
+      )}
       {mode === "participants" && activeStudent && (
         <div className="people-modal" role="dialog" aria-modal="true" onClick={() => setActiveStudent(null)}>
           <div className="people-modal__dialog" onClick={(event) => event.stopPropagation()}>
@@ -1079,7 +1158,19 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
                 </div>
                 <div className="people-modal__identity">
                   <h3>{modalName}</h3>
-                  <p>Participant</p>
+                  <p>{String(activeDetail?.headline || activeStudent?.role || "Participant").trim()}</p>
+                  {activeStudent && activeStudent.status !== "Participant" ? (
+                    <span className={`people-modal__identity-badge ${statusClassName(activeStudent.status)}`}>
+                      {activeStudent.status}
+                    </span>
+                  ) : null}
+                  {(modalProgram || modalCohortName) ? (
+                    <small>
+                      {[modalProgram, modalCohortName !== modalProgram ? modalCohortName : ""]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                  ) : null}
                 </div>
               </div>
 
@@ -1213,9 +1304,13 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
                   <div className="people-modal__cv-actions">
                     {modalCvUrl ? (
                       <>
-                        <a href={modalCvUrl} target="_blank" rel="noreferrer" className="people-modal__action-btn people-modal__action-btn--ghost">
+                        <button
+                          type="button"
+                          className="people-modal__action-btn people-modal__action-btn--ghost"
+                          onClick={() => setCvViewerUrl(modalCvUrl)}
+                        >
                           {viewCvText}
-                        </a>
+                        </button>
                         <a href={modalCvUrl} download={modalCvFileName} className="people-modal__action-btn people-modal__action-btn--ghost">
                           {downloadCvText}
                         </a>

@@ -124,6 +124,7 @@ export const updateStudentProfileBodySchema = z.object({
   is_working: z.boolean().optional(),
   open_to_work: z.boolean().optional(),
   company_work_for: z.union([z.literal(""), z.string().trim().max(120)]).nullable().optional(),
+  cv_url: z.union([z.literal(""), urlOrUploadPath]).nullable().optional(),
   add_cohort_ids: z.array(z.number().int().positive()).optional(),
   remove_cohort_ids: z.array(z.number().int().positive()).optional(),
 })
@@ -174,6 +175,7 @@ export const studentCreateSchema = z
     is_working: z.boolean().optional(),
     open_to_work: z.boolean().optional(),
     company_work_for: z.string().trim().nullable().optional(),
+    cv_url: z.union([z.literal(""), urlOrUploadPath]).nullable().optional(),
   })
   .strict()
   .refine(

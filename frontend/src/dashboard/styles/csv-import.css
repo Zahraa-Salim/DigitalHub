@@ -400,19 +400,100 @@
   color: #b45309;
 }
 
+/* ── Three-state import result card ──────────────────────────────────────── */
 .csv-result-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 18px;
+  gap: 16px;
+  padding: 20px;
   border-radius: 14px;
   border: 1px solid rgba(34, 197, 94, 0.22);
   background: rgba(34, 197, 94, 0.06);
 }
 
+.csv-result-card--success {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.07);
+}
+
+.csv-result-card--partial {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.csv-result-card--failed {
+  border-color: rgba(229, 62, 62, 0.22);
+  background: rgba(229, 62, 62, 0.06);
+}
+
+.csv-result-card__stats {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.csv-result-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.csv-result-card__stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-primary, #1a202c);
+}
+
+.csv-result-card__stat--failed .csv-result-card__stat-value {
+  color: #c53030;
+}
+
+.csv-result-card__stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #718096);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.csv-result-card__summary {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+}
+
+.csv-result-card__error-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(229, 62, 62, 0.06);
+  border: 1px solid rgba(229, 62, 62, 0.14);
+}
+
+.csv-result-card__error-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c53030;
+}
+
 .csv-result-card__errors {
   margin: 0;
   padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-primary, #1a202c);
+}
+
+.csv-result-card__download-btn {
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
 @media (max-width: 900px) {

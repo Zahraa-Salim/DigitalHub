@@ -117,6 +117,37 @@ const EXPORTABLE_SOURCES: ExportableSource[] = [
       { key: "capacity", label: "Capacity", getValue: (r) => r.capacity ?? "" },
     ],
   },
+  {
+    key: "students_with_ids",
+    label: "Students (with IDs)",
+    group: "People & Profiles",
+    endpoint: "/profiles/students?page=1&limit=5000&sortBy=created_at&order=desc",
+    columns: [
+      { key: "user_id", label: "User ID", getValue: (r) => r.user_id ?? "" },
+      { key: "full_name", label: "Full Name", getValue: (r) => r.full_name ?? "" },
+      { key: "email", label: "Email", getValue: (r) => r.email ?? "" },
+      { key: "phone", label: "Phone", getValue: (r) => r.phone ?? "" },
+      { key: "cv_url", label: "CV URL", getValue: (r) => r.cv_url ?? "" },
+      { key: "admin_status", label: "Admin Status", getValue: (r) => r.admin_status ?? "" },
+      { key: "is_public", label: "Is Public", getValue: (r) => r.is_public ? "true" : "false" },
+      { key: "is_graduated", label: "Is Graduated", getValue: (r) => r.is_graduated ? "true" : "false" },
+      { key: "created_at", label: "Created At", getValue: (r) => r.created_at ?? "" },
+    ],
+  },
+  {
+    key: "cohorts_with_ids",
+    label: "Cohorts (with IDs)",
+    group: "Operations",
+    endpoint: "/cohorts?page=1&limit=500&sortBy=created_at&order=desc",
+    columns: [
+      { key: "id", label: "Cohort ID", getValue: (r) => r.id ?? "" },
+      { key: "name", label: "Name", getValue: (r) => r.name ?? "" },
+      { key: "program_title", label: "Program", getValue: (r) => r.program_title ?? "" },
+      { key: "status", label: "Status", getValue: (r) => r.status ?? "" },
+      { key: "start_date", label: "Start Date", getValue: (r) => r.start_date ?? "" },
+      { key: "end_date", label: "End Date", getValue: (r) => r.end_date ?? "" },
+    ],
+  },
 ];
 
 function toCsvCell(value: unknown): string {
@@ -218,6 +249,12 @@ async function fetchAllAttendanceSessions(
 type Step = 1 | 2 | 3 | 4;
 type ExportStep = 1 | 2 | 3;
 
+type PreflightRow = {
+  rowIndex: number;
+  originalRow: Record<string, string>;
+  errors: string[];
+};
+
 type ImportState = {
   step: Step;
   fileName: string;
@@ -230,6 +267,7 @@ type ImportState = {
   importing: boolean;
   importResult: { inserted: number; skipped: number; errors: string[] } | null;
   importError: string | null;
+  preflightFailed: PreflightRow[];
 };
 
 const INITIAL_STATE: ImportState = {
@@ -244,6 +282,7 @@ const INITIAL_STATE: ImportState = {
   importing: false,
   importResult: null,
   importError: null,
+  preflightFailed: [],
 };
 
 const STEPS: Array<{ step: Step; label: string }> = [
@@ -302,6 +341,58 @@ function getMappedDbColumns(headers: string[], mapping: Record<string, string>, 
   });
 
   return result;
+}
+
+function runPreflightValidation(
+  csvRows: Record<string, string>[],
+  mapping: Record<string, string>,
+  dbColumns: DbColumn[],
+): { validMappedRows: Record<string, unknown>[]; failedRows: PreflightRow[] } {
+  const dbColByKey = new Map(dbColumns.map((col) => [col.key, col]));
+  const activeMapping = Object.fromEntries(Object.entries(mapping).filter(([, dbCol]) => Boolean(dbCol)));
+  const allMapped = applyMapping(csvRows, activeMapping, dbColumns);
+
+  const validMappedRows: Record<string, unknown>[] = [];
+  const failedRows: PreflightRow[] = [];
+
+  csvRows.forEach((originalRow, index) => {
+    const mappedRow = allMapped[index];
+    const errors: string[] = [];
+
+    for (const [csvCol, dbColKey] of Object.entries(activeMapping)) {
+      const def = dbColByKey.get(dbColKey);
+      if (!def) continue;
+
+      const rawValue = (originalRow[csvCol] ?? "").trim();
+      const mappedValue = mappedRow[dbColKey];
+
+      if (def.required && (mappedValue === null || mappedValue === undefined || mappedValue === "")) {
+        errors.push(`"${def.label}" is required but empty`);
+      } else if (def.type === "number" && rawValue !== "" && mappedValue === null) {
+        errors.push(`"${def.label}" must be a valid number (got "${rawValue}")`);
+      }
+    }
+
+    if (errors.length > 0) {
+      failedRows.push({ rowIndex: index + 1, originalRow, errors });
+    } else {
+      validMappedRows.push(mappedRow);
+    }
+  });
+
+  return { validMappedRows, failedRows };
+}
+
+function downloadFailedRowsCsv(failedRows: PreflightRow[], csvHeaders: string[], tableKey: string) {
+  if (!failedRows.length) return;
+  const headers = [...csvHeaders, "__errors__"];
+  const lines = failedRows.map((row) => {
+    const values = csvHeaders.map((h) => toCsvCell(row.originalRow[h] ?? ""));
+    values.push(toCsvCell(row.errors.join("; ")));
+    return values.join(",");
+  });
+  const csv = [headers.map(toCsvCell).join(","), ...lines].join("\r\n");
+  downloadExportCsv(csv, `failed_rows_${tableKey}_${new Date().toISOString().slice(0, 10)}`);
 }
 
 function StepIndicator({ step }: { step: Step }) {
@@ -1176,34 +1267,47 @@ export function CsvImportPage() {
   const handleImport = async () => {
     if (!selectedTable) return;
 
-    // Filter mapping to only include valid columns for this table
     const validDbColumns = new Set(selectedTable.columns.map((col) => col.key));
     const cleanMapping = Object.fromEntries(
       Object.entries(state.mapping).filter(([, dbColumn]) => validDbColumns.has(dbColumn)),
     );
 
-    const rows = applyMapping(state.csvRows, cleanMapping, selectedTable.columns);
+    const { validMappedRows, failedRows } = runPreflightValidation(
+      state.csvRows,
+      cleanMapping,
+      selectedTable.columns,
+    );
 
     setState((current) => ({
       ...current,
       importing: true,
       importError: null,
       importResult: null,
+      preflightFailed: failedRows,
     }));
+
+    if (validMappedRows.length === 0) {
+      setState((current) => ({
+        ...current,
+        importing: false,
+        importResult: { inserted: 0, skipped: 0, errors: [] },
+      }));
+      return;
+    }
 
     try {
       const result = await api<unknown>("/admin/import", {
         method: "POST",
         body: JSON.stringify({
           table: selectedTable.key,
-          rows,
+          rows: validMappedRows,
         }),
       });
 
       setState((current) => ({
         ...current,
         importing: false,
-        importResult: normalizeImportResult(result, rows.length),
+        importResult: normalizeImportResult(result, validMappedRows.length),
       }));
     } catch (error) {
       let message = "Import failed.";
@@ -1478,20 +1582,83 @@ export function CsvImportPage() {
 
             {state.importError ? <div className="csv-message csv-message--error">{state.importError}</div> : null}
 
-            {state.importResult ? (
-              <div className="csv-result-card">
-                <div><strong>Inserted:</strong> {state.importResult.inserted}</div>
-                <div><strong>Skipped:</strong> {state.importResult.skipped}</div>
-                <div><strong>Errors:</strong> {state.importResult.errors.length}</div>
-                {state.importResult.errors.length > 0 ? (
-                  <ul className="csv-result-card__errors">
-                    {state.importResult.errors.map((error) => (
-                      <li key={error}>{error}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
+            {state.importResult ? (() => {
+              const { inserted, skipped, errors } = state.importResult;
+              const preflightCount = state.preflightFailed.length;
+              const totalFailed = errors.length + preflightCount;
+              const kind: "success" | "partial" | "failed" =
+                totalFailed === 0 ? "success" : inserted > 0 ? "partial" : "failed";
+
+              return (
+                <div className={`csv-result-card csv-result-card--${kind}`}>
+                  <div className="csv-result-card__stats">
+                    <div className="csv-result-card__stat">
+                      <span className="csv-result-card__stat-value">{inserted}</span>
+                      <span className="csv-result-card__stat-label">Inserted</span>
+                    </div>
+                    {skipped > 0 ? (
+                      <div className="csv-result-card__stat">
+                        <span className="csv-result-card__stat-value">{skipped}</span>
+                        <span className="csv-result-card__stat-label">Skipped</span>
+                      </div>
+                    ) : null}
+                    {totalFailed > 0 ? (
+                      <div className="csv-result-card__stat csv-result-card__stat--failed">
+                        <span className="csv-result-card__stat-value">{totalFailed}</span>
+                        <span className="csv-result-card__stat-label">Failed</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <p className="csv-result-card__summary">
+                    {kind === "success"
+                      ? "All rows imported successfully."
+                      : kind === "partial"
+                      ? "Import partially completed — some rows were not imported."
+                      : "No rows were imported. Fix the errors below and try again."}
+                  </p>
+
+                  {preflightCount > 0 ? (
+                    <div className="csv-result-card__error-section">
+                      <p className="csv-result-card__error-heading">
+                        {preflightCount} row{preflightCount !== 1 ? "s" : ""} failed validation before import:
+                      </p>
+                      <ul className="csv-result-card__errors">
+                        {state.preflightFailed.slice(0, 10).map((row) => (
+                          <li key={row.rowIndex}>
+                            Row {row.rowIndex}: {row.errors.join("; ")}
+                          </li>
+                        ))}
+                        {preflightCount > 10 ? <li>…and {preflightCount - 10} more</li> : null}
+                      </ul>
+                      <button
+                        className="csv-button csv-result-card__download-btn"
+                        type="button"
+                        onClick={() =>
+                          downloadFailedRowsCsv(state.preflightFailed, state.csvHeaders, selectedTable.key)
+                        }
+                      >
+                        Download failed rows ({preflightCount})
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {errors.length > 0 ? (
+                    <div className="csv-result-card__error-section">
+                      <p className="csv-result-card__error-heading">
+                        {errors.length} server-side error{errors.length !== 1 ? "s" : ""}:
+                      </p>
+                      <ul className="csv-result-card__errors">
+                        {errors.slice(0, 10).map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                        {errors.length > 10 ? <li>…and {errors.length - 10} more</li> : null}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })() : null}
 
             <div className="csv-actions">
               <button className="csv-button" type="button" onClick={() => setState((current) => ({ ...current, step: 3 }))}>

@@ -1787,6 +1787,36 @@
   line-height: 1.6;
 }
 
+.people-modal__identity-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  align-self: flex-start;
+}
+
+.people-modal__identity-badge.is-open {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+}
+
+.people-modal__identity-badge.is-working {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  border: 1px solid rgba(14, 165, 233, 0.24);
+}
+
+.people-modal__identity-badge.is-neutral {
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
 .people-modal__hero-side {
   display: flex;
   flex-direction: column;
@@ -1905,6 +1935,10 @@
   background: linear-gradient(180deg, #f9fdff 0%, #edf8ff 100%);
 }
 
+.people-modal__summary-card--cohort {
+  background: linear-gradient(180deg, #f9f7ff 0%, #ede9ff 100%);
+}
+
 .people-modal__summary-card--company {
   background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
 }
@@ -1960,6 +1994,110 @@
 
 .people-modal__cv-actions {
   align-items: stretch;
+}
+
+/* ── CV viewer modal ──────────────────────────────────────────────────────── */
+.cv-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 10030;
+  background: rgba(5, 10, 26, 0.86);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.cv-viewer__dialog {
+  width: min(900px, 96vw);
+  height: min(90vh, 860px);
+  display: flex;
+  flex-direction: column;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 32px 72px rgba(0, 0, 0, 0.6);
+}
+
+.cv-viewer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #0d1424;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.cv-viewer__toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #b8cceb;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+
+.cv-viewer__toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.cv-viewer__close {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #b8cceb;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+  flex-shrink: 0;
+}
+
+.cv-viewer__close:hover {
+  background: rgba(220, 50, 50, 0.3);
+  border-color: rgba(220, 50, 50, 0.4);
+  color: #ff8585;
+}
+
+.cv-viewer__frame-wrap {
+  flex: 1;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cv-viewer__frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .cv-viewer {
+    padding: 0;
+  }
+
+  .cv-viewer__dialog {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+  }
 }
 
 @keyframes people-modal-float-in {

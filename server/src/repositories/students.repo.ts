@@ -20,6 +20,8 @@ type StudentProfileUpdates = {
   is_working?: boolean;
   open_to_work?: boolean;
   company_work_for?: string | null;
+  cv_url?: string | null;
+  cv_updated_at?: string | null;
 };
 
 /**
@@ -264,6 +266,14 @@ export async function updateStudentProfile(userId: number, updates: StudentProfi
     values.push(updates.company_work_for || null);
     paramIndex++;
   }
+  if (updates.cv_url !== undefined) {
+    fields.push(`cv_url = $${paramIndex}`);
+    values.push(updates.cv_url || null);
+    paramIndex++;
+    fields.push(`cv_updated_at = $${paramIndex}`);
+    values.push(updates.cv_url ? new Date().toISOString() : null);
+    paramIndex++;
+  }
 
   if (fields.length === 0) {
     return null;
@@ -291,6 +301,8 @@ export async function updateStudentProfile(userId: number, updates: StudentProfi
       is_working,
       open_to_work,
       company_work_for,
+      cv_url,
+      cv_updated_at,
       created_at
     `;
 
@@ -453,6 +465,8 @@ export async function insertStudentProfileWithFields(
     is_working?: boolean;
     open_to_work?: boolean;
     company_work_for?: string | null;
+    cv_url?: string | null;
+    cv_updated_at?: string | null;
   },
   db: DbClient = pool,
 ) {
@@ -474,9 +488,11 @@ export async function insertStudentProfileWithFields(
       is_working,
       open_to_work,
       company_work_for,
+      cv_url,
+      cv_updated_at,
       created_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, NULL, NULL, $9, $10, $11, $12, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, NULL, NULL, $9, $10, $11, $12, $13, $14, NOW())
     ON CONFLICT (user_id) DO UPDATE SET
       full_name = EXCLUDED.full_name,
       avatar_url = EXCLUDED.avatar_url,
@@ -488,7 +504,9 @@ export async function insertStudentProfileWithFields(
       is_graduated = EXCLUDED.is_graduated,
       is_working = EXCLUDED.is_working,
       open_to_work = EXCLUDED.open_to_work,
-      company_work_for = EXCLUDED.company_work_for
+      company_work_for = EXCLUDED.company_work_for,
+      cv_url = COALESCE(EXCLUDED.cv_url, student_profiles.cv_url),
+      cv_updated_at = CASE WHEN EXCLUDED.cv_url IS NOT NULL THEN EXCLUDED.cv_updated_at ELSE student_profiles.cv_updated_at END
     RETURNING *
     `,
     [
@@ -504,6 +522,8 @@ export async function insertStudentProfileWithFields(
       fields.is_working ?? false,
       fields.open_to_work ?? false,
       fields.company_work_for ?? null,
+      fields.cv_url ?? null,
+      fields.cv_updated_at ?? null,
     ],
   );
 }

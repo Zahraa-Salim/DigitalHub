@@ -140,6 +140,7 @@ export async function getPublicStudentBySlug(publicSlug: string, db: DbClient = 
           NULLIF(lc.answers ->> 'certificate', '')
         ) AS certifications,
         COALESCE(
+          NULLIF(sp.cv_url, ''),
           NULLIF(lc.answers ->> 'cv_url', ''),
           NULLIF(lc.answers ->> 'cv', ''),
           NULLIF(lc.answers ->> 'resume_url', ''),
@@ -154,7 +155,7 @@ export async function getPublicStudentBySlug(publicSlug: string, db: DbClient = 
           NULLIF(lc.answers #>> '{cv,name}', ''),
           NULLIF(lc.answers #>> '{resume,name}', '')
         ) AS cv_file_name,
-        lc.application_submitted_at AS cv_updated_at
+        COALESCE(sp.cv_updated_at, lc.application_submitted_at) AS cv_updated_at
       FROM student_profiles sp
       LEFT JOIN users u ON u.id = sp.user_id
       LEFT JOIN LATERAL (

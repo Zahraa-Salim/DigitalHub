@@ -490,6 +490,8 @@ export async function createStudentProfileService(actorUserId: number, payload: 
                 is_working: Boolean(payload.is_working),
                 open_to_work: Boolean(payload.open_to_work),
                 company_work_for: normalizeOptionalText(payload.company_work_for),
+                cv_url: normalizeOptionalText(payload.cv_url),
+                cv_updated_at: payload.cv_url ? new Date().toISOString() : null,
             }, client);
             await upsertEnrollmentFromProgramApplication(userId, cohortId, client);
             await logAdminAction({
@@ -604,6 +606,8 @@ function toPublicStudentProfileResponse(profileRow: StudentProfileRow, projects:
       open_to_work: Boolean(profileRow.open_to_work),
       company_work_for: profileRow.company_work_for ?? null,
       featured: Boolean(profileRow.featured),
+      cv_url: profileRow.cv_url ?? null,
+      cv_updated_at: profileRow.cv_updated_at ?? null,
     },
     projects: projects.map((p: StudentProject) => ({
       id: p.id,
@@ -733,6 +737,12 @@ export async function updateStudentProfileAdmin(adminUserId: number, targetUserI
         profilePayload[key] = value === "" ? null : value;
       }
     });
+
+    if ('cv_url' in profilePayload) {
+      profilePayload.cv_updated_at = profilePayload.cv_url
+        ? new Date().toISOString()
+        : null;
+    }
 
     // Update users row for email/phone if provided
     if (hasEmailChange || hasPhoneChange) {

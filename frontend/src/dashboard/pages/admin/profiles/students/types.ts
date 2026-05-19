@@ -36,6 +36,8 @@ export type StudentRow = {
   created_at: string;
   email: string | null;
   phone: string | null;
+  cv_url: string | null;
+  cv_updated_at: string | null;
   is_active: boolean;
   cohorts: StudentCohort[] | null;
 };

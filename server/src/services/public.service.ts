@@ -327,6 +327,7 @@ const studentsConfig = {
             NULLIF(lc.answers ->> 'certificate', '')
           ) AS certifications,
           COALESCE(
+            NULLIF(sp.cv_url, ''),
             NULLIF(lc.answers ->> 'cv_url', ''),
             NULLIF(lc.answers ->> 'cv', ''),
             NULLIF(lc.answers ->> 'resume_url', ''),
@@ -341,7 +342,7 @@ const studentsConfig = {
             NULLIF(lc.answers #>> '{cv,name}', ''),
             NULLIF(lc.answers #>> '{resume,name}', '')
           ) AS cv_file_name,
-          lc.application_submitted_at AS cv_updated_at
+          COALESCE(sp.cv_updated_at, lc.application_submitted_at) AS cv_updated_at
         `,
         sortPrefix: "sp",
     },

@@ -46,6 +46,36 @@ export const IMPORTABLE_TABLES: ImportableTable[] = [
       { key: "is_working", label: "Is Working", required: false, type: "boolean" },
       { key: "open_to_work", label: "Open to Work", required: false, type: "boolean" },
       { key: "company_work_for", label: "Company", required: false, type: "text" },
+      { key: "cv_url", label: "CV URL", required: false, type: "text",
+        hint: "Public link to CV — Google Drive, Dropbox, OneDrive, or direct URL" },
+    ],
+  },
+  {
+    key: "enrollments",
+    label: "Enrollments",
+    group: "People & Profiles",
+    columns: [
+      {
+        key: "student_user_id",
+        label: "Student User ID",
+        required: true,
+        type: "number",
+        hint: "The user_id of the student — export Students to find these IDs",
+      },
+      {
+        key: "cohort_id",
+        label: "Cohort ID",
+        required: true,
+        type: "number",
+        hint: "The numeric ID of the cohort — export Cohorts to find these IDs",
+      },
+      {
+        key: "status",
+        label: "Enrollment Status",
+        required: false,
+        type: "text",
+        hint: "active / paused / completed / dropped — defaults to active",
+      },
     ],
   },
   {
