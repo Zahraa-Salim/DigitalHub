@@ -61,6 +61,8 @@ export async function getStudentProfileWithUser(userId: number, db: DbClient = p
       sp.dropout_reason,
       sp.status_updated_at,
       sp.status_updated_by,
+      sp.cv_url,
+      sp.cv_updated_at,
       sp.created_at as profile_created_at
     FROM users u
     JOIN student_profiles sp ON sp.user_id = u.id
@@ -125,7 +127,9 @@ export async function getPublicStudentProfileBySlug(publicSlug: string, db: DbCl
       is_graduated,
       is_working,
       open_to_work,
-      company_work_for
+      company_work_for,
+      cv_url,
+      cv_updated_at
     FROM student_profiles
     WHERE public_slug = $1
       AND is_public = true

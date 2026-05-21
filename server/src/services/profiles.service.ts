@@ -573,6 +573,8 @@ function toStudentProfileResponse(userRow: StudentProfileRow, profileRow: Studen
       dropout_reason: profileRow.dropout_reason ?? null,
       status_updated_at: profileRow.status_updated_at ?? null,
       status_updated_by: profileRow.status_updated_by ?? null,
+      cv_url: profileRow.cv_url ?? null,
+      cv_updated_at: profileRow.cv_updated_at ?? null,
     },
     projects: projects.map((p: StudentProject) => ({
       id: p.id,

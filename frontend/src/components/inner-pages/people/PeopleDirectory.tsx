@@ -222,6 +222,18 @@ const normalizeCvEmbedUrl = (url: string) => {
   return url;
 };
 
+const isEmbeddable = (url: string): boolean => {
+  try {
+    const { hostname, pathname } = new URL(url);
+    if (/onedrive\.live\.com|1drv\.ms|sharepoint\.com/.test(hostname)) return false;
+    if (/dropbox\.com/.test(hostname)) return false;
+    if (/\.(docx?|pptx?|xlsx?)$/i.test(pathname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const mapPublicStudentToDirectoryItem = (student: PublicStudent, index: number): DirectoryItem => {
   const status = resolveStudentStatus(student);
   const cohorts = normalizeCohorts(student.cohorts);
@@ -1091,19 +1103,19 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
       )}
       {cvViewerUrl && (
         <div
-          className="cv-viewer"
+          className="cv-viewer-overlay"
           role="dialog"
           aria-modal="true"
           aria-label="CV viewer"
           onClick={() => setCvViewerUrl(null)}
         >
-          <div className="cv-viewer__dialog" onClick={(event) => event.stopPropagation()}>
-            <div className="cv-viewer__toolbar">
+          <div className="cv-viewer-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="cv-viewer-header">
               <a
                 href={cvViewerUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="cv-viewer__toolbar-btn"
+                className="cv-viewer-header-btn"
                 aria-label="Open CV in new tab"
               >
                 <i className="fas fa-external-link-alt" />
@@ -1112,7 +1124,7 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
               <a
                 href={cvViewerUrl}
                 download={modalCvFileName}
-                className="cv-viewer__toolbar-btn"
+                className="cv-viewer-header-btn"
                 aria-label="Download CV"
               >
                 <i className="fas fa-download" />
@@ -1120,21 +1132,28 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
               </a>
               <button
                 type="button"
-                className="cv-viewer__close"
+                className="cv-viewer-header-close"
                 onClick={() => setCvViewerUrl(null)}
                 aria-label="Close CV viewer"
               >
                 <i className="fas fa-times" />
               </button>
             </div>
-            <div className="cv-viewer__frame-wrap">
-              <iframe
-                src={normalizeCvEmbedUrl(cvViewerUrl)}
-                title="CV preview"
-                className="cv-viewer__frame"
-                allow="fullscreen"
-              />
-            </div>
+            {isEmbeddable(cvViewerUrl) ? (
+              <div className="cv-viewer-frame-wrap">
+                <iframe
+                  src={normalizeCvEmbedUrl(cvViewerUrl)}
+                  title="CV preview"
+                  className="cv-viewer-iframe"
+                  allow="fullscreen"
+                />
+              </div>
+            ) : (
+              <div className="cv-viewer-unavailable">
+                <i className="fas fa-file-alt" />
+                <p>Preview is not available for this file type. Use the buttons above to open or download the CV.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
