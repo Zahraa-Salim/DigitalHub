@@ -18,6 +18,7 @@ import {
 } from "@/lib/publicApi";
 import { useCmsPage } from "@/hooks/useCmsPage";
 import { getCmsNumber, getCmsString } from "@/lib/cmsContent";
+import { getCvPreviewUrl, resolveCvUrl } from "@/lib/cvUrl";
 import type { PeopleMode } from "@/data/mock/peopleDirectoryData";
 import ReactPaginate from "react-paginate";
 import { useEffect, useMemo, useState } from "react";
@@ -205,6 +206,7 @@ const toInitials = (fullName: string) => {
   return value ? value.toUpperCase() : "DH";
 };
 
+
 const normalizeExternalUrl = (value: string | null | undefined) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -212,26 +214,6 @@ const normalizeExternalUrl = (value: string | null | undefined) => {
     return raw;
   }
   return `https://${raw}`;
-};
-
-const normalizeCvEmbedUrl = (url: string) => {
-  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
-  if (driveMatch) {
-    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
-  }
-  return url;
-};
-
-const isEmbeddable = (url: string): boolean => {
-  try {
-    const { hostname, pathname } = new URL(url);
-    if (/onedrive\.live\.com|1drv\.ms|sharepoint\.com/.test(hostname)) return false;
-    if (/dropbox\.com/.test(hostname)) return false;
-    if (/\.(docx?|pptx?|xlsx?)$/i.test(pathname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 const mapPublicStudentToDirectoryItem = (student: PublicStudent, index: number): DirectoryItem => {
@@ -702,7 +684,7 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
   const modalLinkedin = String(activeDetail?.linkedin_url || activeStudent?.linkedinUrl || "").trim();
   const modalGithub = String(activeDetail?.github_url || activeStudent?.githubUrl || "").trim();
   const modalPortfolio = String(activeDetail?.portfolio_url || activeStudent?.portfolioUrl || "").trim();
-  const modalCvUrl = resolveAssetUrl(activeDetail?.cv_url || activeStudent?.cvUrl);
+  const modalCvUrl = resolveCvUrl(activeDetail?.cv_url || activeStudent?.cvUrl);
   const modalCvFileName = buildDownloadName(modalName, activeDetail?.cv_file_name || activeStudent?.cvFileName);
   const modalCvUpdated = formatDate(activeDetail?.cv_updated_at || activeStudent?.cvUpdatedAt);
   const modalProjects = Array.isArray(activeDetail?.projects) ? activeDetail.projects : [];
@@ -754,33 +736,25 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
         className={`people-card people-card--participant ${isFeaturedHome ? "people-card--featured-home" : ""}`}
         data-aos="fade-up"
         data-aos-delay={(index % 3) * 100}
+        onClick={() => setActiveStudent(item)}
+        style={{ cursor: "pointer" }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveStudent(item); }}
+        aria-label={`View ${item.name} profile`}
       >
         <div className="people-card__head people-card__head--participant">
-          <button
-            type="button"
-            className="people-card__avatar-btn"
-            onClick={() => setActiveStudent(item)}
-            aria-label={`View ${item.name} profile`}
-          >
-            <div className="people-card__avatar">
-              {item.avatar ? (
-                <Image src={item.avatar} alt={item.name} />
-              ) : (
-                <span className="people-card__avatar-fallback" aria-hidden="true">
-                  {toInitials(item.name)}
-                </span>
-              )}
-            </div>
-          </button>
-
+          <div className="people-card__avatar">
+            {item.avatar ? (
+              <Image src={item.avatar} alt={item.name} />
+            ) : (
+              <span className="people-card__avatar-fallback" aria-hidden="true">
+                {toInitials(item.name)}
+              </span>
+            )}
+          </div>
           <div className="people-card__identity">
-            <button
-              type="button"
-              className="people-card__name-btn people-card__name-btn--inline"
-              onClick={() => setActiveStudent(item)}
-            >
-              <h4 className="people-card__name">{item.name}</h4>
-            </button>
+            <h4 className="people-card__name">{item.name}</h4>
             {showWorkBadge ? (
               <span className={`people-card__status people-card__status--stacked ${statusClassName(item.status)}`}>{item.status}</span>
             ) : null}
@@ -794,9 +768,27 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
             ? topSkills.map((skill) => <span key={`${item.id}-${skill}`}>{skill}</span>)
             : <span>{item.secondaryTag}</span>}
         </div>
+
+        {item.cvUrl ? (
+          <div className="people-card__cv-row">
+            <button
+              type="button"
+              className="people-card__cv-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCvViewerUrl(resolveCvUrl(item.cvUrl!));
+              }}
+              aria-label={`View CV for ${item.name}`}
+            >
+              View CV
+            </button>
+          </div>
+        ) : null}
       </article>
     );
   };
+
+  const cvPreviewUrl = getCvPreviewUrl(cvViewerUrl);
 
   return (
     <>
@@ -1139,21 +1131,23 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
                 <i className="fas fa-times" />
               </button>
             </div>
-            {isEmbeddable(cvViewerUrl) ? (
-              <div className="cv-viewer-frame-wrap">
+            <div className="cv-viewer-frame-wrap">
+              {cvPreviewUrl ? (
                 <iframe
-                  src={normalizeCvEmbedUrl(cvViewerUrl)}
+                  src={cvPreviewUrl}
                   title="CV preview"
                   className="cv-viewer-iframe"
                   allow="fullscreen"
                 />
-              </div>
-            ) : (
-              <div className="cv-viewer-unavailable">
-                <i className="fas fa-file-alt" />
-                <p>Preview is not available for this file type. Use the buttons above to open or download the CV.</p>
-              </div>
-            )}
+              ) : (
+                <div className="cv-viewer-unavailable">
+                  <p>Preview is not available for this file in local development.</p>
+                  <a href={cvViewerUrl} target="_blank" rel="noreferrer" className="cv-viewer-header-btn">
+                    Open in tab
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1307,44 +1301,33 @@ const PeopleDirectory = ({ mode, variant = "page", content = null }: PeopleDirec
                   </section>
                 )}
 
-                {modalPrograms.length > 0 && (
-                  <section className="people-modal__panel people-modal__panel--wide">
-                    <h4>{programsTitle}</h4>
-                    <div className="people-modal__chips">
-                      {modalPrograms.map((label, index) => <span key={`modal-program-${index}`}>{label}</span>)}
-                    </div>
-                  </section>
-                )}
-
-                <section className="people-modal__panel">
+                <section className="people-modal__panel people-modal__panel--cv">
                   <h4>{cvTitle}</h4>
-                  {!modalCvUrl && <p>{cvMissingText}</p>}
-                  {modalCvUpdated && <small>{cvUpdatedLabel}: {modalCvUpdated}</small>}
-                  <div className="people-modal__cv-actions">
-                    {modalCvUrl ? (
-                      <>
-                        <button
-                          type="button"
-                          className="people-modal__action-btn people-modal__action-btn--ghost"
-                          onClick={() => setCvViewerUrl(modalCvUrl)}
-                        >
-                          {viewCvText}
-                        </button>
-                        <a href={modalCvUrl} download={modalCvFileName} className="people-modal__action-btn people-modal__action-btn--ghost">
-                          {downloadCvText}
-                        </a>
-                      </>
-                    ) : (
-                      <>
-                        <button type="button" className="people-modal__action-btn people-modal__action-btn--ghost is-disabled" disabled>
-                          {viewCvText}
-                        </button>
-                        <button type="button" className="people-modal__action-btn people-modal__action-btn--ghost is-disabled" disabled>
-                          {downloadCvText}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {modalCvUpdated && (
+                    <small style={{ color: "#6a7892", fontSize: "0.8rem" }}>
+                      {cvUpdatedLabel}: {modalCvUpdated}
+                    </small>
+                  )}
+                  {!modalCvUrl ? (
+                    <p style={{ color: "#8a9ab8", margin: "0 0 8px", fontSize: "13px" }}>{cvMissingText}</p>
+                  ) : (
+                    <div className="people-modal__cv-footer">
+                      <button
+                        type="button"
+                        className="people-modal__cv-action-btn"
+                        onClick={() => setCvViewerUrl(modalCvUrl)}
+                      >
+                        {viewCvText}
+                      </button>
+                      <a
+                        href={modalCvUrl}
+                        download={modalCvFileName}
+                        className="people-modal__cv-action-btn people-modal__cv-action-btn--outline"
+                      >
+                        {downloadCvText}
+                      </a>
+                    </div>
+                  )}
                 </section>
               </div>
             )}

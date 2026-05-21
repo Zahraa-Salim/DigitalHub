@@ -4,6 +4,7 @@
 
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import type { Request, Response } from "express";
 import { pool } from "../db/index.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
@@ -146,6 +147,141 @@ async function insertStudentProfiles(row: Row, idx: number): Promise<RowResult> 
     return { ok: true };
   } catch (e) {
     return { ok: false, error: `Row ${idx + 1}: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+async function insertStudents(row: Row, idx: number): Promise<RowResult> {
+  const email = str(row.email)?.toLowerCase().trim() ?? null;
+  const fullName = str(row.full_name)?.trim() ?? null;
+
+  if (!email) {
+    return { ok: false, error: `Row ${idx + 1}: email is required` };
+  }
+  if (!fullName) {
+    return { ok: false, error: `Row ${idx + 1}: full_name is required` };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: `Row ${idx + 1}: "${email}" is not a valid email address` };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Step 1: Find or create the user account
+    let userId: number;
+    const existing = await client.query(
+      "SELECT id, is_student FROM users WHERE email = $1 LIMIT 1",
+      [email],
+    );
+
+    if (existing.rowCount && existing.rowCount > 0) {
+      const existingUser = existing.rows[0];
+      userId = Number(existingUser.id);
+
+      if (!existingUser.is_student) {
+        await client.query(
+          "UPDATE users SET is_student = TRUE, updated_at = NOW() WHERE id = $1",
+          [userId],
+        );
+      }
+    } else {
+      const tempPassword = `DH-${randomBytes(8).toString("hex")}`;
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const phone = str(row.phone)?.trim() ?? null;
+
+      const newUser = await client.query(
+        `INSERT INTO users (email, phone, password_hash, is_student, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, TRUE, TRUE, NOW(), NOW())
+         RETURNING id`,
+        [email, phone, passwordHash],
+      );
+      userId = Number(newUser.rows[0].id);
+    }
+
+    // Step 2: Upsert the student_profiles row
+    const cvUrl = str(row.cv_url) ?? null;
+    const cvUpdatedAt = cvUrl ? new Date().toISOString() : null;
+
+    await client.query(
+      `INSERT INTO student_profiles (
+        user_id, full_name, bio, linkedin_url, github_url, portfolio_url,
+        is_public, is_graduated, is_working, open_to_work, company_work_for,
+        cv_url, cv_updated_at, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        full_name        = EXCLUDED.full_name,
+        bio              = COALESCE(NULLIF(EXCLUDED.bio, ''),              student_profiles.bio),
+        linkedin_url     = COALESCE(NULLIF(EXCLUDED.linkedin_url, ''),     student_profiles.linkedin_url),
+        github_url       = COALESCE(NULLIF(EXCLUDED.github_url, ''),       student_profiles.github_url),
+        portfolio_url    = COALESCE(NULLIF(EXCLUDED.portfolio_url, ''),    student_profiles.portfolio_url),
+        is_public        = EXCLUDED.is_public,
+        is_graduated     = EXCLUDED.is_graduated,
+        is_working       = EXCLUDED.is_working,
+        open_to_work     = EXCLUDED.open_to_work,
+        company_work_for = COALESCE(NULLIF(EXCLUDED.company_work_for, ''), student_profiles.company_work_for),
+        cv_url           = CASE
+                             WHEN EXCLUDED.cv_url IS NOT NULL THEN EXCLUDED.cv_url
+                             ELSE student_profiles.cv_url
+                           END,
+        cv_updated_at    = CASE
+                             WHEN EXCLUDED.cv_url IS NOT NULL THEN NOW()
+                             ELSE student_profiles.cv_updated_at
+                           END`,
+      [
+        userId,
+        fullName,
+        str(row.bio) ?? null,
+        str(row.linkedin_url) ?? null,
+        str(row.github_url) ?? null,
+        str(row.portfolio_url) ?? null,
+        bool(row.is_public) ?? false,
+        bool(row.is_graduated) ?? false,
+        bool(row.is_working) ?? false,
+        bool(row.open_to_work) ?? false,
+        str(row.company_work_for) ?? null,
+        cvUrl,
+        cvUpdatedAt,
+      ],
+    );
+
+    // Step 3: Optionally enroll in a cohort
+    const cohortId = num(row.cohort_id);
+    if (cohortId !== null) {
+      const cohortCheck = await client.query(
+        "SELECT id FROM cohorts WHERE id = $1 AND deleted_at IS NULL",
+        [cohortId],
+      );
+      if (!cohortCheck.rowCount) {
+        await client.query("ROLLBACK");
+        return {
+          ok: false,
+          error: `Row ${idx + 1} (${email}): cohort_id = ${cohortId} does not exist. Student account was NOT created — fix the cohort_id and re-import.`,
+        };
+      }
+
+      await client.query(
+        `INSERT INTO enrollments (student_user_id, cohort_id, status, enrolled_at)
+         VALUES ($1, $2, 'active', NOW())
+         ON CONFLICT (student_user_id, cohort_id) DO UPDATE SET
+           status = 'active',
+           updated_at = NOW()`,
+        [userId, cohortId],
+      );
+    }
+
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return {
+      ok: false,
+      error: `Row ${idx + 1} (${email}): ${e instanceof Error ? e.message : String(e)}`,
+    };
+  } finally {
+    client.release();
   }
 }
 
@@ -396,6 +532,7 @@ async function insertMediaAssets(row: Row, idx: number): Promise<RowResult> {
 
 const TABLE_HANDLERS: Record<string, (row: Row, idx: number) => Promise<RowResult>> = {
   users: insertUsers,
+  students: insertStudents,
   student_profiles: insertStudentProfiles,
   enrollments: insertEnrollments,
   instructor_profiles: insertInstructorProfiles,

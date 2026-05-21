@@ -13,6 +13,7 @@ import { useDashboardToasts } from "../../hooks/useDashboardToasts";
 import { ApiError, api, apiList, type PaginationMeta } from "../../utils/api";
 import { formatDateTime } from "../../utils/format";
 import { buildQueryString } from "../../utils/query";
+import { getCvPreviewUrl, resolveCvUrl } from "../../../lib/cvUrl";
 import { Filters } from "./profiles/shared/Filters";
 import { SearchBar } from "./profiles/shared/SearchBar";
 import { StatusPanel } from "./profiles/shared/StatusPanel";
@@ -84,7 +85,6 @@ const initialStudentForm: StudentFormState = {
   open_to_work: false,
 };
 
-
 function rowToEditForm(row: StudentRow): StudentFormState {
   return {
     full_name: row.full_name ?? "",
@@ -125,6 +125,7 @@ export function ProfilesStudentsPage() {
   const [csvExportOpen, setCsvExportOpen] = useState(false);
 
   const [details, setDetails] = useState<StudentRow | null>(null);
+  const [cvViewerUrl, setCvViewerUrl] = useState<string | null>(null);
   const [detailsAttendance, setDetailsAttendance] = useState<StudentAttendanceResponse | null>(null);
   const [loadingDetailsAttendance, setLoadingDetailsAttendance] = useState(false);
   const [detailsAttendanceError, setDetailsAttendanceError] = useState("");
@@ -145,6 +146,11 @@ export function ProfilesStudentsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<StudentFormState>(initialStudentForm);
   const [creating, setCreating] = useState(false);
+
+  const [createCvUploading, setCreateCvUploading] = useState(false);
+  const [createCvMode, setCreateCvMode] = useState<"url" | "file">("url");
+  const [editCvUploading, setEditCvUploading] = useState(false);
+  const [editCvMode, setEditCvMode] = useState<"url" | "file">("url");
 
   // Edit modal state
   const [editTarget, setEditTarget] = useState<StudentRow | null>(null);
@@ -283,6 +289,7 @@ export function ProfilesStudentsPage() {
   const openEditModal = (row: StudentRow) => {
     setEditTarget(row);
     setEditForm(rowToEditForm(row));
+    setEditCvMode("url");
     setEditCurrentCohorts(Array.isArray(row.cohorts) ? row.cohorts : []);
     setEditAddCohortIds([]);
     setEditRemoveCohortIds([]);
@@ -495,6 +502,63 @@ export function ProfilesStudentsPage() {
     }
   };
 
+  const handleCvUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    setForm: React.Dispatch<React.SetStateAction<StudentFormState>>,
+    setUploading: React.Dispatch<React.SetStateAction<boolean>>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      pushToast("error", "Only PDF and Word documents (.pdf, .docx, .doc) are allowed.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      pushToast("error", "File must be 10 MB or less.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1] ?? "");
+        };
+        reader.onerror = () => reject(new Error("Failed to read file."));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await api("/profiles/students/cv", {
+        method: "POST",
+        body: JSON.stringify({
+          filename: file.name,
+          mime_type: file.type,
+          data_base64: base64,
+        }),
+      });
+
+      const cvUrl = (response as { cv_url: string }).cv_url;
+      setForm((c) => ({ ...c, cv_url: cvUrl }));
+      pushToast("success", `CV uploaded: ${file.name}`);
+    } catch (err) {
+      pushToast("error", err instanceof ApiError ? err.message : "Failed to upload CV.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const cvPreviewUrl = getCvPreviewUrl(cvViewerUrl);
+
   return (
     <PageShell
       title="Students"
@@ -680,15 +744,30 @@ export function ProfilesStudentsPage() {
               <h4 className="section-title">CV / Resume</h4>
               {details.cv_url ? (
                 <>
-                  <a
-                    href={details.cv_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn--sm btn--outline"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                  >
-                    Open CV Link ↗
-                  </a>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--primary"
+                      onClick={() => setCvViewerUrl(resolveCvUrl(details.cv_url))}
+                    >
+                      View CV
+                    </button>
+                    <a
+                      href={resolveCvUrl(details.cv_url)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn--sm btn--outline"
+                    >
+                      Open in Tab ↗
+                    </a>
+                    <a
+                      href={resolveCvUrl(details.cv_url)}
+                      download={`${(details.full_name || "student").replace(/\s+/g, "-").toLowerCase()}-cv.pdf`}
+                      className="btn btn--sm btn--outline"
+                    >
+                      Download
+                    </a>
+                  </div>
                   {details.cv_updated_at && (
                     <p style={{ marginTop: 6, color: "var(--text-muted)", fontSize: "0.8rem" }}>
                       Last updated: {formatDateTime(details.cv_updated_at)}
@@ -899,20 +978,47 @@ export function ProfilesStudentsPage() {
                   <label className="field"><span className="field__label">GitHub URL</span><input className="field__control" type="url" value={createForm.github_url} onChange={(e) => setCreateForm((c) => ({ ...c, github_url: e.target.value }))} /></label>
                   <label className="field"><span className="field__label">Portfolio URL</span><input className="field__control" type="url" value={createForm.portfolio_url} onChange={(e) => setCreateForm((c) => ({ ...c, portfolio_url: e.target.value }))} /></label>
                   <label className="field"><span className="field__label">Currently Working At</span><input className="field__control" value={createForm.company_work_for} onChange={(e) => setCreateForm((c) => ({ ...c, company_work_for: e.target.value }))} /></label>
-                  <label className="field">
-                    <span className="field__label">CV / Resume URL</span>
-                    <input
-                      className="field__control"
-                      type="url"
-                      placeholder="https://drive.google.com/file/d/... or any public link"
-                      value={createForm.cv_url}
-                      onChange={(e) => setCreateForm((c) => ({ ...c, cv_url: e.target.value }))}
-                      disabled={creating}
-                    />
-                    <small className="field__hint">
-                      Paste a Google Drive, Dropbox, OneDrive, or direct link. PDF and Word (.docx) links both work.
-                    </small>
-                  </label>
+                  <div className="field">
+                    <span className="field__label">CV / Resume</span>
+                    <div className="cv-field-tabs">
+                      <button type="button" className={`cv-field-tab${createCvMode === "url" ? " is-active" : ""}`} onClick={() => setCreateCvMode("url")}>Paste URL</button>
+                      <button type="button" className={`cv-field-tab${createCvMode === "file" ? " is-active" : ""}`} onClick={() => setCreateCvMode("file")}>Upload File</button>
+                    </div>
+                    {createCvMode === "url" ? (
+                      <>
+                        <input
+                          className="field__control"
+                          type="url"
+                          placeholder="https://drive.google.com/file/d/... or any public link"
+                          value={createForm.cv_url}
+                          onChange={(e) => setCreateForm((c) => ({ ...c, cv_url: e.target.value }))}
+                          disabled={creating}
+                        />
+                        <small className="field__hint">Google Drive, Dropbox, OneDrive, or any direct link.</small>
+                      </>
+                    ) : (
+                      <>
+                        {createForm.cv_url?.startsWith("/uploads/") && (
+                          <p className="cv-field-status">
+                            ✓ Uploaded —{" "}
+                            <a href={resolveCvUrl(createForm.cv_url)} target="_blank" rel="noreferrer">preview</a>
+                            <button type="button" className="cv-field-clear" onClick={() => setCreateForm((c) => ({ ...c, cv_url: "" }))}>✕ Remove</button>
+                          </p>
+                        )}
+                        <label className={`cv-field-upload-btn${createCvUploading ? " is-loading" : ""}`}>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                            style={{ display: "none" }}
+                            disabled={creating || createCvUploading}
+                            onChange={(e) => void handleCvUpload(e, setCreateForm, setCreateCvUploading)}
+                          />
+                          {createCvUploading ? "Uploading…" : "Choose PDF or Word file"}
+                        </label>
+                        <small className="field__hint">Max 10 MB · .pdf, .docx, .doc</small>
+                      </>
+                    )}
+                  </div>
                 </div>
               </section>
 
@@ -1031,20 +1137,47 @@ export function ProfilesStudentsPage() {
                   <label className="field"><span className="field__label">GitHub URL</span><input className="field__control" type="url" value={editForm.github_url} onChange={(e) => setEditForm((c) => ({ ...c, github_url: e.target.value }))} /></label>
                   <label className="field"><span className="field__label">Portfolio URL</span><input className="field__control" type="url" value={editForm.portfolio_url} onChange={(e) => setEditForm((c) => ({ ...c, portfolio_url: e.target.value }))} /></label>
                   <label className="field"><span className="field__label">Currently Working At</span><input className="field__control" value={editForm.company_work_for} onChange={(e) => setEditForm((c) => ({ ...c, company_work_for: e.target.value }))} /></label>
-                  <label className="field">
-                    <span className="field__label">CV / Resume URL</span>
-                    <input
-                      className="field__control"
-                      type="url"
-                      placeholder="https://drive.google.com/file/d/... or any public link"
-                      value={editForm.cv_url}
-                      onChange={(e) => setEditForm((c) => ({ ...c, cv_url: e.target.value }))}
-                      disabled={savingEdit}
-                    />
-                    <small className="field__hint">
-                      Paste a Google Drive, Dropbox, OneDrive, or direct link. PDF and Word (.docx) links both work. Leave empty to remove.
-                    </small>
-                  </label>
+                  <div className="field">
+                    <span className="field__label">CV / Resume</span>
+                    <div className="cv-field-tabs">
+                      <button type="button" className={`cv-field-tab${editCvMode === "url" ? " is-active" : ""}`} onClick={() => setEditCvMode("url")}>Paste URL</button>
+                      <button type="button" className={`cv-field-tab${editCvMode === "file" ? " is-active" : ""}`} onClick={() => setEditCvMode("file")}>Upload File</button>
+                    </div>
+                    {editCvMode === "url" ? (
+                      <>
+                        <input
+                          className="field__control"
+                          type="url"
+                          placeholder="https://drive.google.com/file/d/... or any public link"
+                          value={editForm.cv_url}
+                          onChange={(e) => setEditForm((c) => ({ ...c, cv_url: e.target.value }))}
+                          disabled={savingEdit}
+                        />
+                        <small className="field__hint">Google Drive, Dropbox, OneDrive, or any direct link. Leave empty to remove.</small>
+                      </>
+                    ) : (
+                      <>
+                        {editForm.cv_url?.startsWith("/uploads/") && (
+                          <p className="cv-field-status">
+                            ✓ Uploaded —{" "}
+                            <a href={resolveCvUrl(editForm.cv_url)} target="_blank" rel="noreferrer">preview</a>
+                            <button type="button" className="cv-field-clear" onClick={() => setEditForm((c) => ({ ...c, cv_url: "" }))}>✕ Remove</button>
+                          </p>
+                        )}
+                        <label className={`cv-field-upload-btn${editCvUploading ? " is-loading" : ""}`}>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                            style={{ display: "none" }}
+                            disabled={savingEdit || editCvUploading}
+                            onChange={(e) => void handleCvUpload(e, setEditForm, setEditCvUploading)}
+                          />
+                          {editCvUploading ? "Uploading…" : "Choose PDF or Word file"}
+                        </label>
+                        <small className="field__hint">Max 10 MB · .pdf, .docx, .doc</small>
+                      </>
+                    )}
+                  </div>
                 </div>
               </section>
 
@@ -1067,6 +1200,65 @@ export function ProfilesStudentsPage() {
           </div>
         </div>
       ) : null}
+
+      {cvViewerUrl && (
+        <div
+          className="cv-viewer-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="CV viewer"
+          onClick={() => setCvViewerUrl(null)}
+        >
+          <div className="cv-viewer-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="cv-viewer-header">
+              <a
+                href={cvViewerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="cv-viewer-header-btn"
+                aria-label="Open CV in new tab"
+              >
+                <i className="fas fa-external-link-alt" />
+                Open in tab
+              </a>
+              <a
+                href={cvViewerUrl}
+                download
+                className="cv-viewer-header-btn"
+                aria-label="Download CV"
+              >
+                <i className="fas fa-download" />
+                Download
+              </a>
+              <button
+                type="button"
+                className="cv-viewer-header-close"
+                onClick={() => setCvViewerUrl(null)}
+                aria-label="Close CV viewer"
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="cv-viewer-frame-wrap">
+              {cvPreviewUrl ? (
+                <iframe
+                  src={cvPreviewUrl}
+                  title="CV preview"
+                  className="cv-viewer-iframe"
+                  allow="fullscreen"
+                />
+              ) : (
+                <div className="cv-viewer-unavailable">
+                  <p>Preview is not available for this file in local development.</p>
+                  <a href={cvViewerUrl} target="_blank" rel="noreferrer" className="cv-viewer-header-btn">
+                    Open in tab
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <ToastStack toasts={toasts} exitingIds={exitingIds} onDismiss={dismissToast} />
     </PageShell>

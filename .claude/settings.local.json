@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\CLICK ONCE\\\\OneDrive\\\\سطح المكتب\\\\Courses\\\\projects\\\\digital-hub\" -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

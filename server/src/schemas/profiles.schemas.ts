@@ -151,6 +151,16 @@ export const studentAvatarUploadSchema = z
   })
   .strict();
 
+export const studentCvUploadSchema = z.object({
+  filename: z.string().min(1),
+  mime_type: z.enum([
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ]),
+  data_base64: z.string().min(1),
+});
+
 export const managerAvatarUploadSchema = z
   .object({
     filename: z.string().trim().min(1).max(120).optional(),

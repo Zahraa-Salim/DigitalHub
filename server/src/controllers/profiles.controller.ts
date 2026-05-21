@@ -18,6 +18,7 @@ import {
   setInstructorActivationService,
   uploadInstructorAvatarService,
   uploadStudentAvatarService,
+  uploadStudentCvService,
   updateStudentProfileAdmin,
 } from "../services/profiles.service.js";
 
@@ -177,6 +178,16 @@ export async function postStudentProfile(req: Request, res: Response) {
 export async function postStudentAvatar(req: Request, res: Response) {
   const data = await uploadStudentAvatarService(req.user!.id, req.body);
   sendSuccess(res, data, "Student avatar uploaded successfully.", 201);
+}
+
+/**
+ * POST /profiles/students/cv
+ * Upload a student CV file and return a stored URL.
+ * Admin only access
+ */
+export async function postStudentCv(req: Request, res: Response) {
+  const data = await uploadStudentCvService(req.user!.id, req.body);
+  sendSuccess(res, data, "Student CV uploaded successfully.", 201);
 }
 
 /**

@@ -176,6 +176,14 @@ const AVATAR_MIME_TO_EXT = {
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
+const CV_MIME_TO_EXT: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "doc",
+};
+
+const MAX_CV_BYTES = 10 * 1024 * 1024; // 10 MB
+
 // Handles 'sanitizeFilenamePart' workflow for this module.
 function sanitizeFilenamePart(value: unknown): string {
     return String(value || "avatar")
@@ -454,6 +462,63 @@ export async function uploadStudentAvatarService(actorUserId: number, payload: P
     });
 
     return { avatar_url: avatarUrl };
+}
+
+// Handles 'uploadStudentCvService' workflow for this module.
+export async function uploadStudentCvService(actorUserId: number, payload: ProfilePayload) {
+  const mimeType = String(payload.mime_type || "").trim().toLowerCase();
+  const extension = CV_MIME_TO_EXT[mimeType];
+  if (!extension) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Unsupported file type. Only PDF and Word documents (.pdf, .docx, .doc) are accepted.",
+    );
+  }
+
+  const base64Raw = String(payload.data_base64 || "").trim();
+  if (!base64Raw) {
+    throw new AppError(400, "VALIDATION_ERROR", "File data is required.");
+  }
+
+  const normalizedBase64 = base64Raw.replace(/\s+/g, "");
+  let fileBuffer: Buffer | null = null;
+  try {
+    fileBuffer = Buffer.from(normalizedBase64, "base64");
+  } catch {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid file payload.");
+  }
+
+  if (!fileBuffer || !fileBuffer.length) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid file payload.");
+  }
+
+  if (fileBuffer.length > MAX_CV_BYTES) {
+    throw new AppError(400, "VALIDATION_ERROR", "CV file must be 10 MB or less.");
+  }
+
+  const safeBase = sanitizeFilenamePart(payload.filename);
+  const fileName = `${actorUserId}-${Date.now()}-${randomBytes(8).toString("hex")}-${safeBase}.${extension}`;
+  const cvsDir = path.resolve(process.cwd(), "uploads", "cvs");
+  const filePath = path.join(cvsDir, fileName);
+
+  await fs.promises.mkdir(cvsDir, { recursive: true });
+  await fs.promises.writeFile(filePath, fileBuffer);
+
+  const cvUrl = `/uploads/cvs/${fileName}`;
+
+  await logAdminAction({
+    actorUserId,
+    action: "student cv uploaded",
+    entityType: "student_profiles",
+    entityId: actorUserId,
+    message: `Student CV uploaded by admin ${actorUserId}.`,
+    metadata: { mime_type: mimeType, bytes: fileBuffer.length, cv_url: cvUrl },
+    title: "Student CV Uploaded",
+    body: "CV file uploaded successfully for student profile.",
+  });
+
+  return { cv_url: cvUrl };
 }
 
 // Handles 'createStudentProfileService' workflow for this module.

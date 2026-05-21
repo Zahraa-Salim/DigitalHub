@@ -9,6 +9,7 @@ import Link from "@/components/common/Link";
 import { useEffect, useMemo, useState } from "react";
 import { useCmsPage } from "@/hooks/useCmsPage";
 import { getCmsRecordArray, getCmsString, getCmsStringArray } from "@/lib/cmsContent";
+import { resolveCvUrl } from "@/lib/cvUrl";
 import { API_BASE_URL, listPublicStudents, type PublicStudent } from "@/lib/publicApi";
 
 type Candidate = {
@@ -153,7 +154,7 @@ const mapStudentToCandidate = (student: PublicStudent, index: number): Candidate
       skills.length ? `Core skills include ${skills.slice(0, 3).join(", ")}.` : "Solid communication and collaboration skills.",
     ],
     avatar: resolveAvatarSrc(student.avatar_url, fallbackAvatar),
-    cvUrl: String(student.cv_url || "").trim() || "#",
+    cvUrl: resolveCvUrl(student.cv_url) || "#",
     portfolioUrl: normalizeExternalUrl(student.portfolio_url),
     linkedinUrl: normalizeExternalUrl(student.linkedin_url),
     githubUrl: normalizeExternalUrl(student.github_url),
@@ -251,7 +252,7 @@ const HireTalentArea = () => {
         summary: getCmsString(entry, ["summary"], ""),
         matchNotes: getCmsStringArray(entry, ["matchNotes", "match_notes"], []),
         avatar: getCmsString(entry, ["avatar", "avatar_url", "image"], "/assets/img/instructor/instructor01.png"),
-        cvUrl: getCmsString(entry, ["cvUrl", "cv_url"], "#"),
+        cvUrl: resolveCvUrl(getCmsString(entry, ["cvUrl", "cv_url"], "")) || "#",
         portfolioUrl: getCmsString(entry, ["portfolioUrl", "portfolio_url"], ""),
         linkedinUrl: getCmsString(entry, ["linkedinUrl", "linkedin_url"], ""),
         githubUrl: getCmsString(entry, ["githubUrl", "github_url"], ""),

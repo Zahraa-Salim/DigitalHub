@@ -3,10 +3,10 @@
 // It wires endpoint paths to middleware and controller handlers for this feature area.
 
 import { Router } from "express";
-import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile, postStudentAvatar, postStudentProfile } from "../controllers/profiles.controller.js";
+import { activateInstructor, deactivateInstructor, getInstructorProfiles, getManagerProfiles, getStudentProfiles, patchInstructorProfile, patchInstructorVisibility, patchManagerProfile, patchManagerVisibility, patchStudentStatus, patchStudentVisibility, getStudentProfileHandler, updateStudentProfileHandler, getPublicStudentProfileHandler, postInstructorAvatar, postInstructorProfile, postStudentAvatar, postStudentCv, postStudentProfile } from "../controllers/profiles.controller.js";
 import { verifyAdminAuth } from "../middleware/verifyAdminAuth.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentAvatarUploadSchema, studentCreateSchema, studentStatusPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
+import { emptyProfileBodySchema, instructorAvatarUploadSchema, instructorCreateSchema, instructorPatchSchema, managerPatchSchema, studentAvatarUploadSchema, studentCvUploadSchema, studentCreateSchema, studentStatusPatchSchema, userIdParamsSchema, visibilitySchema, studentUserIdParamsSchema, publicSlugParamsSchema, updateStudentProfileBodySchema } from "../schemas/profiles.schemas.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 const profilesRouter = Router();
 
@@ -37,6 +37,9 @@ profilesRouter.patch("/students/:userId/status", validateRequest({ params: stude
 
 // Admin: POST /profiles/students/avatar - Upload student avatar image
 profilesRouter.post("/students/avatar", validateRequest({ body: studentAvatarUploadSchema }), asyncHandler(postStudentAvatar));
+
+// Admin: POST /profiles/students/cv - Upload student CV file
+profilesRouter.post("/students/cv", validateRequest({ body: studentCvUploadSchema }), asyncHandler(postStudentCv));
 
 // Admin: POST /profiles/students - Create new student (users + student_profiles + enrollment)
 profilesRouter.post("/students", validateRequest({ body: studentCreateSchema }), asyncHandler(postStudentProfile));
